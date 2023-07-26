@@ -1,0 +1,42 @@
+<metadata>
+title = "Rusting Website!"
+id = "websites_in_markdown"
+topic_id = "hidden"
+</metadata>
+<markdown>
+## Quick Prelude, Or about how I really like talking about my projects
+
+I absolutely crawe any and all opportunity to talk about my work. I could explain each and every little aspect of it in great detail, speaking for so long most of my listeners would faint. At the pace things are going, the squirels at the local park may soon start runinng from my rambling, to avoid a grusome fate: death by a thousand words. 
+
+Because of my tendency to say far more than I should, I tended to try and keep the posts about my projects relatively short and cut-dry. I was afraid I would hit any person even remotely interested in them with a wall of words, and make them recosider their curiosity. After finishing my newest project [jtcpp](jtcpp.html), I decided it was time to get out of my comfort zone and write something I wanted to write, and stop fearing faliure. It went better than I expected, since the fact that peopele pointed out small mistakes proved that they at least read it, and the almost 3 digit number of imaginary internet points suggested some peoppele liked it. Knowing that my wrinting is not nearly as bad as I feared, I decided to try and write a little bit more. And in order to write someting, you need *somewhere* to write in.
+
+## Wanting a Website
+
+Channeling my inner dot-com-bubble era investor, I felt like anything and everyting needs a website. Buildings, trees, birds. But especialy me. Of course, how could I **not** need a website! Ridiculus! So, what now? How does one get a website? They don't just grow on trees, do they? I will propably need a hosting, but won't that cost me money? I like money, and don't want it to be gone!
+Once again, channeling my inner greeddy businesman, I decide to do something a real innovative man with great ideas and bright future would do! Copy whatever everyone else is doing!
+
+## Github Pages
+
+Our overlords at Github and its parent company Mircrosoft are feeling particulary benevolent lately! They gave us free website hosting! Sure, it only seems to support static websites, but I don't need anything fancy. What I need is a glorified word document, so Github pages are a great fit. So, I follow the simple instructions, and setup a basic server, with a simple "Hello World" page. Everything works, without any major hicups.
+
+## Making the website!
+
+After snapping out of the webiste-mania, I start to write down what I want I need. I definetly don't want to write any HTML each time I create a new article. Most of my usual work is in markdown: Reddit posts, `README.md`'s and `CONTRIBUTING.d`'s. I feel comfortable with markdown, and should propably stick with it. There is already a solution recomended by github: `Jekyll`. It seems pretty cool, but requires a little bit of setup, and is written in a language I know nothing about. Reinventing the wheel seems like a more interesting option, so lets try and make a static website generator in Rust!
+
+## The part with Rust in it
+
+Even tough I am building a website generator in Rust when I don't need it, I still have some sanity left. So, I totaly did not attempt to parse markdown myself when there is already a crate that does that. Nah-ah. I for sure did not try to reinvent the wheel even harder, creating a Rube Goldberg machine which broke everytime I sneezed. And I for sure did not decide to just scrap it, use the parser someone already made, and just pretended that was the plan all along. Not a chance!
+
+With parsing and converting of the markdown to html taken care of by an external crate, it may seem like there is not much more to do. But, there is! 
+
+## Markdown is great, but not enough
+
+Markdown is a great tool for writing posts and articles, but I need a little bit more. You have propably seen the little `x - y minute read` at the top of the page? You can't really acommplish that with markdown alone, you need a little bit more magic! 
+
+Yes, technicaly you could just write the `x - y minute read` part yourself every time. But what if you change the article? Or just forget to put that little counter in? 
+
+Besides, doing that in the website generator is more fun!
+
+## What is a word?
+I wanted to estimate how long each article would take to read. 
+</markdown>

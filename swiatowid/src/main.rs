@@ -1,6 +1,7 @@
 use clap::*;
 use std::path::{Path,PathBuf};
 use std::io::Read;
+use std::collections::HashMap;
 #[derive(Debug,Parser)]
 struct Args{
     path:PathBuf,
@@ -10,6 +11,7 @@ struct Metadata{
     title:String,
     id:String,
     style:String,
+    topic_id:String,
 }
 impl Metadata{
     fn id(&self)->&str{
@@ -18,11 +20,14 @@ impl Metadata{
     fn title(&self)->&str{
         &self.title
     }
+    fn topic_id(&self)->&str{
+        &self.topic_id
+    }
     fn style(&self)->&str{
         &self.style
     }
    fn from_string(string:&str)->Self{
-        let mut res = Self{title:"Oh no! I forgot to put the title in.".to_string(),id:"".to_string(),style:"default".to_owned()};
+        let mut res = Self{title:"Oh no! I forgot to put the title in.".to_string(),id:"".to_string(),style:"default".to_owned(),topic_id:"misc".to_owned()};
         for line in string.lines(){
             // There are no characters that are not whitespace(thus all are whitespace), skip.
             if !line.chars().any(|c|!c.is_whitespace()){
@@ -38,6 +43,7 @@ impl Metadata{
             match variable{
                 "title"=>res.title = value.split('"').nth(1).expect("Title must be contained between 2 quotation marks!").to_string(),
                 "id"=>res.id = value.split('"').nth(1).expect("ID must be contained between 2 quotation marks!").to_string(),
+                "topic_id"=>res.topic_id = value.split('"').nth(1).expect("ID must be contained between 2 quotation marks!").to_string(),
                 _=>panic!("unknown variable \"{var}\"!",var = variable.escape_debug().to_string())
             }
             //println!("line:{line}");
@@ -104,22 +110,44 @@ impl Article{
         let markdown = first_markdown;
         assert_eq!(metadata.len(),1,"Expected 1 and exactly one metadata field!");
         
-        println!("metadata:{metadata:?},markdown:{markdown:?}");
+        //println!("metadata:{metadata:?},markdown:{markdown:?}");
         Ok(Self{metadata:metadata.into_iter().nth(0).unwrap(),markdown})
     }
     fn id(&self)->&str{
         self.metadata.id()
     }
-    fn to_html(&self)->String{
+    fn topic_id(&self)->&str{
+        self.metadata.topic_id()
+    }
+    fn title(&self)->&str{
+        self.metadata.title()
+    }
+    fn to_html(&self,articles:&[Article])->String{
         let title = self.metadata.title();
         let style = self.metadata.style();
         let head = format!("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>{title}</title><link rel=\"stylesheet\" href=\"{style}.css\"></head>");
         let words = self.markdown.words();
         let time_min = ((words as f32/350.0).floor() as usize).max(1);
         let time_max = ((words as f32/220.0).ceil() as usize).max(2);
-        let article_top = format!("<h1 class=\"display-4\">{title}</h1><br><h6><i>{time_min} - {time_max} minute read</i></h6>");
+        let article_top = format!("<h1 class=\"title\">{title}</h1><br><h6><i>{time_min} - {time_max} minute read</i></h6>");
         let article_html = self.markdown.to_html();
-        let article_html = format!("<div class=\"article\">{article_top}{article_html}</div>");
+        let references = if self.id() == "home"{
+            let mut topics = find_topics(articles);
+            topics.sort_by(|(name_a,_),(name_b,_)|{name_a.cmp(name_b)});  
+            let mut topics_html = String::new();
+            for (topic_id,articles) in topics.iter(){
+                let topic_name = topic_id.replace("_"," ");
+                let mut article_list = String::new();
+                for (article_id,article_name) in articles{
+                    article_list.push_str(&format!("<br><a href=\"{article_id}.html\">{article_name}</a>"));
+                }
+                topics_html.push_str(&format!("<div class = \"topic_field\"><h3>{topic_name}{article_list}<h3></div>"));
+            }
+            format!("<h2>Topics, and articles</h2>{topics_html}")
+        }else{
+            "".to_owned()
+        };
+        let article_html = format!("<div class=\"article\">{article_top}{article_html}{references}</div>");
         let body = format!("<body>{article_html}</body>");
         let final_html = format!("<!DOCTYPE html><html>{head}{body}</html>");
         final_html
@@ -143,7 +171,7 @@ fn write_articles(out_dir:&Path,articles:&[Article])->std::io::Result<()>{
     std::fs::create_dir_all(&out_dir)?;
     for article in articles{
                 use std::io::Write;
-            let html = article.to_html();
+            let html = article.to_html(&articles);
             let mut out_path = (out_dir).to_owned();
             out_path.push(article.id());
             out_path.set_extension("html");
@@ -152,9 +180,19 @@ fn write_articles(out_dir:&Path,articles:&[Article])->std::io::Result<()>{
     }
     Ok(())
 }
+fn find_topics(articles:&[Article])->Box<[(String,Vec<(String,String)>)]>{
+    let mut topics = HashMap::with_capacity(32);
+    for article in articles{
+        if article.topic_id() != "hidden"{
+             topics.entry(article.topic_id().to_owned()).or_insert(Vec::new()).push((article.id().to_owned(),article.title().to_owned()));
+        }   
+    }
+    topics.into_iter().collect::<Box<[_]>>()
+}
 fn main() {
     let args = Args::parse();
     let articles = collect_articles_from_dir(&args.path).unwrap();
+    let topics = find_topics(&articles);
     write_articles(Path::new("../generated_html"),&articles).unwrap();
     println!("Hello, world {args:?}!");
 }

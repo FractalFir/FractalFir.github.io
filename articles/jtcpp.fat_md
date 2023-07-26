@@ -1,6 +1,7 @@
 <metadata>
 title = "Adding some C++ to your coffee - transpling Java to C++"
 id = "jtcpp"
+topic_id = "Compilers, Transpilers and such"
 </metadata>
 <markdown>
 In this little article, I report from my fascinating journery into the innards of JVM, transpliation, and explore how feasible translating Java to C++ automaticaly is
