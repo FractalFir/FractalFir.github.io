@@ -1,6 +1,232 @@
 <metadata>
 title = "Rust that could have been"
 id = "blight_p1"
+category = "hidden"
 </metadata>
 <markdown>
+I often like to think about how the world would look like, had a small change to the history been made. How a seemingly insignificant change could reshape the world into something unrecognizable. 
+But, while most focus on history of mankind, I like to think about more broad changes. How would our world look like, had dinosaurs not went extinct? What would happen if the day was 72 hours long?
+What kind of animals would roam the earth today? How would their evolution diverge from our timeline, to make them better in this strange world? This kind of questions are not exactly brand new, there exist an entire genere of books called [Speculative Evolution](https://en.wikipedia.org/wiki/Speculative_evolution). The only major diference between those books and this article is that the "animal" in question is a programing language, Rust to be precise.
+
+## Programing languages as Species
+
+Programing languages and animals have far more in common than it may seem at first. They both spread their genes further, animals by bringing an new generation onto this world, and programing languages - by inspiring creators of new programing languges to copy some faeatures of the old ones. In both cases, their success depends on how well they fit their niche. None will use a programing language, if it has nothing going for it. An animal that is bad at its job will simply die. There are many other interesting paralells one could make, but this is enough. This is all evolution needs to do its magic: for the *thing* it affect to be able to create inperfect copies, and for natural selection to get rid of those which are not good enoguh.
+
+## Point of divergence. 
+
+So, we have all of the introduction behind us. Lets now chose where our timeline will diverge, what fundamental change will lead to our alternate reality. One, simple difference, that would make all languages of today unrecognizable.
+
+Let us introduce [Forth](https://en.wikipedia.org/wiki/Forth_(programming_language)). 
+It is not a very famous language. It was created in 1970, and has carved a small niche space and astronomy. Why am I bringing it up? It has one unusual characteristic: It is stack-based. What does that mean? 
+Lets look at a simple program which adds two numbers, 17 and 5:
+```FORTH
+	17 5 + .
+```
+Huh? It may seem totaly insane, but it is actualy fairly sensible.
+
+A number literal pushes the number on the stack. So, first we push `17` on the stack.
+
+>| 17 |
+
+Then `5`
+
+>| 17 | 5 |
+
+The + operator then adds the two top numbers from the stack
+
+>| 22 |
+
+and . prints the number from the stack to the terminal.
+After some consideration, while wierd, it makes sense. 
+A more complex program calculating a multiple of sums of two numbers, which we would normaly write like `(5+8)*(9+7)
+```FORTH
+5 8 + 9 7 + *
+```
+And the stack changes like that:
+>| 5 |
+
+>| 5 | 8 |
+
+>| 13 |
+
+>| 13 | 9 |
+
+>| 13 | 9 | 7 |
+
+>| 13 | 16 |
+
+>| 208 |
+
+But why would anyone program like that? Why would you use this seemingly insane notation?
+It has one, huge advantage: As long as each operator takes a fixed ammount of operands(which is the case for all the operators that concern us), it is never ambigious. There is no need for precedence of operators, parnethesis, or anything like that. There is always one, and only one, way to calculate things.
+
+So, let us assume that `Forth` became way more popular in this timeline. That it was the next `C`, and everyone after it just went along with the stack-based approach. How did this happen? Aliens, mass madness, anything. It does not realy matter, whe are here to think how this language would work, not how it came to be.
+
+## Why bother with all of this?
+
+This may seem like a pointless exercise. And to some degree, it is. Something done just for fun. But there is hidden value to this madness. Many studies show that, depending on which (human) lanaguage you use, you view problems diffrently. Your thinking changes, and you can easily see solutions you would not see otherwise. This is an attempt at doing just that, but with code. Who knows what ideas you can get when programing in such a wierd way? 
+
+## Blight
+
+So I decided to call this evil twin of Rust `Blight`. The goal is to keep everything as Rust-like as possible, with the only difference being that `Blight` is stack-based. So lets see how a function adding two intigers looks like in Blight:
+#### Blight
+```Blight
+fn add(i32,i32)->i32{
+   +
+}
+```
+#### Rust
+```rust
+fn add(a:i32,b:i32)->i32{
+   a + b
+}
+```
+We can already see a couple differences: there are no argument names, since arguments are pushed onto the stack. Rust returns the value of last expresion by default, and it translates really well into `Blight`. It simply returns the value on top of the stack at the end of the function. So, lets now make something slightly more complex: calculate the square of a number!
+#### Blight
+```Blight
+fn sqr(i32)->i32{
+   dup *
+}
+```
+#### Rust
+```rust
+fn add(a:i32)->i32{
+   a * a
+}
+```
+You can propably already see the newly introduced keyword `dup`. It simply copies the top value on the stack, changing it from 
+
+>| a |
+
+to
+
+>| a | a |
+
+Relatively strainghtforward.
+
+# Fields, swap and drop
+Lets now try and sum the elements of tuple `(i32,i32)`
+#### Blight
+```Blight
+fn sqr((i32,i32))->i32{
+   .0 swap .1 swap drop + 
+}
+```
+#### Rust
+```rust
+fn add(a:(i32,i32))->i32{
+   a.0 + a.1
+}
+```
+
+Getting fields of types are a relatively simple task. We access fields of the top value on the stack using the `.` operator. The `.` operator does not consume the type the field belongs to (This will simplify a lot of future examples). 
+For type person with field name, writing `.name` would change the stack from
+
+>| person |
+
+to
+
+>| person | person.name |
+
+But what does `swap` do? In the example written in `Blight`, we must first access the field `.0` of `a`. At this point in time, the stack looks like this:
+
+>| tuple | tuple.0 |
+
+But we need the tuple to be on top of the stack to read `.1` field! How do we do that?
+`swap` simply swaps the 2 top values on the stack. So we go from:
+
+> | tuple | tuple.0 |
+
+to:
+
+> | tuple.0 | tuple |
+
+Then we read the field .1 and encounter our next problem: We can't add the values of fields we have just read, because the tuple is in the way!
+
+> | tuple.0 | tuple | tuple.1 |
+
+So what do we do? We `swap` the top 3 elements on the stack, changing it to this:
+
+> | tuple.0 | tuple.1 | tuple |
+
+and then use `drop` to discard the top element of the stack:
+
+> | tuple.0 | tuple.1 |
+
+We then can simply use `+` and get our desired outcome!
+
+> | tuple.0 + tuple.1 |
+
+This was quite tedious to explain, but I feel like after showing the inner workings of this example, you should be able to understand simple programs written in `Blight`. One more thing I would like to mention: `drop` also has all the characteristics of Rusts `drop`. That means it will call the `drop` function if the type implements `Drop`.
+
+# Ifs and branching
+
+Lets now try something slightly harder: Branching. It is pretty hard to see how you could achieve branching in a stack based language. What would happen to the stack? Most of those issues are solved with one constraint: All branches must leave the stack in the exact same state. This means that they all must pop and push the same amount and type of elements onto the stack. Lets now see some examples:
+#### Blight
+```Blight
+fn square_if_even(i32)->i32{
+   dup 2 %
+   0 == if{
+      dup *
+   }else{}
+}
+```
+#### Rust
+```rust
+fn square_if_even(a:i32)->i32{
+   if a%2 == 0{
+   	a*a
+   }
+   else{
+	a
+   }
+}
+```
+`==` operator checks if the top 2 items on the stack are equal. It pushes a boolean `true` if they are, and `false` if they are not. So it changes the stack from
+
+> | a | a % 2 |
+
+to 
+
+> | a | a % 2 == 0 |
+
+`if` looks at the top of the stack, and if the boolean on it is true, executes its body.
+Even if `else` was not present, this example would still be valid, since both branches leave the stack in the exact same state. There is one, and exactly one, `i32` at the end, no matter if the body of the if is executed. 
+The only diference is the exact value of data on the stack.
+#### Blight
+```Blight
+fn float_if_odd(i32)->i32{
+   dup 2 %
+   0 == if{
+      17
+   }else{
+   	8.9
+   }
+}
+```
+This example, however, is not valid, since the type of values on the stack would depend on the condtion of if statement.
+#### Blight
+```Blight
+fn if_even_17(i32)->i32{
+   dup 2 %
+   0 == if{
+      17
+   }else{
+
+   }
+}
+```
+Something like this would be invalid too, since if the condition is true, there would be 2 `i32`s on the stack, instead of one. To make this example valid, we would have to drop a value from the  stack in the if body.
+#### Blight
+```Blight
+fn if_even_17(i32)->i32{
+   dup 2 %
+   0 == if{
+      drop 17
+   }else{
+
+   }
+}
+```
+Now the if is balanced, and both branches leave the stack with exactly one `i32` on top.
 </markdown>
