@@ -1,0 +1,46 @@
+<metadata>
+title = "Shining some Light on Ray Marching"
+id = "ray_marching_1"
+category = "Computer Graphics"
+category = "hidden"
+</metadata>
+<markdown>
+In this article I would like to introduce you to the bright and colorful world of Ray Marching. At the end of this tutorial we will build a pet Ray Marcher in Rust, and use it to render some simple scenes. But first, what even is Ray Marching?
+# Forgotten triplet
+Usually, when we hear about computer graphics, we tend to think about either rasterization, or ray tracing. Rasterization is the one more used in the past: It consists mostly of drawing textured triangles on the screen, and using clever tricks to emulate realistic lighting. The effects may not be as realistic as they could be, but rasterization is really fast.
+
+Ray tracing, on the other hand, is the new kid on the block. It uses mathematical equations to find intersections between triangles and rays of virtual light. Those intersections can be then used to simulate light bouncing in the scene, giving us an externally realistic lighting, with stunning reflections, at the cost of performance. As the number of triangles and ray bounces increases, the sheer amount of compute required to properly simulate the 
+scene increases dramatically.
+
+Then there is Ray Marching, the "forgotten triplet". Often looked over, ignored, and why? Mostly because it is very different from its siblings. Not better, worse, just different. If you try to use it the "normal" way, with meshes made up of triangles, the performance will be... not impressive to say at least. Shovels tend to be terrible at mixing tea, but it does not mean they are useless. You are just using them wrong. 
+
+So, how to use ray marching properly? You have to first accept the fact that you should change your approach. And try to speak it's language: math. Ray Marching sees the world as an enormous math equation. And if you describe the world this way, it will understand, giving you fast and stunning results. It may be significantly harder to model the world using mathematical functions, but it has undeniable advantages. With some clever tricks, your scenes can have near infinite levels of detail, and be almost endless. The only limit will be the precision of data types you are using. 
+
+Are you still skeptical? Does all of this seem too hard to believe? Here are some examples of impressive work done by other people, admittedly a little bit more skilled than I.
+
+![A beautiful image of a rain forest, lush and full of trees, stretches as far as the eye can see. There are mountains in the distance, covered in foggy clouds. The light scatters trough the clouds, coming from the sun behind them.](https://pbs.twimg.com/media/C0QispKVIAMK9VZ.jpg)
+Image by [Inigo Quilez](https://twitter.com/iquilezles/status/811813108574343168)
+
+![A small, reflective ball sits in the middle of an alien looking, red landscape. The ball sits on a crossroads of relatively flat terrain, and there are many, symmetrical, square-shaped holes around. The rough terrain has a lot of intricate detail. It is a fractal, structure which contains smaller versions of itself. ](https://img.itch.zone/aW1hZ2UvMzUxNjMxLzE3NTA4MzEucG5n/original/yxtSSc.png)
+Image form the game [Marble Marcher](https://codeparade.itch.io/marblemarcher) by CodeParade.
+
+As you can see from those 2 examples, you can achieve some crazy results using ray marching, if put in enough effort. Now that we introduced what it can do, and how to approach it, lets explain how it works!
+
+# Using math to calculate rays path
+
+Okay, so I talked a big game about Ray marching. So, how does it work? The name already gives us a hint: there are some rays, which "march". What does that mean? In this rendering technique, each ray moves step by step, hence it "marches". But how big is this "step" and how do we detect that a ray has intersected some geometry? All of this information is provided by what is called a Signed Distance Function or Signed Distance Field, SDF in short. The `Field` and `Function` in the name tends to be used interchangeably, and it does not really matter which naming convention we will use(I tend to just write it as SDF).
+
+The SDF tells us both how much a ray will step, and if it intersected anything. But how? Please look at the diagram below, and then I will explain everything. 
+
+![](../images/raymarching_1_1.png)
+
+SDFs, take in a point in space, and, as the name implies, return some distance. What kind of distance? The distance to the closest object in the scene. Lets name this distance `d`. This means that the ray can move at least `d` in any direction, and it is guaranteed that it will not hit anything. So we step the ray by `d`, and check the SDF again. In the diagram, a red ball signals the point at which ray ended up after a step. The blue rings represent the distance returned by the SDF at the red points. Green lines connecting the red points are the steps a ray takes. So, we now know how much the ray will step. But how to detect a collision? We will simply check if the distance returned by the SDF is smaller than a certain margin, for example, 0.001. If we are closer than this margin, it means that we have hit something.
+
+This may seem crazy inefficient. Stepping a small distance at a time, repeating the same action over and over. It looks like there is no way this can be better at anything than ray marching. But before you dismiss ray marching as an oddity without any real value, I would like to remind you of something. Remember the "endless worlds" I talked about before? We can use a simple modulus function to repeat the SDF infinitely. 
+
+![](../images/raymarching_1_2.png)
+
+A primitive sphere SDF can be cheaply repeated infinite times. Similar approach can be used for any SDF, and solutions derived from it can enable easy creation of fractal structures, with near infinite levels of detail.
+
+# Getting Rusty!
+</markdown>
