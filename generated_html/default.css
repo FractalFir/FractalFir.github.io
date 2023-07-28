@@ -40,7 +40,7 @@ a{
 .topnav{
   position: fixed; 
   top: 0; left: 0; z-index: 9999; width: 99.5%; height: 50px; 
-  margin:5px;
+  margin: 1px;
   background-color:hsl(156,78%,32%);
   text-align: center;
   border-radius: 5px;
@@ -63,15 +63,12 @@ a{
   color: white;
 }
 .github_link{
-  height: 25px;
   align-self: right;
 }
 .reddit_link{
-  height:27.5px;
   filter:grayscale(100%);
   align-content: right;
 }
 .linked_id_link{
-  height: 27.5px;
   filter:grayscale(100%) brightness(250%);
 }
