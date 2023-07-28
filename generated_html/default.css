@@ -9,7 +9,7 @@
   --post_background: hsla(153, 35%, 31%, 1);
   --topic_background: hsla(153, 25%, 31%, 1);
   --link: hsla(150, 80%, 85%, 1);
-  --text: hsla(156, 4%, 93%, 1);
+  --text: hsla(186, 4%, 95%, 1);
 }
 body {
     background-color:  var(--background);
@@ -41,7 +41,7 @@ a{
   position: fixed; 
   top: 0; left: 0; z-index: 9999; width: 99.5%; height: 50px; 
   margin: 1px;
-  background-color:hsl(156,78%,32%);
+  background-color:hsl(156,98%,30%);
   text-align: center;
   border-radius: 5px;
   overflow: hidden;
