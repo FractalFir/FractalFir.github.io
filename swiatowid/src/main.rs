@@ -129,7 +129,7 @@ impl Article{
         let words = self.markdown.words();
         let time_min = ((words as f32/350.0).floor() as usize).max(1);
         let time_max = ((words as f32/220.0).ceil() as usize).max(2);
-        let article_top = format!("<h1 class=\"title\">{title}</h1><br><h6><i>{time_min} - {time_max} minute read</i></h6>");
+        let article_top = format!("<h1 class=\"title\">{title}</h1><br><small><i>{time_min} - {time_max} minute read</i></small>");
         let article_html = self.markdown.to_html();
         let references = if self.id() == "home"{
             let mut categories = find_categories(articles);
@@ -154,7 +154,7 @@ impl Article{
         let reddit = "https://www.reddit.com/user/FractalFir";
         let linked_in = "https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/";
         let navigation = format!("<div class = \"nav_container\"><nav class=\"topnav\">
-            <a class=\"active\" href=\"./home.html\">Home</a>
+            <b><a class=\"active\" href=\"./home.html\">Home</a></b>
             <a href=\"{github}\"><img src = \"../images/github-mark-white.svg\" class = \"github_link\" width = \"25\" height = \"25\" alt = \"Link to my github account.\"></a>
             <a href=\"{reddit}\"><img src = \"../images/Reddit_Mark_OnWhite.svg\" class = \"reddit_link\" width = \"27.5\" height = \"27.5\" alt = \"Link to my reddit account.\"></a>
             <a href=\"{linked_in}\"><img src = \"../images/LI-In-Bug.png\" class = \"linked_id_link\" height = \"27.5\" alt = \"Link to my linkedin account.\"></a>

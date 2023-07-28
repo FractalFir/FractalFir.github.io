@@ -15,7 +15,7 @@ body {
     background-color:  var(--background);
     background-image: url("test_bkg.svg");
     background-attachment: fixed; 
-    background-size: 100%;
+    
    color: var(--text);
 }
 a{
