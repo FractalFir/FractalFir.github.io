@@ -136,12 +136,14 @@ impl Article{
             categories.sort_by(|(name_a,_),(name_b,_)|{name_a.cmp(name_b)});  
             let mut categories_html = String::new();
             for (category,articles) in categories.iter(){
+                assert!(!category.is_empty());
                 let category_name = category.replace("_"," ");
+                println!("category_name:\"{category_name}\"");
                 let mut article_list = String::new();
                 for (article_id,article_name) in articles{
                     article_list.push_str(&format!("<br><a href=\"{article_id}.html\">{article_name}</a>"));
                 }
-                categories_html.push_str(&format!("<div class = \"category_field\"><h3>{category_name}{article_list}<h3></div>"));
+                categories_html.push_str(&format!("<div class = \"category_field\"><h3>{category_name}<h3>{article_list}</div>"));
             }
             format!("<h2>Categories, and articles in them.</h2>{categories_html}")
         }else{
