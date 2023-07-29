@@ -62,10 +62,13 @@ struct Markdown{
 }
 impl Markdown{
     fn from_string(string:&str)->Self{
-        let html = vec![markdown::to_html(string)];
+        let html = markdown::to_html(string);
+        let html = html.replace("&#8217;","'");
+        let html = vec![html];
         //println!("Begun count");
         let words = string.split(|c:char| c.is_whitespace()).map(|word|(word.len() > 0) as usize).sum::<usize>();
         //println!("End count");
+        
         Self{html,words}
     }
     fn join(&mut self,other:Self){

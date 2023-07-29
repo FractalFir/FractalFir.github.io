@@ -1,10 +1,10 @@
 :root {  
-  --background: hsla(156, 2%, 23%, 1);
-  --post_background: hsla(153, 10%, 31%, 1);
-  --topic_background: hsla(153, 5%, 31%, 1);
-  --nav_background:hsl(156,98%,30%);
+  --background: hsla(156, 1.25%, 20.5%, 1);
+  --post_background: hsla(153, 5%, 25%, 1);
+  --topic_background: hsla(153, 2.5%, 30%, 1);
+  --nav_background:hsl(156,98%,35%);
   --link: hsla(150, 80%, 85%, 1);
-  --text: hsla(186, 4%, 95%, 1);
+  --text: hsla(186, 4%, 98%, 1);
 }
 body {
     background-color:  var(--background);
@@ -21,7 +21,7 @@ a{
   border-radius: 10px;
   margin: auto;
   background-color:var(--post_background);
-  max-width: 800px;
+  max-width: 1000px;
   word-wrap: break-word;
   text-align: justify;
   text-justify: inter-word;
@@ -72,7 +72,7 @@ img{
   size: auto;
   border-radius: 5px;
   width:100%;
-  max-width:800px;
+  max-width:1000px;
   display: block;
   margin-left: auto;
   margin-right: auto;

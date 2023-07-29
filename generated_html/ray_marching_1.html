@@ -3,7 +3,7 @@
             <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
-        </nav></div><div class="article"><h1 class="title">Shining some Light on Ray Marching</h1><br><small><i>2 - 5 minute read</i></small><div class = "paragraph"><p>In this article I would like to introduce you to the bright and colorful world of Ray Marching. At the end of this tutorial we will build a pet Ray Marcher in Rust, and use it to render some simple scenes. But first, what even is Ray Marching?</p>
+        </nav></div><div class="article"><h1 class="title">Shining some Light on Ray Marching</h1><br><small><i>4 - 7 minute read</i></small><div class = "paragraph"><p>In this article I would like to introduce you to the bright and colorful world of Ray Marching. At the end of this tutorial we will build a pet Ray Marcher in Rust, and use it to render some simple scenes. But first, what even is Ray Marching?</p>
 
 <h1 id='forgotten_triplet'>Forgotten triplet</h1>
 
@@ -13,7 +13,7 @@
 
 <p>Then there is Ray Marching, the &quot;forgotten triplet&quot;. Often looked over, ignored, and why? Mostly because it is very different from its siblings. Not better, worse, just different. If you try to use it the &quot;normal&quot; way, with meshes made up of triangles, the performance will be... not impressive to say at least. Shovels tend to be terrible at mixing tea, but it does not mean they are useless. You are just using them wrong.</p>
 
-<p>So, how to use ray marching properly? You have to first accept the fact that you should change your approach. And try to speak it&#8217;s language: math. Ray Marching sees the world as an enormous math equation. And if you describe the world this way, it will understand, giving you fast and stunning results. It may be significantly harder to model the world using mathematical functions, but it has undeniable advantages. With some clever tricks, your scenes can have near infinite levels of detail, and be almost endless. The only limit will be the precision of data types you are using.</p>
+<p>So, how to use ray marching properly? You have to first accept the fact that you should change your approach. And try to speak it's language: math. Ray Marching sees the world as an enormous math equation. And if you describe the world this way, it will understand, giving you fast and stunning results. It may be significantly harder to model the world using mathematical functions, but it has undeniable advantages. With some clever tricks, your scenes can have near infinite levels of detail, and be almost endless. The only limit will be the precision of data types you are using.</p>
 
 <p>Are you still skeptical? Does all of this seem too hard to believe? Here are some examples of impressive work done by other people, admittedly a little bit more skilled than I.</p>
 
@@ -40,4 +40,112 @@
 <p>A primitive sphere SDF can be cheaply repeated infinite times. Similar approach can be used for any SDF, and solutions derived from it can enable easy creation of fractal structures, with near infinite levels of detail.</p>
 
 <h1 id='getting_rusty!'>Getting Rusty!</h1>
+
+<p>Okay, after all of this talk about ray marching, lets start implementing a very basic version in Rust! Lets first add a dependency to help us with Vector operations: <code>glam</code>. The version I will use is &quot;0.24.1&quot;. First, lets define simple a trait representing all SDFs:</p>
+
+<pre><code class="language-rust">pub use glam::Vec3 as Vector3;
+
+trait SDF{
+   fn distance(&amp;self,position:Vector3)-&gt;f32;
+}</code></pre>
+
+<p>I prefer to use the longer name for a 3D vector over the default <code>Vec3</code> name, because I feel it is to similar to <code>Vec</code>. This helps with understanding the code.</p>
+
+<p>The traits function <code>get_distance</code> returns the value of the SDF at the given position in space.</p>
+
+<p>We will expand this trait in the future, but for now, lets implement it for a simple sphere.</p>
+
+<pre><code class="language-rust">struct Sphere{
+   position:Vector3,
+   radius:f32,
+}
+impl SDF for Sphere{
+   fn distance(&amp;self,position:Vector3)-&gt;f32{
+   	let distance_from_center = self.position.distance(position);
+   	distance_from_center - self.radius
+   }
+}</code></pre>
+
+<p>A sphere has a position and a radius. Since any point on the surface of the sphere is exactly <code>radius</code> from the center of the sphere, a points distance to the spheres surface is <code>distance_from_center</code> - <code>radius</code>. Now that we have a simple SDF, lets define a <code>Ray</code> struct and implement the bare-bones ray marching algorithm.</p>
+
+<pre><code class="language-rust">struct Ray {
+   position:Vector3,
+   direction:Vector3,
+   has_hit:bool, // Temporary
+}
+impl Ray{
+   fn step(&amp;mut self,sdf:&amp;impl SDF){
+   	const RAY_HIT_TRESHOLD:f32 = 0.001;
+   	let distance = sdf.distance(self.position);
+   	if distance &lt; RAY_HIT_TRESHOLD{
+   	     // Here we will handle bounces in the future.
+   	     self.has_hit = true;
+   	     return;
+   	}
+   	self.position += self.direction * distance;
+   }
+   fn trace(&amp;mut self,sdf:&amp;impl SDF,max_steps:usize){
+   	for _ in 0..max_steps{
+   	    self.step(sdf);
+   	}
+   }
+}</code></pre>
+
+<p>The current, simplified version of the algorithm does not handle bounces, lighting, it simply checks if the ray will hit anything. This will not look impressive at all, but will enable us to test that the algorithm works at all. Such a simplified version should be also far easier to understand.</p>
+
+<p>So, lets go over the algorithm. At each position, we sample the SDF. If the distance is smaller than the threshold, we handle the collision. If it is not, we step along the ray by <code>distance</code>. We repeat this <code>max_steps</code> times, and then we have our final ray. We now should be able to get a simple image on our screen. We will not do anything fancy yet, and simply display the result in the terminal window.</p>
+
+<pre><code class="language-rust">fn main(){
+   let (img_x,img_y) = (50,25);
+   let sdf = Sphere{position:Vector3::new(0.0,0.0,8.0),radius:0.875};
+   for y in 0..img_y{
+   	let screen_y = (((y as f32)/(img_y as f32)) - 0.5)*2.0;
+   	for x in 0..img_x{
+   	   let screen_x = (((x as f32)/(img_x as f32)) - 0.5)*2.0;
+   	   let mut ray = Ray{
+   	   	position:Vector3::new(screen_x,screen_y,0.0),
+   	   	direction:Vector3::new(0.0,0.0,1.0),
+   	   	has_hit:false
+   	   };
+   	   ray.trace(&amp;sdf,16);
+   	   if ray.has_hit{
+   	   	print!(&quot;#&quot;);
+   	   }
+   	   else{
+   	   	print!(&quot;.&quot;);
+   	   }
+   	}
+   	println!();
+   }
+}</code></pre>
+
+<p>After running the completed example, you should see something like this appear in your terminal.</p>
+
+<pre><code class="language-terminal_autoscale">..................................................
+..................................................
+.......................#####......................
+................###################...............
+.............#########################............
+...........#############################..........
+.........#################################........
+.......#####################################......
+......#######################################.....
+.....#########################################....
+.....#########################################....
+.....#########################################....
+....###########################################...
+....###########################################...
+.....#########################################....
+.....#########################################....
+.....#########################################....
+......#######################################.....
+.......#####################################......
+.........#################################........
+...........#############################..........
+.............#########################............
+................###################...............
+.......................#####......................
+..................................................</code></pre>
+
+<p>It admittedly looks quite boring. There are a lot of shortcomings of the current implementation. It returns only a binary <code>hit</code>/<code>did not hit</code> kind of information. Since uses an orthographic camera(Rays do not diverge), no matter how far the sphere will be, it will look exactly the same.</p>
 </div></div></body></html>

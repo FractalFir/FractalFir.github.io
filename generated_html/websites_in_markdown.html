@@ -11,25 +11,25 @@
 
 <h2 id='wanting_a_website'>Wanting a Website</h2>
 
-<p>Channeling my inner dot-com-bubble era investor, I felt like anything and everyting needs a website. Buildings, trees, birds. But especialy me. Of course, how could I <strong>not</strong> need a website! Ridiculus! So, what now? How does one get a website? They don&#8217;t just grow on trees, do they? I will propably need a hosting, but won&#8217;t that cost me money? I like money, and don&#8217;t want it to be gone! Once again, channeling my inner greeddy businesman, I decide to do something a real innovative man with great ideas and bright future would do! Copy whatever everyone else is doing!</p>
+<p>Channeling my inner dot-com-bubble era investor, I felt like anything and everyting needs a website. Buildings, trees, birds. But especialy me. Of course, how could I <strong>not</strong> need a website! Ridiculus! So, what now? How does one get a website? They don't just grow on trees, do they? I will propably need a hosting, but won't that cost me money? I like money, and don't want it to be gone! Once again, channeling my inner greeddy businesman, I decide to do something a real innovative man with great ideas and bright future would do! Copy whatever everyone else is doing!</p>
 
 <h2 id='github_pages'>Github Pages</h2>
 
-<p>Our overlords at Github and its parent company Mircrosoft are feeling particulary benevolent lately! They gave us free website hosting! Sure, it only seems to support static websites, but I don&#8217;t need anything fancy. What I need is a glorified word document, so Github pages are a great fit. So, I follow the simple instructions, and setup a basic server, with a simple &quot;Hello World&quot; page. Everything works, without any major hicups.</p>
+<p>Our overlords at Github and its parent company Mircrosoft are feeling particulary benevolent lately! They gave us free website hosting! Sure, it only seems to support static websites, but I don't need anything fancy. What I need is a glorified word document, so Github pages are a great fit. So, I follow the simple instructions, and setup a basic server, with a simple &quot;Hello World&quot; page. Everything works, without any major hicups.</p>
 
 <h2 id='making_the_website!'>Making the website!</h2>
 
-<p>After snapping out of the webiste-mania, I start to write down what I want I need. I definetly don&#8217;t want to write any HTML each time I create a new article. Most of my usual work is in markdown: Reddit posts, <code>README.md</code>&#8217;s and <code>CONTRIBUTING.d</code>&#8217;s. I feel comfortable with markdown, and should propably stick with it. There is already a solution recomended by github: <code>Jekyll</code>. It seems pretty cool, but requires a little bit of setup, and is written in a language I know nothing about. Reinventing the wheel seems like a more interesting option, so lets try and make a static website generator in Rust!</p>
+<p>After snapping out of the webiste-mania, I start to write down what I want I need. I definetly don't want to write any HTML each time I create a new article. Most of my usual work is in markdown: Reddit posts, <code>README.md</code>'s and <code>CONTRIBUTING.d</code>'s. I feel comfortable with markdown, and should propably stick with it. There is already a solution recomended by github: <code>Jekyll</code>. It seems pretty cool, but requires a little bit of setup, and is written in a language I know nothing about. Reinventing the wheel seems like a more interesting option, so lets try and make a static website generator in Rust!</p>
 
 <h2 id='the_part_with_rust_in_it'>The part with Rust in it</h2>
 
-<p>Even tough I am building a website generator in Rust when I don&#8217;t need it, I still have some sanity left. So, I totaly did not attempt to parse markdown myself when there is already a crate that does that. Nah-ah. I for sure did not try to reinvent the wheel even harder, creating a Rube Goldberg machine which broke everytime I sneezed. And I for sure did not decide to just scrap it, use the parser someone already made, and just pretended that was the plan all along. Not a chance!</p>
+<p>Even tough I am building a website generator in Rust when I don't need it, I still have some sanity left. So, I totaly did not attempt to parse markdown myself when there is already a crate that does that. Nah-ah. I for sure did not try to reinvent the wheel even harder, creating a Rube Goldberg machine which broke everytime I sneezed. And I for sure did not decide to just scrap it, use the parser someone already made, and just pretended that was the plan all along. Not a chance!</p>
 
 <p>With parsing and converting of the markdown to html taken care of by an external crate, it may seem like there is not much more to do. But, there is!</p>
 
 <h2 id='markdown_is_great,_but_not_enough'>Markdown is great, but not enough</h2>
 
-<p>Markdown is a great tool for writing posts and articles, but I need a little bit more. You have propably seen the little <code>x - y minute read</code> at the top of the page? You can&#8217;t really acommplish that with markdown alone, you need a little bit more magic!</p>
+<p>Markdown is a great tool for writing posts and articles, but I need a little bit more. You have propably seen the little <code>x - y minute read</code> at the top of the page? You can't really acommplish that with markdown alone, you need a little bit more magic!</p>
 
 <p>Yes, technicaly you could just write the <code>x - y minute read</code> part yourself every time. But what if you change the article? Or just forget to put that little counter in?</p>
 
