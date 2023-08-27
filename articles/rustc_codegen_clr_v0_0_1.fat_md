@@ -1,0 +1,95 @@
+<metadata>
+title = "Rust here, Rust there, Rust everywhere!"
+id = "rustc_codegen_clr_v0_0_1"
+category = "Rustc Codegen CLR"
+category = "hidden"
+</metadata>
+<markdown>
+In this artcile, I describe my journey creating a barely-but-still-kinda-functional rust backend enabling compilation for the .NET runtime(Usually used to run C# and F#).
+
+It is currently in the proof-of-concept stage, but I believe it still may be of some interest.
+# Why would one compile Rust for .NET runtime?
+At first, one might dismiss the idea right away. Why on earth would you compile Rust to the .NET runtime, if you can compile it to all architectures and OSs that .NET suppots? Why even bother?
+There are a couple reasons why.
+1. It is prety fun. There were moments where I was banging my head on the wall a little bit too much, waking my family at night. There were moments where I was reconsidering my life choices. But what is a good programming exercise without some pain?
+2. It could make Rust/C# inter-op easier and **FAR** more powerfull. Don't get me wrong, it is not all that hard right now. You do have to ship a compiled rust library for all the platforms you want to support, and use P/Invoke to interact with it,but that is all, in terms of complexity. But you are limited to C-ABI. You can't simply pass a managed C# array to Rust(without marshaling), or send managed references to C# objects to Rust. While this codegen does not allow that *yet* it will in the future.
+3. It enables using fast Rust libraries from C#. When(and if) the project matures, you could write an fast Rust library, and provide a C#/F# compatible version. To all outsiders, this would seem just like yet another C# library, just faster and with a bit of unsafe sprinkled about.
+4. Much smaller memory footprint. Rust likes to guide you allocate all you can on stack. This reduces memory usage, and produces nothing for GC to collect. This should make its life far easier.  Additionally, Rust will allocate only unamnged heap memory. What does that mean? This is the memory GC knows not to worry about. It is the job of the program to free it. This fits nicely with Rust's memory managamnet.
+5. Ability to use Rust with .NET exclusive tools. Would it not be nice to just use Rust with all the numerous .NET tools? To potentially, far off in the future, write Unity games with Rust?
+6. One executable to rule them all! You could compile your program once and have it run on all platforms supporting .NET. Windows, Mac OS, Linux? x86, ARM? All supported by one executable.
+7. There already exists a version of C++ targeting .NET, so doing the same with Rust is definitely possible! Besides, we don't want to be worse than the C++ people, do we ;).
+
+So, now that I explained why I am doing this, lets ho right on!
+# How to compile anything for .NET
+Compiling things for .NET may seem like a hard thing at first, but it is actually not. .NET uses the `Common Intermediate Language`, part of `Common Language Infrastructure`. It is an intermediate representation of C#/F# code. If you can emit fully valid CIL, it should be happily loaded by both the .NET runtime(Core CLR) and mono. There is a small, but important asterisk to this statement(*foreshadowing*), but more on this later. 
+
+How would one emit CIL? You could use the built-in C# APIs for code generation. That is very much what I will likely do in the future, but it has it's own Rust-specific issues, and is generally just harder to do for this particular project. The great thing about CIL is that it has a human-readable form. What matters for our use-case is that it can be easily generated from the Rust side, and then turned into a compiled .NET assembly, using a tool called `ilasm`(Intermediate Language Assembler). This approach has 2 huge benefits: I can read the produced assembly and spot most of the mistakes. I also can use a C# decompiler to get C# code equivalent to the assembly produced by my backend. It also helps verify that everything is going OK, because there is no way both `ilasm` and a C# decompiler would hapily accept invalid IL that the .NET runtime would refuse to load. And there is *certanly* no way I would implement a whole bunch of features that would pass this test, only to not work in the end.
+## Small snippet of CIL
+C# code
+```C#
+public static int Add2(int P_0)
+{
+    return P_0 + 2;
+}
+```
+CIL
+```cil
+.method public static hidebysig int32 Add2(int32){
+    ldarg.0
+    ldc.i4 2
+    add
+    ret
+}
+```
+As you can see, CIL is stack based, and consists of a series of opcodes, manipulating this stack.
+Besides containing code, CIL also contains type info, but this is something I will go more in depth in another article.
+# How to compile Rust for anything
+Rust is a very complicated language. Writing a compiler for it is hard, but we have more options for compiling Rust for any target we desire. Rust normally uses LLVM for code generation. But it does not have to: rust compiler backend works as a plugin:
+you easily can swap it out for another one, by simply pointing `rustc` to a relevant dynamic library using the `-Z codegen-backend=YOUR_CODEGEN_HERE.dll` flag. As long as it provides the relevant functions, `rustc` will pass you all the info needed for generating code for any crate. At this stage, a rust program is represented using the MIR(mid-level IR) format. It its relatively easy to handle, with a few quirks that can be ignored for our purposes. It seems very inspired by LLVM's IR, which makes sense, since it is usually converted to LLVM IR almost right away.
+
+While MIR is not hard, getting to it is not a trivial task, since you first need to familiarize yourself with the relevant internal Rust APIs. I managed to get my backend to emit CIL for a simple identity function in about ~1.5 days, starting with little to no knowledge about how `rustc` works on the inside. Once you get the hang of it, building more complicated features does not take all that much time. It is, not, however, all rainbows and sunshine.
+# Undocumented territory
+Rust std-lib and popular crates have spoiled us. Detailed explanations with examples, most of the time simple enough that a particularly smarty child could probably figure it out. It is obvious that the compiler internals will not be documented nearly as well. It is constantly in motion(thank goodness!), so any sufficiently detailed explanation would quickly go out of date. This is a task of gargantuan proportions, one which requires so much knowledge, that only someone working on the compiler could describe some more obscure parts. And, I, for one, am glad that compiler people are focusing on the compiler, not on writing its documentation. 
+
+It is still a potential hurdle for anyone interested in working on the compiler. It definitely steepens the learning curve, potentially reducing the number of people that can work on `rustc`. But! Fear not! There are definitely some moves to make the documentation better. Signs of active work can be seen, like `**Needs clarification**` notes under some explanations. Once I had even spotted an unfinished sentence, with an issue regarding finishing it linked below. 
+
+What more than makes up for the shortcomings of the documentation is how helpfull the people working on the compiler are. All of my questions were answered quickly, with some good advice for the future. It would still be great if all functions were documented(then there would rarely be a need to ask anyone anything), but hey, what works, works.
+
+# Steady progress
+
+After some initial troubles, I had managed to push on and got the project to a state in which some simple demo libraries could be compiled. 
+TODO: here
+
+# Running the code for the first time
+Fairly confident in the project, I had decided to create a small `HelloWorld` example. Since using C# APIs from rust is still far off, I had hard-coded some functions from the C standard library. This is something I will need to do anyway, since Rusts stdlib depends on `libc`. This is the easiest way to bring Rust's stdlib to .NET, since it does not require any rewrites. But I digress. Using the `puts` and `putc` functions, I can print a simple message to console. I run my backend, creating a CIL file containing the `hello world` program. With anticipation, I type `ilasm hello`. I start to smile as the words `Operation completed successfully` appear within the terminal. I feel a rush of adrenaline and endorphins. I want to jump out of my chair and run around like a mad man. Sure, I had used my backend to compile more advanced libraries before, but all I knew is that they were valid CIL, and decompiled C# suggested they would work. This small `hello world` program would be the first snippet of Rust code to run within a .NET runtime. I type `mono hello.exe`, expecting the words `Hello CLR from Rust!` to appear on my screen. Instead, I am greeted with this little message:
+```
+Unhandled Exception:
+System.InvalidProgramException: Invalid IL code in <Module>:main (intptr,byte**): IL_0000: ldc.i4.s  72
+```
+# ILASM is a filthy liar
+You would assume that if some CIL code is blatantly wrong, `ilasm` would be unable to assemble it. This is sadly the case only with some mistakes. For some, it will not give you any warnings. You know what is worse? There is a subset of malformed CIL that the particular decompiler I was using(I can't say for all of them, I used only one) would turn into **FULLY VALID C#**, hiding the issue.  You know what is even worse? For some issues, both the runtime I was using (mono) and CoreCLR gave me not all that much info about what was wrong. CoreCLR's message was too generic, and while mono at least told me which method caused the issue, it was wrong about what was the problem exactly.
+
+The part of the message about invalid IL code, instruction position and the i nstruction itself could lead you to believe that the instruction in question `ldc.i4.s` was the issue. So I tried removing it. Issue persisted. So I removed more. Nothing. Even more. More. MORE. Until all that was left was a single `ret` opcode. What? How is that possible? There is almost nowhere the issue can be? Only part left, besides the function signature and name is..
+#.locals
+Any function in CIL has to declare all of its local variables. A valid declaration of locals looks something like this:
+```
+.local(
+   [0] int32,
+   [1] float32,
+   [2] int8,
+   [3] int16*,
+   [4] void*
+)
+```
+And one with the particular issue I was facing looks like this:
+```
+.local(
+   [0] int32,
+   [1] float32,
+   [2] int8,
+   [3] int16*,
+   [4] void
+)
+```
+You can't have a `void` type in locals.  But why would you even have a void local in the first place? Rust likes to sometimes have locals with type void. 
+</markdown>
