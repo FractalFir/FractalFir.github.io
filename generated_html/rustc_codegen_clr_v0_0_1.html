@@ -26,14 +26,14 @@
 
 <li>There already exists a version of C++ targeting .NET, so doing the same with Rust should be definitely possible! Besides, we don't want to be worse than the C++ people, do we ;)?</li>
 
-<li>
-<p>I already have a <a href='https://github.com/FractalFir/wrapped_mono'>some of experience with Rust/C# interop.</a> So, now that I explained <em>why</em> I am doing this, let's get right into the <em>how</em>!</p>
+<li>I already have a <a href='https://github.com/FractalFir/wrapped_mono'>some of experience with Rust/C# interop.</a></li>
+</ol>
+
+<p>So, now that I explained <em>why</em> I am doing this, let's get right into the <em>how</em>!</p>
 
 <h1 id='how_to_compile_anything_for_.net'>How to compile anything for .NET</h1>
 
 <p>Compiling things for .NET may seem like a hard thing at first, but it is actually not. .NET uses the <code>Common Intermediate Language</code>, part of <code>Common Language Infrastructure</code>. It is an intermediate representation of C#/F# code. If you can emit fully valid CIL, it should be happily loaded by both the .NET runtime (Core CLR) and mono. There is a small, but important asterisk to this statement (<em>foreshadowing</em>), but more on this later.</p>
-</li>
-</ol>
 
 <p>How would one emit CIL? You could use the built-in C# APIs for code generation. That is very much what I will likely do in the future, but it has its own Rust-specific issues, and is generally just harder to do for this particular project. The great thing about CIL is that it has a human-readable form. What matters for our use-case is that it can be easily generated from the Rust side, and then turned into a compiled .NET assembly, using a tool called <code>ilasm</code>(Intermediate Language Assembler). This approach has 2 huge benefits: I can read the produced assembly and spot most of the mistakes. The C# decompiler can be used to get C# code equivalent to the assembly produced by my backend. It also helps verify that everything is going OK, because there is no way both <code>ilasm</code> and a C# decompiler would happily accept invalid IL that the .NET runtime would refuse to load, right?</p>
 
