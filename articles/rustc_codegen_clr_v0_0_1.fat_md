@@ -1,8 +1,7 @@
 <metadata>
-title = "Rust here, Rust there, Rust everywhere!"
+title = "Compiling Rust for .NET, using only tea and stubbornness!"
 id = "rustc_codegen_clr_v0_0_1"
 category = "Rustc Codegen CLR"
-category = "hidden"
 </metadata>
 <markdown>
 In this article, I describe my journey creating a [barely functional rust backend enabling compilation for the .NET runtime](https://github.com/FractalFir/rustc_codegen_clr) (Usually used to run C# and F#).
@@ -11,15 +10,15 @@ It is currently in the proof-of-concept stage, but I believe it still may be of 
 # Why would one compile Rust for .NET runtime?
 At first, one might dismiss the idea right away. Why on earth would you compile Rust to the .NET runtime, if you can compile it to all architectures and OSes that .NET supports? Why even bother?
 There are a couple of reasons why.
-1. It is pretty fun. There were moments where I was banging my head on the wall a little bit too much, almost waking my family at night. There were moments where I was reconsidering my life choices. But what is a good programming exercise without some pain?
+1. It is pretty fun. I admit, there were moments where I was banging my head on the wall a little bit too much, almost waking my family at night. There were moments where I was reconsidering my life choices. But what is a good programming exercise, without some pain?
 2. It could make Rust/C# inter-op easier and **FAR** more powerful. Don't get me wrong, it is not all that hard right now. You do have to ship a compiled rust library for all the platforms you want to support, and use P/Invoke to interact with it, but that is all, in terms of complexity. But you are limited to C-ABI. You can't simply pass a managed C# array to Rust (without marshaling), or send managed references to C# objects to Rust. While this codegen does not allow that *yet*, it will in the future.
 3. It enables using fast Rust libraries from C#. When (and if) the project matures, you could write a fast Rust library, and provide a C#/F# compatible version. To all outsiders, this would seem just like yet another C# library, just faster and with a bit of unsafe sprinkled about.
 4. Much smaller memory footprint. Rust likes to guide you, to allocate all you can on the stack. This reduces memory usage, and produces nothing for GC to collect. This should make its life far easier.  Additionally, Rust will allocate only unmanaged heap memory. What does that mean? This is the memory GC knows not to worry about. It is the job of the program to free it. This fits nicely with Rust's memory management.
 5. Ability to use Rust with .NET exclusive tools. Would it not be nice to just use Rust with all the numerous .NET tools? To potentially, far off in the future, write Unity games with Rust?
 6. One executable to rule them all! You could compile your program once and have it run on all platforms supporting .NET. Windows, macOS, Linux? x86, ARM? 64 or 32 bit? All supported by one executable.
 7. There already exists a version of C++ targeting .NET, so doing the same with Rust should be definitely possible! Besides, we don't want to be worse than the C++ people, do we ;)?
-
-So, now that I explained why I am doing this, let's get right into the inner workings!
+8. I already have a [some of experience with Rust/C# interop.](https://github.com/FractalFir/wrapped_mono)
+So, now that I explained *why* I am doing this, let's get right into the *how*!
 # How to compile anything for .NET
 Compiling things for .NET may seem like a hard thing at first, but it is actually not. .NET uses the `Common Intermediate Language`, part of `Common Language Infrastructure`. It is an intermediate representation of C#/F# code. If you can emit fully valid CIL, it should be happily loaded by both the .NET runtime (Core CLR) and mono. There is a small, but important asterisk to this statement (*foreshadowing*), but more on this later. 
 
@@ -52,13 +51,24 @@ You can easily swap it out for another one, by simply pointing `rustc` to a rele
 
 While MIR is not hard, getting to it is not a trivial task, since you first need to familiarize yourself with the relevant internal Rust APIs. I managed to get my backend to emit CIL for a simple identity function in about ~1.5 days, starting with little to no knowledge about how `rustc` works on the inside. Once you get the hang of it, building more complicated features does not take all that much time. It is, not, however, all rainbows and sunshine.
 
-# Undocumented territory
+# We are not in Kansas anymore
 
-Rust's std-lib and popular crates have spoiled us. Detailed explanations with examples, most of the time simple enough that a particularly smart child could probably figure it out. It is obvious that the compiler internals will not be documented nearly as well. It is constantly in motion (thank goodness!), so any sufficiently detailed explanation would quickly go out of date. This is a task of gargantuan proportions, one which requires so much knowledge, that only someone working on the compiler could describe some more obscure parts. And, I, for one, am glad that compiler people are focusing more on the compiler, not on writing its documentation. 
+Rusts standard library, and a lot of the popular crates, are like a museum. While it does change, as new exhibitions are added, it is mostly finished. Each painting has a detailed explanation in 7 different languages underneath. Descriptions below each excitation are written beautifully, with detailed drawings, showing how everything works. It is so easy to navigate, one glance at the map is enough to find exactly what you are looking for. It is so convenient, you almost don't notice that you are learning something.   
 
-It is still a potential hurdle for anyone interested in working on the compiler. It definitely steepens the learning curve, potentially reducing the number of people that can work on `rustc`. But! Fear not! There are definitely some moves to make the documentation better. Signs of active work can be seen, like `**Needs clarification**` notes under some explanations. One particularly funny example I had spotted was an unfinished sentence, with an issue regarding finishing it, linked just below. It may seem ridiculous at first, but there was a good reason for this. Ending it simply depended on some decisions related to the language that were not yet finalized. This once again highlights how hard writing a good documentation for `rustc`'s internals is: By saying 'X is always true' you are kind of committing to something. 
+Internals of `rustc` are like a build site of a sprawling factory. You can see the scaffolds everywhere, as more production lines come online, and everything gets faster, better, bigger. Workers move around, knowing the place like the back of their hands. They can glance at the signs on the walls, and instantly tell you: where you are, what this place does and what pitfalls you should avoid. And you are a new hire who has just came for his first day at the new job. You look at the sign, and after some thinking, you too are able to tell roughly in which building you are. The signs almost always tell you what you need, just in short, cryptic sentences. You always can tell what is going on, with some thinking, but it is not effortless. The signs on the walls are not *bad*, just not written for anyone to get right away. 
 
-What, in my case, more than made up for the shortcomings of the documentation, is how helpful a lot of the people working on the compiler are. I am a pretty shy person who always overthinks everything, so I was pretty reluctant to ask anything. Thankfully, it turns I stressed over nothing once again, and it was even better than what I hoped for. My questions were answered quickly, with some good advice for the future. It would still be great if all functions were documented (then there would rarely be a need to ask anyone anything), but it all worked out in the end, so I can't complain.
+This is roughly the feeling you might get when reading the documentation of `rustc` internals. I wan't to once again reiterate: it is, by any means, bad. It is simply hard. And that is to be expected, since it is still being worked on. 
+
+So, if you want to start working anything related to compiler internals, manage your expectations. Don't just blast in, expecting to get everything right away. Equip yourself with some patience, and a big cup of your preferred beverage. 
+
+## It is not bad, and is getting even better!
+
+I am going to end this on a positive note: if you are reading this in a couple years time, there is high likelihood that this section is not relevant in any way. If you take a look at the documentation, it is clear that not only is it not in a "finished", state, there is a slow, but steady work made on improving it. Some sections have a little `Clarification needed` underneath, with an issue linked below. So, while it is not perfect, I am hopeful for the future.  
+
+I would like to also thank the people in Rusts zulip for all the help. 
+I am a pretty shy person, who always overthinks everything, so I was pretty reluctant to ask any questions. Thankfully, it turns I once again stressed over nothing. The people there were very helpful, and answered my questions shockingly quick. They even gave me advice about things I had not yet asked! I am certain I would not get nearly as far into this project, without this help.  
+
+So, lets now get over this little tangent, and go back on track.
 
 # Steady progress
 
