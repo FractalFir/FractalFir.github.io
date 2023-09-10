@@ -1,6 +1,6 @@
 use clap::*;
 use std::path::{Path,PathBuf};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::collections::HashMap;
 #[derive(Debug,Parser)]
 struct Args{
@@ -12,6 +12,7 @@ struct Metadata{
     id:String,
     style:String,
     category:String,
+    date:Option<String>,
 }
 impl Metadata{
     fn id(&self)->&str{
@@ -26,8 +27,11 @@ impl Metadata{
     fn style(&self)->&str{
         &self.style
     }
+    fn date(&self)->Option<&String>{
+        self.date.as_ref()
+    }
    fn from_string(string:&str)->Self{
-        let mut res = Self{title:"Oh no! I forgot to put the title in.".to_string(),id:"".to_string(),style:"default".to_owned(),category:"misc".to_owned()};
+        let mut res = Self{title:"Oh no! I forgot to put the title in.".to_string(),id:"".to_string(),style:"default".to_owned(),category:"hidden".to_owned(),date:None};
         for line in string.lines(){
             // There are no characters that are not whitespace(thus all are whitespace), skip.
             if !line.chars().any(|c|!c.is_whitespace()){
@@ -44,6 +48,7 @@ impl Metadata{
                 "title"=>res.title = value.split('"').nth(1).expect("Title must be contained between 2 quotation marks!").to_string(),
                 "id"=>res.id = value.split('"').nth(1).expect("ID must be contained between 2 quotation marks!").to_string(),
                 "category"=>res.category = value.split('"').nth(1).expect("ID must be contained between 2 quotation marks!").to_string(),
+                "date"=>res.date = Some(value.split('"').nth(1).expect("ID must be contained between 2 quotation marks!").to_string()),
                 _=>panic!("unknown variable \"{var}\"!",var = variable.escape_debug().to_string())
             }
             //println!("line:{line}");
@@ -106,7 +111,7 @@ impl Article{
         let mut markdown_end:Vec<_> = (&content).match_indices("</markdown>").map(|(i,_)|i).collect();
         
         let mut markdown = markdown_start.iter().zip(markdown_end.iter()).map(|(start,end)|&content[(*start)..(*end)]).map(|string|Markdown::from_string(string));//.collect();
-        let mut first_markdown = markdown.next().expect("Expected at least one markdown file!");
+        let mut first_markdown = markdown.next().expect("Expected at least one markdown tag!");
         for next_markdown in markdown{
             first_markdown.join(next_markdown);
         }
@@ -125,6 +130,9 @@ impl Article{
     fn title(&self)->&str{
         self.metadata.title()
     }
+    fn link(&self)->String{
+        format!("{}.html",self.id())
+    }
     fn to_html(&self,articles:&[Article])->String{
         let title = self.metadata.title();
         let style = self.metadata.style();
@@ -132,7 +140,13 @@ impl Article{
         let words = self.markdown.words();
         let time_min = ((words as f32/350.0).floor() as usize).max(1);
         let time_max = ((words as f32/220.0).ceil() as usize).max(2);
-        let article_top = format!("<h1 class=\"title\">{title}</h1><br><small><i>{time_min} - {time_max} minute read</i></small>");
+        let date = if let Some(date) = self.metadata.date(){
+            format!("Published on {date}<br>")
+        }
+        else{
+            "".into()
+        };
+        let article_top = format!("<h1 class=\"title\">{title}</h1><br><small>{date}<i>{time_min} - {time_max} minute read</i></small>");
         let article_html = self.markdown.to_html();
         let references = if self.id() == "home"{
             let mut categories = find_categories(articles);
@@ -180,6 +194,35 @@ fn collect_articles_from_dir(path:&Path)->std::io::Result<Vec<Article>>{
     }
     Ok(articles)
 }
+fn write_rss(out_dir:&Path,articles:&[Article])->std::io::Result<()>{
+    std::fs::create_dir_all(&out_dir)?;
+    let mut out_path = PathBuf::from(out_dir);
+    let mut rss = format!("<?xml version=\"1.0\" encoding=\"UTF-8\" ?><rss version=\"2.0\">");
+    let mut items = String::new();
+    for article in articles{
+        let title = article.title();
+        if article.category() == "hidden"{
+            continue;
+        }
+        let date = article.metadata.date().expect("All articles must have dates!");
+        let link = article.link();
+        items.push_str(&format!("<item><title>{title}</title><pubDate>{date}</pubDate><link>https://fractalfir.github.io/generated_html/{link}</link><guid>https://fractalfir.github.io/generated_html/{link}</guid></item>"));
+    }
+    let main_chanel = format!("
+<channel>
+    <title>Fractal Fir's blog</title>
+    <description>A blog I which I document my coding adventures.</description>
+    <link>https://fractalfir.github.io/generated_html/home.html</link>
+    <ttl>720</ttl>
+    {items}
+</channel>
+");
+    rss.push_str(&main_chanel);
+    rss.push_str(&"</rss>");
+    out_path.push("rss");
+    out_path.set_extension("xml");
+    std::fs::File::create(out_path)?.write_all(rss.as_bytes())
+}
 fn write_articles(out_dir:&Path,articles:&[Article])->std::io::Result<()>{
     //let out_dir = PathBuf::from(out_dir);
     std::fs::create_dir_all(&out_dir)?;
@@ -208,5 +251,6 @@ fn main() {
     let articles = collect_articles_from_dir(&args.path).unwrap();
     let categories = find_categories(&articles);
     write_articles(Path::new("../generated_html"),&articles).unwrap();
+    write_rss(Path::new("../generated_html"),&articles).unwrap();
     println!("Hello, world {args:?}!");
 }

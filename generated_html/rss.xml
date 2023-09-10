@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0">
+<channel>
+    <title>Fractal Fir's blog</title>
+    <description>A blog I which I document my coding adventures.</description>
+    <link>https://fractalfir.github.io/generated_html/home.html</link>
+    <ttl>720</ttl>
+    <item><title>Compiling Rust for .NET, using only tea and stubbornness!</title><pubDate>28 Aug 2023</pubDate><link>https://fractalfir.github.io/generated_html/rustc_codegen_clr_v0_0_1.html</link><guid>https://fractalfir.github.io/generated_html/rustc_codegen_clr_v0_0_1.html</guid></item><item><title>Adding some C++ to your coffee - transpling Java to C++</title><pubDate>20 Jul 2023</pubDate><link>https://fractalfir.github.io/generated_html/jtcpp.html</link><guid>https://fractalfir.github.io/generated_html/jtcpp.html</guid></item>
+</channel>
+</rss>

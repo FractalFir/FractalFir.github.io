@@ -2,6 +2,7 @@
 title = "Compiling Rust for .NET, using only tea and stubbornness!"
 id = "rustc_codegen_clr_v0_0_1"
 category = "Rustc Codegen CLR"
+date = "28 Aug 2023"
 </metadata>
 <markdown>
 In this article, I describe my journey creating a [barely functional rust backend enabling compilation for the .NET runtime](https://github.com/FractalFir/rustc_codegen_clr) (Usually used to run C# and F#).
