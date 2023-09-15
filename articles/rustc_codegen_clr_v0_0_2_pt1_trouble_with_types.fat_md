@@ -1,10 +1,74 @@
 <metadata>
-title = "A good, relevant title"
+title = "Failing upwards"
 id = "rustc_codegen_clr_v0_0_2_pt_1"
 category = "Rustc Codegen CLR"
 category = "hidden"
 </metadata>
 <markdown>
+*This is the continuation of my (previous article)[].*
+There are many skills that you need to be a programmer. Critical and creative thinking is one of them, of course. Being good with math also tends to help. But, today, I would like to talk about another skill. One that I believe is just as, if not more important, than those I had just listed. This skill is not often talked about, but is crucial. 
+# Knowing when to fail
 
+This was not the original idea I had for this article. I was supposed to talk about how awesome the progress has been. How everything is going smoothly and how much closer to being usable it is. And both of those things are true: I have made great progress, implementing more and more features. Generics, (simple) dynamic allocation, Rust enum types. The codegen now can be pointed at simple programs, and just assemble them, 100% correctly. I have added support for more advanced tests, that run within the .NET runtime, and prove that the resulting assemblies work exactly as expected. The backend is more stable than ever. I even had a catchy title: "Malloc, Realloc, and Freends". So it seems like everything is all rainbows and sunshine. Then why am I complaining?
 
+## Building a castle on sand
+
+The foundations of the project are rotten. This does not mean that I could not continue. On the contrary, sticking to my guns and just ignoring the problem would be quite easy. With enough cardboard, duck-tape and faith, you can make almost anything work. But at some point, you run out of both the duck-tape, and faith. 
+
+During the first 2 weeks working on this project, I made some... decisions. Things that in hindsight seem idiotic. Moronic even. I have made myself jump trough hops upon hops, needlessly complicating things. Working was a weird mix of happiness, coming from the steady progress, and dissatisfaction, coming from how clunky some things have become. I had lied to myself, saying "Oh, this just needs a small refactor.". And then, I hit a brick wall at full speed. And, after the dust settled, I had seen clearly, for the first time in quite a while.
+
+## 
+
+I was blinded by love. Passion for piece of my work. When you work on something you truly care about, you put a piece of yourself into it. And it is hard to let it go. To look back and say "Even tough I worked really hard on this piece of code, it is not good". In this case, the project needed far more than a simple refactor. The issues are numerous, and heavily ingrained into the project. Things so fundamental, as the representation of a type, were just... wrong. So, most of the code base needs to scrapped. It is not salvageable, assumptions that are straight up wrong are baked deep within almost every function and data structure. 
+
+Probably the worst part was that this code actually worked. I would not be trowing out an irredeemable attempt, created by flying too close to the sun. I will be throwing out a highly flawed, but still functional system. One I could grow for at least couple more weeks, before no more duck-tape could hold the crumbling tower of spaghetti. I have thrown out countless projects that went nowhere before, and it is far more easy. You can't rationalize keeping something that never could work, but it is far harder to throw out something you fell proud of, at least to some degree. Nonetheless, I had made the heart wrenching decision to let it go. This would delay my work, but you would not notice. I would just make another post in a month or two, talking about the great progress, offhandedly mentioning a "refactor" in a couple sentences, and you would be non the wiser. But then, something dawned on me. 
+
+# We don't talk about failures. 
+
+I have rarely seen people talking about their failures. Sure, there is a post once in the blue moon, analyzing some particularly insane bug or a weird story from the 90s. But think about it: Surely, people make more mistakes than that. Reading the articles, you could get an impression that everyone is a successfull programming God, making a silly mistake once in a while. 
+
+So, why don't we post more about our failures?
+
+On, one hand, it makes a whole lot of sense.  Who wants to show themselves from their worst side? Additionally, articles in the style of "Here is my 10 recipes for terrible muffins that will kill you **and** your family!" are not going to garner much attention. 
+
+But this leads to a serious issue: it skews the view of the whole field. And this is the root cause of a lot of problems. One of them is impostor syndrome. 
+
+You are not going to know about the failures of other people. You are not going to hear about their stupid idea for a hobby project that collapsed on itself. Only failure you are going hear about is... you. And so you feel like an idiot for not getting something simple right away. But the truth is, everyone, at some point of their lives, does something extraordinarily stupid.
+
+So, I have decided to share a bit of my stupidity, to maybe lighten up your mood.
+
+# Faliure as a learning exercise.
+
+After this overly long prelude, I would like to take you on a small journey.
+
+Previous part of my post might have given a wrong impression about some things. While I will have to throw out a lot of code, it is not going to waste. The one part, probably of most value, survived. The knowledge about what *not* to do. 
+
+So, lets go, and analyze why some things did not work, and how to make them work.
+
+## Representation of Types
+
+Representing a Type may seem like a trivial job. And I thought that it was not that complicated, at first. I had a neat representation of a type, that could represent both a Rust and .NET type.
+
+This was a huge mistake. 
+
+I seriously underestimated how complicated Rust types can get. But, since I had only one type representation, it had to do far more. It had to be serializable(to save partially compiled libraries to disk), AND able to represent all Rust types.
+The need for serialization prevented me from just using the Rustc representation, and the need for representing all Rust types made things borderline impossible. 
+
+Looking back, I needed more than one representation of a type. I thought only about "types" when I should be thinking about ".NET types" and "Rust types".
+
+So, how will I do things differently now?
+
+I plan on using 3 type representation, each with a well defined purpose. 
+
+The default Rustc implementation will be used during the codegen stage itself. A big issue, previously, was that this representation was specific to a codegen unit, and could not easily leave it. A rust program can have numerous codegen units, and each of them needs to save its results to disk, to be processed further.
+
+Since now I have no need to ever save this representation to disk, I don't need to do any translations. I can just use what the smart compiler people made - and not try to reinvent the wheel. 
+
+The problem of saving types to disk still comes up - and this is where the 2 other representations come in. 
+
+First one simply represents a .NET type I defined within the final assembly. So, a rust Struct with some fields will be translated to a .NET struct with those exact fields. Enums are slightly more tricky, but the general idea extends to them rather nicely. The one and only job of this representation is to store information about a type definition. This - and only this.
+
+The last representation is equally boring - it stores just enough info to identify a type. For a struct, it does not store info about, for example, its fields. This one is meant to be used in the CLR opcode representation, or to describe field types. Its only job is to represent either a primitive type(float,long), or allow looking up the details of a more complicated type. It is supposed to be stupid-simple.
+
+## 
 </markdown>
