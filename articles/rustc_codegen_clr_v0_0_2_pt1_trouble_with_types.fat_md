@@ -6,8 +6,6 @@ category = "hidden"
 </metadata>
 <markdown>
 *This is the continuation of my (previous article)[].*
-There are many skills that you need to be a programmer. Critical and creative thinking is one of them, of course. Being good with math also tends to help. But, today, I would like to talk about another skill. One that I believe is just as, if not more important, than those I had just listed. This skill is not often talked about, but is crucial. 
-# Knowing when to fail
 
 This was not the original idea I had for this article. I was supposed to talk about how awesome the progress has been. How everything is going smoothly and how much closer to being usable it is. And both of those things are true: I have made great progress, implementing more and more features. Generics, (simple) dynamic allocation, Rust enum types. The codegen now can be pointed at simple programs, and just assemble them, 100% correctly. I have added support for more advanced tests, that run within the .NET runtime, and prove that the resulting assemblies work exactly as expected. The backend is more stable than ever. I even had a catchy title: "Malloc, Realloc, and Freends". So it seems like everything is all rainbows and sunshine. Then why am I complaining?
 
@@ -58,17 +56,20 @@ Looking back, I needed more than one representation of a type. I thought only ab
 
 So, how will I do things differently now?
 
-I plan on using 3 type representation, each with a well defined purpose. 
+I plan on using 3 type representations, each with a well defined purpose. 
 
 The default Rustc implementation will be used during the codegen stage itself. A big issue, previously, was that this representation was specific to a codegen unit, and could not easily leave it. A rust program can have numerous codegen units, and each of them needs to save its results to disk, to be processed further.
 
-Since now I have no need to ever save this representation to disk, I don't need to do any translations. I can just use what the smart compiler people made - and not try to reinvent the wheel. 
+Since now I have no need to ever save this representation, I don't need to do any translations. I can just use what the smart compiler people made - and not try to reinvent the wheel. 
 
 The problem of saving types to disk still comes up - and this is where the 2 other representations come in. 
 
-First one simply represents a .NET type I defined within the final assembly. So, a rust Struct with some fields will be translated to a .NET struct with those exact fields. Enums are slightly more tricky, but the general idea extends to them rather nicely. The one and only job of this representation is to store information about a type definition. This - and only this.
+First one simply represents a .NET type I defined within the final assembly. So, a rust Struct with some fields will be translated to a .NET struct with those exact fields. Enums are slightly more tricky, but the general idea extends to them rather nicely. The one and only job of this representation is to store information about a type definition. This - and only this. 
 
-The last representation is equally boring - it stores just enough info to identify a type. For a struct, it does not store info about, for example, its fields. This one is meant to be used in the CLR opcode representation, or to describe field types. Its only job is to represent either a primitive type(float,long), or allow looking up the details of a more complicated type. It is supposed to be stupid-simple.
+The last representation is equally boring - it stores just enough info to identify a type. For a struct, it stores info like its name and generic arguments, but not about fields. 
+This one is meant to be used in the CLR opcode representation, or to describe field types. Its only job is to represent either a primitive type(such as float,long), or allow looking up the details of a more complicated type. It is supposed to be stupid-simple.
 
 ## 
+
+
 </markdown>
