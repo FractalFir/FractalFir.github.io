@@ -93,7 +93,7 @@ Generics open a whole world of possibilities. They are everywhere in Rust. Even 
 Rust enums are the other piece needed to bring a large chunk of Rust code to .NET
 # Anatomy of an enum
 Rust enums may look deceivingly very hard to implement, but they turned out to be relatively straightforward. A rust enum consists of 2 parts: a "tag" describing which variant of the enum
-this particular instance holds, and additional data specific to that variant. They are very similar to `F#`s Discriminated Unions (The main difference is in implementation details). For people familiar only with C#, I can say that the closest thing resembling a Rust enum is a polymorphic class, with
+this particular instance holds, and additional data specific to that variant. They are very similar to `F#`'s Discriminated Unions (The main difference is in implementation details). For people familiar only with C#, I can say that the closest thing resembling a Rust enum is a polymorphic class, with
 only a fixed amount of children classes.
 
 This is roughly how the Rust `Option<T>` enum looks like:
