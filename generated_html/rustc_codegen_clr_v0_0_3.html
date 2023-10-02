@@ -4,9 +4,9 @@
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class="article"><h1 class="title">Enumerating over Generics - rustc_codegen_clr v0.0.3</h1><br><small>Published on 02 Oct 2023<br><i>10 - 17 minute read</i></small><div class = "paragraph"><p>It has been quite a while since I <a href='rustc_codegen_clr_v0_0_1.html'>last wrote</a> about the progress <a href='https://github.com/FractalFir/rustc_codegen_clr'>of the project</a>. Writing a compiler is not an easy feat, so it is still far from finished.</p>
+        </nav></div><div class="article"><h1 class="title">Enumerating over Generics - rustc_codegen_clr v0.0.3</h1><br><small>Published on 02 Oct 2023<br><i>10 - 17 minute read</i></small><div class = "paragraph"><p>It has been quite a while since I <a href='rustc_codegen_clr_v0_0_1.html'>last wrote</a> about the progress <a href='https://github.com/FractalFir/rustc_codegen_clr'>of the project</a>. Writing even a part of a compiler is not an easy feat, so it is still far from finished. But, Rome was not built in a day!</p>
 
-<p>I have made some very substantial improvements, which should enable the compilation of a lot of rust code, which would not work previously.</p>
+<p>I have made some very substantial improvements, which should enable the compilation of a lot more rust code, which would not work previously.</p>
 
 <p>Some of the work is very visible (support for generics, enums, <code>for</code> loops, dynamic allocation), other things not so much (better testing, optimization). There have also been a bit of other, small improvements, that should allow the project to move forward at a much greater pace. So, let's jump right into what new things <code>0.0.3</code> brings.</p>
 
@@ -47,7 +47,7 @@
 <p>I now use 3 different type representations. Each with their respective, well-defined function.</p>
 
 <ol type="1">
-<li><code>TypeDef</code> - This is the representation of a non-primitive .NET type. Types, such as Rust's <code>Option</code>, have one definition, but are used in many places. Previously, I would copy type data for every place the type was used. So, an instruction storing a field would have not only the information about the particular field it referenced, it had the information about every field this type has. Separating type definitions from type uses not only saved on memory and improved performance, it made things far clearer and easy to read.</li>
+<li><code>TypeDef</code> - This is the representation of a non-primitive .NET type. Types, such as Rust's <code>Option</code>, have one definition, but are used in many places. Previously, I would copy type data for every place the type was used. So, an instruction storing a field would have not only the information about the particular field it referenced, it had the information about every other field this type has. Separating type definitions from type uses both saves on memory, and improved performance. It also made things far clearer and easy to read.</li>
 
 <li><code>Type</code> - This represents either a primitive .NET type (float, native int, UInt128) or a reference to a .NET type. For a reference, it stores only the data needed to look up the type. It does not store info about nested types, fields, all that other stuff - this is the job of a <code>TypeDef</code>.</li>
 
