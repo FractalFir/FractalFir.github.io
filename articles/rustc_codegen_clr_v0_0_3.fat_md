@@ -5,7 +5,7 @@ category = "Rustc Codegen CLR"
 date = "02 Oct 2023"
 </metadata>
 <markdown>
-It was quite a while since I [last wrote](rustc_codegen_clr_v0_0_1.html) about the progress [of the project](https://github.com/FractalFir/rustc_codegen_clr). It is still far from finished, but I have made some substantial progress.
+It was quite a while since I [last wrote](rustc_codegen_clr_v0_0_1.html) about the progress [of the project](https://github.com/FractalFir/rustc_codegen_clr). It is still far from finished, but I have made some substantial improvements.
 Some of it is very visible (support for generics, enums, for loops, dynamic allocation), other things not so much (better testing, optimization). There have also been a bit of other improvements, that should allow the project to move forward at a much greater pace. So, let's jump right into what new things `0.0.3` brings.
 
 # Counting to 3
