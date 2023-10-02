@@ -5,33 +5,53 @@ category = "Rustc Codegen CLR"
 date = "02 Oct 2023"
 </metadata>
 <markdown>
-It was quite a while since I [last wrote](rustc_codegen_clr_v0_0_1.html) about the progress [of the project](https://github.com/FractalFir/rustc_codegen_clr). It is still far from finished, but I have made some substantial improvements.
-Some of it is very visible (support for generics, enums, for loops, dynamic allocation), other things not so much (better testing, optimization). There have also been a bit of other improvements, that should allow the project to move forward at a much greater pace. So, let's jump right into what new things `0.0.3` brings.
+
+It has been quite a while since I [last wrote](rustc_codegen_clr_v0_0_1.html) about the progress [of the project](https://github.com/FractalFir/rustc_codegen_clr). Writing a compiler is not an easy feat, so it is still far from finished. 
+
+I have made some very substantial improvements, which should enable the compilation of a lot of rust code, which would not work previously.
+
+Some of the work is very visible (support for generics, enums, `for` loops, dynamic allocation), other things not so much (better testing, optimization). There have also been a bit of other, small improvements, that should allow the project to move forward at a much greater pace. So, let's jump right into what new things `0.0.3` brings.
 
 # Counting to 3
 
-If you thought you have missed an article, don't worry. I had not written one for `0.0.2`. Why? 
+Something might seem off to you. If the last version I wrote about was `0.0.1`, why on earth is this one called `0.0.3`? 
 
-While it did bring a lot of new features, this was also the time I realized I made a **Very Big Mistake**. One that could not be fixed without a lot of effort, and made work going forward
-way harder than they should be. In theory, I could continue going forward, building a horrific pile of spaghetti held only by duct tape and faith. But at some point I would run out of
-both tape, and faith. So, I decided to rewrite the project, from scratch.
+Shortly after finishing 0.0.2, as I was preparing to write the next article, something did not sit right with me.
+
+While the new version did bring a lot of new features, this was also the time I realized I made a serious mistake. This was to be expected - this project was created as a silly way of learning more about compilers. 
+Since I started working on it without fully understanding what I was doing, I was bound to make a lot of bad decisions. 
+
+The issue was not that I made a mistake. Oh no, I made a **MISTAKE**.
+
+One that could not be fixed without a lot of effort, and made work going forward way harder than they should be.
+In theory, I could take the wonderfully approach of pretending the issues did not exist, happily building a horrific pile of spaghetti held only by duct tape and faith. The issue with this approach is that, at some point, I would run out of
+both duct tape, and faith. So, I decided to rewrite the project, from scratch.
 
 ## *Rewriting it in Rust* 
 
 This may seem like a reaction blown way out of proportion. And normally, I would agree that starting the project, all over again, is a silly way to refactor.
-This was not the only issue (small, minor problems plagued the project), but it certainly was the biggest one.
-Forgive me if I bore you, but I want to explain why this particular problem made it so hard to refactor.
+
+While this was the biggest roadblock, was not the only issue (small, minor problems plagued the project). 
+
+Those were fixable with a smaller scale refactor, but this one was ingrained pretty deep inside the project.
+
+So, forgive me if I bore you, but I want to take a minute to explain why it was so hard to fix.
 
 ## Trouble with types
 
-One of the most often used parts of this codebase is the representation of a type. It is used everywhere - from method arguments through arithmetic to initializing object fields.
-The smallest issue with it will cause knock-on effects, requiring changes all over the place. You can only imagine what a not-small issue would cause.
+One of the most often used parts of this codebase is the representation of a type. It is used everywhere - from method arguments, through arithmetic, to initializing object fields.
 
-At the begging of the project, in my infinite wisdom, I had decided to use one representation of a type for everything. Type is a type, is it not? I would just convert the
-types I received from `rustc` in one place, and then use this .NET-compatible type everywhere. It is all just "types", right?
+Since it is so key, a smallest issue with it will cause knock-on effects, requiring changes all over the place. A substantial enough problem will cause an avalanche of trouble.
 
-Nuh-uh. "One type representation to rule them all" did not, and will not, exist. While all the data I wanted to represent was indeed a "type", it does not mean all of this 
-data had the same needs. For context, I now use 3 different type representations. Each with their respective, well-defined function.
+At the begging of the project, I had decided to use one representation of a type for everything. This seems entirely reasonable - a type is a type, right?
+
+So, I would just convert the types I got from the fronted of `rustc`, and then use one, universal representation everywhere. This was quite convenient, and seemed simple at the time. 
+
+Well, it turns out there is a bit more to types than meets the eye.
+There is no "One type representation to rule them all" . While all the data I wanted to represent was indeed a "type", it does not mean all places I used it in had the same needs. 
+Getting a field of a struct needs information, such as field names, that is not needed at all in something like a function signature.
+
+I now use 3 different type representations. Each with their respective, well-defined function.
 
 1. `TypeDef` - This is the representation of a non-primitive .NET type. Types, such as Rust's `Option`, have one definition, but are used in many places. Previously,
 I would copy type data for every place the type was used. So, an instruction storing a field would have not only the information about the particular field it referenced,
@@ -40,20 +60,24 @@ and easy to read.
 2. `Type` - This represents either a primitive .NET type (float, native int, UInt128) or a reference to a .NET type. For a reference, it stores only the data needed to look up the type.
 It does not store info about nested types, fields, all that other stuff - this is the job of a `TypeDef`.
 3. Rustc's `Ty` - I have decided to stop trying to reinvent the wheel and use the type representation the smart compiler people gave me. One of the disadvantages of this type
-is that it is not supposed to exit the codegen unit it lives in. Codegen unit does not exactly correspond to a module or library, but it is a small, self-contained part of the code.
-There can be a lot of codegen units, and you need to somehow collect all of their results and create the final executable. This is why I initially avoided using this type too much. 
-I needed something that could cross codegen units - and this type can't. By separating the types I used into `TypeDef`, `Type` and `Ty`, I only needed to ensure my 2 custom representations
-could be saved to disk. This then allowed me to just use `Ty` in far more places - and convert to a serializable format just before saving the results to disk.
+is that it is not supposed to exit the codegen unit it lives in. Codegen unit does not exactly correspond to a module or library, but it is a small, self-contained part of the compiled code.
+There can be a lot of codegen units, and you need to somehow collect all of their results and create the final executable. This is why I initially avoided using `Ty` too much. 
+I needed something that could cross codegen units - and this type can't. By separating the types I used into `TypeDef`, `Type` and the builtin `Ty`, I only needed to ensure my 2 custom representations
+could be saved to disk. This then allowed me to just use `Ty` in far more places - and convert to a serializable format just before saving the results to disk. 
 
-This is still a bit simplified, but this explains the biggest issues. To place things into perspective - the 3 representations are used around 400–500 times in the whole codebase.
-So, fixing the old code would require quite a bit of effort, and I would still be left with all the other issues. My decision to rewrite everything may seem far more reasonable now.
+By doing things this way, I avoid handling a lot of the complexity myself - and since `Ty` is quite well optimized, it improved performance too. 
+
+To place things into perspective - the 3 representations are used around 400–500 times in the whole codebase. When refactoring, I would need to take each of them into account, and choose the right one depending on the circumstances. 
+This would also force me to bin quite a bit of code, since it was built with the old representation in mind.
+
+So, fixing the old code would require substantial am mount of effort, and I would still be left with all the other issues. My decision to rewrite everything may seem far more reasonable now.
 In the end, it turned out to not take all that long (2 days for a bare-bones skeleton and around 5 for roughly feature parity). 
 
-The codebase should also be much cleaner now, although some things still are not fully supported(e.g. not all casts work, since I discovered a flaw with the previous implementation).
+I am quite happy with the results. The codebase should be much cleaner now, although some things still are not fully supported(e.g. not all type casts work, since I discovered a flaw with the previous implementation).
 
 Originally, I wanted to write a bit about the other issues, but they were a bit boring. I don't want to pretend like everything I write just works, so I thought mentioning the underlying issues behind the rewrite could be a nice thing to share.
 
-I had also considered naming this release `0.1.0`(since it was a pretty big change), but I ultimately decided against it. Not only that, but I fell like using `0.1.0` would suggest the project
+I had also considered naming this release `0.1.0`(since it was a pretty big change), but I ultimately decided against it. I fell like using `0.1.0` would suggest the project
 is far further along than it is. I want `0.1.0` to be the version that can be used more widely, and can compile a lot of Rust code without any changes.
 
 # Generics 
