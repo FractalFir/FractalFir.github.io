@@ -6,9 +6,9 @@ date = "02 Oct 2023"
 </metadata>
 <markdown>
 
-It has been quite a while since I [last wrote](rustc_codegen_clr_v0_0_1.html) about the progress [of the project](https://github.com/FractalFir/rustc_codegen_clr). Writing a compiler is not an easy feat, so it is still far from finished. 
+It has been quite a while since I [last wrote](rustc_codegen_clr_v0_0_1.html) about the progress [of the project](https://github.com/FractalFir/rustc_codegen_clr). Writing even a part of a compiler is not an easy feat, so it is still far from finished. But, Rome was not built in a day!
 
-I have made some very substantial improvements, which should enable the compilation of a lot of rust code, which would not work previously.
+I have made some very substantial improvements, which should enable the compilation of a lot more rust code, which would not work previously.
 
 Some of the work is very visible (support for generics, enums, `for` loops, dynamic allocation), other things not so much (better testing, optimization). There have also been a bit of other, small improvements, that should allow the project to move forward at a much greater pace. So, let's jump right into what new things `0.0.3` brings.
 
@@ -55,7 +55,7 @@ I now use 3 different type representations. Each with their respective, well-def
 
 1. `TypeDef` - This is the representation of a non-primitive .NET type. Types, such as Rust's `Option`, have one definition, but are used in many places. Previously,
 I would copy type data for every place the type was used. So, an instruction storing a field would have not only the information about the particular field it referenced,
-it had the information about every field this type has. Separating type definitions from type uses not only saved on memory and improved performance, it made things far clearer
+it had the information about every other field this type has. Separating type definitions from type uses both saves on memory, and improved performance. It also made things far clearer
 and easy to read.
 2. `Type` - This represents either a primitive .NET type (float, native int, UInt128) or a reference to a .NET type. For a reference, it stores only the data needed to look up the type.
 It does not store info about nested types, fields, all that other stuff - this is the job of a `TypeDef`.
