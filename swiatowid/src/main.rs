@@ -187,6 +187,10 @@ fn collect_articles_from_dir(path:&Path)->std::io::Result<Vec<Article>>{
     let mut articles = Vec::new();
     for file in std::fs::read_dir(path)?{
         let file = file?;
+        if file.path().is_dir() {
+            articles.extend(collect_articles_from_dir(&file.path())?);
+            continue;
+        } 
         if file.file_type()?.is_file() && file.path().extension().is_some_and(|extension| extension == "fat_md"){
             let file = std::fs::File::open(file.path())?;
             let article = Article::from_file(file)?;
