@@ -154,7 +154,7 @@ This is the way I plan on implementing some other .NET features (field access, m
 There are still some iffy things and problems without good solutions. One of them is enforcing some of the constraints of n managed references. Managed references can't be stored on the unmaged heap - it is an UB.
 This means that in Rust, they should not leave the stack. They can be copied, moved around the stack - but they should not leave this. This concept is not really something easy to model in Rust. Lifetimes only 
 control how long a piece of data lives - not where it exactly is. Pinning enforces something stays in one place - but can't be mixed with Clone and Copy, since those enable you to move the data off the stack.
-My current solution would be for the codegen to enforce those by preforming checks while compiling - but it is not its job. It can work, but it will be quite clunky. If you have better ideas - let me know.
+My current solution would be for the codegen to enforce those by preforming checks while compiling - but it is not its job. It can work, but it will be quite clunky. If you have any ideas - let me know.
 
 Another option is to enforce using reference handles - but that has a fair bit of overhead. 
 
