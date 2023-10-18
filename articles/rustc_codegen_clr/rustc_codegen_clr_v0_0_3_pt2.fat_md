@@ -171,7 +171,7 @@ For test setup details, [check the GitHub repo](https://github.com/FractalFir/ru
 
 `Codegen Optimzations Disabled` means that the Rust code was compiled in release mode, but post-MIR, codegen-internal optimizations were disabled.
 
-## Fibonacci of 10, recursive, Avg of 10K runs 
+### Fibonacci of 10, recursive, Avg of 10K runs 
 
 **Rust native (release)**: * 100 ns          *
 
@@ -195,7 +195,7 @@ start seriously working on when the project is mature - at best in a couple of y
 So, let's now look at the "wrong" test results - the ones JIT(?) decided to mess up:
 
 
-## Fibonacci of 10, recursive, Avg of 100M runs 
+### Fibonacci of 10, recursive, Avg of 100M runs 
 
 **Rust native (release)**             : * 107 ns *           
 
