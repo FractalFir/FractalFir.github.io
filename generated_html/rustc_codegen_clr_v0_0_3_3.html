@@ -1,0 +1,178 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=0.5"><title>Mischevious miscompilations</title><link rel="stylesheet" href="default.css"></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+        </nav></div><div class="article"><h1 class="title">Mischevious miscompilations</h1><br><small>Published on 30 Oct 2023<br><i>7 - 13 minute read</i></small><div class = "paragraph"><p><em>This is the 4th part of my series about writing a <a href='https://github.com/FractalFir/rustc_codegen_clr'>Rust compiler backend targeting .NET</a></em></p>
+
+<p>Writing even a part of a compiler is not a trivial task, and it is quite easy to mess things up. In this article, I will explain some of the challenges arising from the quirks of both CIL(.NET's assembly format) and MIR (Rust intermediate representation). I will also talk a little bit about leveraging some more interesting properties of CIL to catch errors automatically, and about how I doubled the current test coverage.</p>
+
+<h1 id='how_does_cil_work?'>How does CIL work?</h1>
+
+<p>Before going more in depth into the exact causes of errors and some of the issues I commonly encountered while translating Rust into .NET assemblies, I should probably explain some basics of CIL, in order to make more complicated examples easier to digest.</p>
+
+<h2 id='stack-based'>Stack-based</h2>
+
+<p>The first important property of CIL is that it is stack-based. It describes a sequence of operations on a stack of an imaginary CPU, and the JIT then turns instructions for this made-up processor into heavily optimized native code. This may seem quite weird at first, since almost all CPUs tend to operate on registers, with the <a href='https://en.wikipedia.org/wiki/Stack_machine'>few exceptions</a> to this rule being little more than oddities in some computer history museums. There are a few advantages to this form of intermediate representation. For one, it assumes nothing about how many registers the target CPU has, making it quite portable. By not specifying anything about registers and relying solely on the JIT to do the hard job of selecting the right ones, it also avoids having to deal with all the architecture-specific weirdness, such as floating point registers being sometimes different from general purpose ones.</p>
+
+<p>Another huge advantage of stack-based IL is the reduction in assembly size. This is not a concern for languages which are AOT compiled to native code, since the IL is present only during compilation, but it is crucial for .NET, where all assemblies contain CIL.</p>
+
+<p>In order to showcase both the assembly size savings and to further explain CIL, let us consider a simple function: <code>add</code>. It takes two numbers, <code>a</code> and <code>b</code>, and returns their sum. This is how it looks like in CIL:</p>
+
+<pre><code class="language-cil">.method public static int32 sum(int32,int32){
+	// Load 0th argument on the stack 
+	ldarg.0
+	// Load 1st argument on the stack 
+	ldarg.1
+	// Add the top 2 numbers on the stack, push sum on the stack
+	add
+	// Return the top value on the stack
+	ret
+}</code></pre>
+
+<p>How many bytes do you think it takes to encode the CIL inside this method?</p>
+
+<p>Exactly 4 bytes. The word <code>byte</code> takes the same amount of space as the code inside this function. Rust MIR or LLVM IR - compile-time representations which preform arithmetic's directly on variables, would take this much space just to encode <strong>one of the variables the operation is preformed on</strong>. They can afford to waste space - they are temporary, after all. But .NET's IL must be much more resource conservative, since it is stored permanently.</p>
+
+<h2 id='the_behavior_depends_on_context.'>The behavior depends on context.</h2>
+
+<p>This is another of CIL's space-saving schemes. One I am much less found of, since it caused me quite a bit of headaches. What is it exactly?</p>
+
+<p>Well, some instructions do slightly different things depending on other instructions around them. Where in Java bytecode (which is quite similar to .NET IL) there are <code>dadd</code>, <code>fadd</code>, <code>iadd</code>, <code>ladd</code> instructions to add doubles, floats, integers and longs respectively, CIL has just one <code>add</code> instruction. The same can be said for the <code>ldarg</code> and <code>ldloc</code> instructions. While JVM treats arguments as local variables, using the same instructions to access them, it still has way more variants of its <code>local</code> instruction. To showcase the huge advantages of this type deduction, I will now show the variant of the previously shown <code>sum</code> CIL function. This version adds doubles instead of 32-bit integers:</p>
+
+<pre><code class="language-cil"> .method public static float64 sum(float64,float64){
+	// Load 0th argument on the stack 
+	ldarg.0
+	// Load 1st argument on the stack 
+	ldarg.1
+	// Add the top 2 numbers on the stack, push sum on the stack
+	add
+	// Return the top value on the stack
+	ret
+}</code></pre>
+
+<p>The body of the function did not have to change at all - changing the function signature was more than enough. By reusing the same <code>add</code> instruction for adding multiple different types, CIL is able to assign more variants to instructions such as <code>ldloc</code>. The <code>ldloc.0</code> and <code>ldloc.1</code> variants I use are actually short forms of the ldloc instruction. Instead of using an op followed by 16 bit ushort(u16) to encode loading of the locals 0 to 4, dedicated, 1-byte wide variants allow us to save over 60% of space! There is also a variant which consists of an op followed by a single byte(u8), which is used to encode accessing locals in range 5-255. This too saves quite a bit of space. As you can see, by not wasting space for dedicated, type specific variants of arithmetic's, we can reduce the size of all assemblies by a lot.</p>
+
+<p>So, what is the problem?</p>
+
+<h2 id='the_behavior_depends_on_context...'>The behavior depends on context...</h2>
+
+<p>There are cases where the runtime deduces types in a way that is a bit... unusual. It is still fully correct and specified. The issue is not that it is wrong or dumb - it is too smart. There are some cases where I would expect something to be invalid and cause the JIT to throw an exception - but the runtime just happily chugged along. I want to reiterate - this is <strong>not an issue with the runtime</strong>. It is just me being stupid.</p>
+
+<p>So, what was the problem?</p>
+
+<p>After compiling one of my tests in debug mode(I added partial support for Rust debug compilation - more on this later), it began to fail with a null deference exception. This was a miss-compilation, which was quite complex and spanned multiple functions. Adding the details on where exactly what was called would only make this hard to follow - so let me save you the headache and simplify the issue.</p>
+
+<p>The root cause was part of field access code using <code>ldfld</code> instruction instead of <code>ldflda</code> when attempting to get the address of a primitive field. This in turn caused the compiled code to incorrectly load the <em>value</em> of an <code>int32</code> field instead of a pointer to it. The problematic CIL looked something like this:</p>
+
+<pre><code class="language-cil">// load the value of field `int Somefield` on the stack
+ldfld int32 SomeType::Somefield
+// load the intiger behind the pointer on top of the stack
+ldind.i4 </code></pre>
+
+<p>when it should have looked like this:</p>
+
+<pre><code class="language-cil">// load the address of field `int Somefield` on the stack
+ldflda int32 SomeType::Somefield
+// load the intiger behind the pointer on top of the stack
+ldind.i4 </code></pre>
+
+<p>One letter difference - hard to spot even when all else is removed. I would have expected this to fail - after all, 32bit integers and 64 bit pointers are completely different things. The runtime promoted the <code>int</code> to a <code>int*</code>, turning a value of <code>0</code> into a null pointer. I would expect it to throw an exception and refuse to compile such a thing - requiring an explicit <code>conv.i</code> instruction to change an int to a pointer.</p>
+
+<p>Looking back at this, the behavior makes sense - in a weird, contrived  way. Why use an additional instruction to do such a thing, where the behavior can be so easily deduced? This is an example where runtime being a bit too smart results in a lot of pain for me. Normal users won't ever encounter this - the C# compiler will easily catch such things - but I am <em>writing</em> a compiler, so there is none to save me from my own stupidity.</p>
+
+<p>What is even worse, is that this is fully valid CIL. I can't catch such kind of error inside the codegen, since such a combination of ops <em>could</em> be a result of compiling a valid Rust program. I would have to reject valid CIL, which is definitely not what I want to do.</p>
+
+<p>There are, however, ways to catch some issues.</p>
+
+<h1 id='simulating_the_stack.'>Simulating the stack.</h1>
+
+<p>Due to the complexity of some parts of the codegen, it is quite easy to get lost in a sea of ops. Keeping track of what is on the stack is a nightmare once you go beyond trivial programs. It is not an uncommon occurrence for me to forget an op, and mess the stack up completely. Accidentally load something twice, or not load it at all. How would one go about catching such issues? This is where one of the design decisions I made early on comes to my rescue.<br /></p>
+
+<h2 id='mir_statements'>MIR statements</h2>
+
+<p>Before going into how I catch such bugs, I must explain a little bit about Rust MIR. It is quite complicated, so I will focus only on what is strictly necessary to get the idea across. In MIR, functions consist of a series of statements. Statement is the simplest, independent, meaningful piece of code. For example, this statement adds 2 numbers together:</p>
+
+<pre><code>_1 = Add(move _2, move _3);</code></pre>
+
+<p>It assigns the local variable <code>_1</code> the value of <code>_2</code> + <code>_3</code>. What is important to notice is that every statement is such an assignment. The codegen &quot;sees&quot; only one statement at a time - this is done to prevent issues with compiling one of them from affecting any other. This has its own cost - the codegen must spend more time optimizing the final CIL, and it requires a bit more work. It has the unique advantage of being really easy to debug and pinpoint any issues.</p>
+
+<p>What is particularly interesting is that before the optimization step occurs, the stack is <strong>always</strong> empty before and after each statement. Since this will always hold, unless and issue pops up, we can simulate how each op in a statement affects the stack. If during this simulation, the amount of things on the stack is ever below 0 or is not equal to 0 at the end, a miscompilation must have occurred. The codegen will then throw an error, with a message including the statement, what ops did it get translated into, and step-by step breakdown on how each op affected the stack. This significantly simplifies the debugging process for this particular kind of miscompilation. Others still are not very pleasant to debug, but I managed to squash quite a bit of them.</p>
+
+<h1 id='building_tests_in_debug_mode'>Building tests in debug mode</h1>
+
+<p>Another big change I worked on this week is the addition of support for building Rust programs in debug mode. One of the reasons I started with compiling only optimized Rust code was the added complexity of debug Rust features. Optimized Rust code does introduce the need to support certain features not present in debug mode, but it is far easier to disable optimizations than to implement things like bounds checking. You can just use <code>std::hint::black_box</code> to tell the compiler that it can't optimize a particular operation.</p>
+
+<p>Making the test harness also run tests in debug mode was relatively straightforward, since it just required copying the existing test runners, and removing the &quot;--release&quot; option from the tester meant for debug code.</p>
+
+<p>Getting the codegen to build debug-mode code is a different story entirely.</p>
+
+<h2 id='checked_ops'>Checked ops</h2>
+
+<p>Rust MIR has a special kind of arithmetic operation meant for debugging and certain safety-oriented applications: a checked operation, such as <code>CheckedAdd</code>.</p>
+
+<p>.NET also has a similar feature, with opcodes such as <code>add.ovf</code> serving an almost identical function.</p>
+
+<h3 id='why_i_can't_use_built-in_checked_ops.'>Why I can't use built-in checked ops.</h3>
+
+<p>You would think that I could just use <code>add.ovf</code> and its friends to implement Rust's checked ops, right?<br /></p>
+
+<p>Nope.</p>
+
+<p>The difference is pretty fundamental and comes from the different philosophy of error handling in .NET and Rust.</p>
+
+<h4 id='error_handling_-_.net_vs_rust'>Error handling - .NET vs Rust</h4>
+
+<p>.NETs assumes that errors rarely occur. The cost of raising an exception is significant - but not noticeable in most cases. Looking at some online measurements, the error path can take a couple of thousand nanoseconds longer than an exception-less one. This tiny overhead is not perceivable by a human, but can impact performance if it occurs often enough.</p>
+
+<p>Rust is very explicit about errors and assumes they happen often. It forces you to either explicitly handle all errors or to tell the compiler that the program should crash if it occurs. You can tell if a function could fail by just looking at its return type. Panics are a small exception to this, since you can't see them without looking into the relevant function, but they are intended mostly for errors so critical, that the program should just crash. Returning an <code>Err</code> result is way cheaper than throwing an exception (since it works just like returning any ordinary value), and the performance cost of returning something like <code>Result&lt;i32&gt;</code> instead of just <code>i32</code> is usually negligible, and in some cases - not present at all (Due to optimizations).</p>
+
+<p>Now that I established the different approaches to handling errors in Rust and .NET, I should probably get right back to the point and explain how Rust's checked arithmetic's work.</p>
+
+<h4 id='differences_in_checked_arithmetics'>Differences in checked arithmetics</h4>
+
+<p>While .NET's checked ops throw an exception on overflow, Rust's checked ops return a tuple <code>(bool,number_type)</code>, containing a boolean signaling that under/overflow occurred, and the result of the arithmetic operation. It may seem like I could just use the .NET checked op and set the tuple to <code>(false,result)</code> after the operation, since in most cases a failed checked op will be followed by a panic anyway. The issue is that such an operation is not <em>always</em> followed by a panic, and is sometimes used as part of an algorithm's logic. Doing some weirdness with <code>try</code>/<code>catch</code> would introduce quite a bit of unnecessary overhead, which would not be expected by the people writing the compiled Rust code. One of the more ambitious goals of the project is to compile <strong>any</strong> Rust code to .NET. This could bring countless Rust crates (libraries) to .NET, allowing for easy use of code which preforms no managed allocations, freeing precious GC time. Because most authors of those crates did not write them with this project and .NET in mind, the code compiled by the codegen should behave as closely to native Rust as possible.</p>
+
+<h2 id='implementation_of_checkedadd'>Implementation of CheckedAdd</h2>
+
+<p>One of the big challenges is that I can't access things like the carry flag, which would make detecting overflows trivial, from CIL, since those sorts of things are architecture-specific. My algorithms have to be architecture-agnostic, and implemented in pure CIL.</p>
+
+<p>I currently have finished implementing checked addition for all unsigned integers and have a WIP version of checked addition of signed ints.</p>
+
+<p>Since this article is getting a bit long, and checked ops will be a major part of the next one, I won't get into the details of how things work under the hood (on CIL level).</p>
+
+<p>I will just show how the algorithm works, and explain the principles behind it.</p>
+
+<h3 id='unsigned_checked_add'>Unsigned checked add</h3>
+
+<pre><code class="language-csharp">   var sum = a + b;
+   bool overflown = sum &lt; a | b;</code></pre>
+
+<p>For unsigned integers, a sum should be bigger than both <code>a</code> and <code>b</code>, unless we overflow. If the sum is smaller than the bitwise <code>or</code> of the values (which it never should be, due to how addition works on the binary level), this means we have overflown. The exact implementation on CIL level is something I will leave for later.</p>
+
+<h3 id='signed_checked_add'>Signed checked add</h3>
+
+<p><em>This example uses 8-bit integers, but any other size will work too.</em></p>
+
+<pre><code class="language-csharp">   sbyte sum = (sbyte)(a + b);
+   sbyte sign_a = (sbyte)(a &amp; 0b1000_0000);
+   sbyte sign_b =(sbyte)(b &amp; 0b1000_0000);
+   sbyte sum_sign = (sbyte)(sum &amp; 0b1000_0000);
+   bool signs_equal = sign_a == sign_b;
+   bool overflown = signs_equal &amp;&amp; sum_sign != sign_a;</code></pre>
+
+<p>For detecting signed overflow, we can leverage 2 facts: First, only adding 2 variables with the same sign may overflow/underflow  - since if the signs are different, the absolute value of the result will be smaller than the bigger operand, so it can't overflow/underflow.</p>
+
+<p>Secondly, if an overflow/underflow occurs, the sign of the result will be different from the sign of the operands.</p>
+
+<p>Using those facts, we can detect all overflows in a decently performant, platform-agnostic way.</p>
+
+<h1 id='conclusion'>Conclusion</h1>
+
+<p>I hope you enjoyed this article. It is a bit less focused on new features, but I hope it still was an enjoyable read.<br /></p>
+
+<p>If you want, you can <a href='https://github.com/FractalFir/rustc_codegen_clr'>check out the project</a>, take a look and maybe even contribute.</p>
+
+<p>Have a good day, and I hope I will see you again soon!</p>
+</div></div></body></html>
