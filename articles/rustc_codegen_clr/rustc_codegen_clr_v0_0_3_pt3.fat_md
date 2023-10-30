@@ -45,7 +45,7 @@ Exactly 4 bytes. The word `byte` takes the same amount of space as the code insi
 
 ## The behavior depends on context.
 
-This is another of CIL's space-saving schemes. One I am much less found of, since it caused me quite a bit of headaches. What is it exactly? 
+This is another of CIL's space-saving schemes. One I am much less fond of, since it caused me quite a bit of headaches. What is it exactly? 
 
 Well, some instructions do slightly different things depending on other instructions around them. Where in Java bytecode (which is quite similar to .NET IL) there are `dadd`, `fadd`, `iadd`, `ladd` instructions to add doubles, floats, integers and 
 longs respectively, CIL has just one `add` instruction. The same can be said for the `ldarg` and `ldloc` instructions. While JVM treats arguments as local variables, using the same instructions to access them, it still has way more variants of 
@@ -160,10 +160,12 @@ handle it.
 What is important for us is the performance impacts of this approach. .NET is an "optimist" - it assumes errors happen rarely. The cost of raising an exception is relatively high(thousand of ns), but the exception handling is "free" when errors don't
 occur. Rust is a pessimist - the world is cruel and errors could happen anytime, so it is important to be just as fast in the case of an error as in the case of success. This can(due to compiler does not have too) have a tiny performance impact in 
 each call. Comparing them directly is very tricky, since the Rust compiler sacrifices build speeds for a very precise analysis of the program, very often optimizing the costs of `Result` or `Option` away completely. An example of such a clever 
-optimization is that `Option<&T>` fits in the same space as `&T` - since the null pointer value can be used to represent `None`. The point I am trying to make - this is not an apple to apple comparison, and it is almost never relevant.
+optimization is that `Option<&T>` fits in the same space as `&T` - since the null pointer value can be used to represent `None`. There are many other things which make all of this messy and countless articles arguing on or other way.
+
+The point I am trying to make - this is not an apples to apples comparison, and it is almost never relevant. 
 
 In our case, the issue is that Rust promises checked arithmetic's to succeed and fail in roughly the same time. The error case is not special - it is just a return value, like `7` or `42`. The cost of raising an exception is significant when compared
-to just adding 2 numbers - so this normally useful feature of .NET is useless for our case. This overhead could break some Rust programs - precisely because they may rely on this errors-are-cheap behavior. 
+to just adding 2 numbers - so this normally useful feature of .NET is useless for our case. The "unhappy" case overhead could break some Rust programs - precisely because they may rely on this errors-are-cheap behavior. 
 
 #### Differences in checked arithmetics
 
