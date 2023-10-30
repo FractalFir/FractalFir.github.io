@@ -160,11 +160,11 @@ return type. Panics are a small exception to this, since you can't see them with
 than throwing an exception (since it works just like returning any ordinary value), and the performance cost of returning something like `Result<i32>` instead of just `i32` is usually negligible, and in some cases - not present at all (Due to
 optimizations).
 
-Rust promises checked adds to be a `Zero-cost abstraction`. This confusingly named concept roughly means that the abstraction is as fast as the best possible implementation. Rust promises that `CheckedAdd` is done in an optimal way,
+Rust says that checked arthmetics are a `Zero-cost abstraction`. This confusingly named concept roughly means that the abstraction is as fast as the best possible implementation. Rust promises that `CheckedAdd` is done in an optimal way,
 where both the success and failure have roughly the same overhead. The .NET checked ops are significantly slower in the case of failure than in the case of success, which makes them unsuitable for our use case.
 
-This does not mean that .NET exceptions are slow/slower in the grand scheme of things - normally you would not throw millions of exceptions per second. The difference is purely in that Rust assumes the worst case scenario, where .NET is a bit more
-optimistic. Some Rust code can rely on this to be performant, and we should not break it.
+This does not mean that .NET exceptions are slow/slower in the grand scheme of things - normally you would not throw tens millions of exceptions per second. The difference is purely in that Rust assumes the worst case scenario, where .NET is a bit 
+more optimistic. Some Rust code can rely on errors being cheap to be performant, and we should not break it.
 
 Now that I established the different approaches to handling errors in Rust and .NET, I should probably get right back to the point and explain how Rust's checked arithmetic's work.
 
