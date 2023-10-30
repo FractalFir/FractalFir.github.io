@@ -152,21 +152,18 @@ The difference is pretty fundamental and comes from the different philosophy of 
 
 #### Error handling - .NET vs Rust
 
-.NETs assumes that errors rarely occur. The cost of raising an exception is significant - but not noticeable in most cases. Looking at some online measurements, the error path can take a couple of thousand nanoseconds longer than an exception-less 
-one. This normally negligible overhead is quite siginificant in our case, because it can occur quite often in Rust programs.
+One of the main differences between Rust and .NET is the error handling. .NET uses exceptions, which go up trough the call stack until encountering a suitable handler. Rust on the other hand mainly uses `Result` types - more explicit mechanism which 
+requires the one writing the code to exactly specify what happens to errors on each function call. Is the error handled in some way? Should the program crash? Or should the error be reported up to the caller? Exceptions vs Results is a complicated
+topic in which the "best" option depends entirely on use case, and personal preferences. I tend to gravitate more towards `Result` - since it is easy to see which functions can fail(by just looking at their return type), and quite hard to forget to
+handle it.
 
-Rust is very explicit about errors and assumes they happen often. It forces you to either explicitly handle all errors or to tell the compiler that the program should crash if it occurs. You can tell if a function could fail by just looking at its
-return type. Panics are a small exception to this, since you can't see them without looking into the relevant function, but they are intended mostly for errors so critical, that the program should just crash. Returning an `Err` result is way cheaper 
-than throwing an exception (since it works just like returning any ordinary value), and the performance cost of returning something like `Result<i32>` instead of just `i32` is usually negligible, and in some cases - not present at all (Due to
-optimizations).
+What is important for us is the performance impacts of this approach. .NET is an "optimist" - it assumes errors happen rarely. The cost of raising an exception is relatively high(thousand of ns), but the exception handling is "free" when errors don't
+occur. Rust is a pessimist - the world is cruel and errors could happen anytime, so it is important to be just as fast in the case of an error as in the case of success. This can(due to compiler does not have too) have a tiny performance impact in 
+each call. Comparing them directly is very tricky, since the Rust compiler sacrifices build speeds for a very precise analysis of the program, very often optimizing the costs of `Result` or `Option` away completely. An example of such a clever 
+optimization is that `Option<&T>` fits in the same space as `&T` - since the null pointer value can be used to represent `None`. The point I am trying to make - this is not an apple to apple comparison, and it is almost never relevant.
 
-Rust says that checked arthmetics are a `Zero-cost abstraction`. This confusingly named concept roughly means that the abstraction is as fast as the best possible implementation. Rust promises that `CheckedAdd` is done in an optimal way,
-where both the success and failure have roughly the same overhead. The .NET checked ops are significantly slower in the case of failure than in the case of success, which makes them unsuitable for our use case.
-
-This does not mean that .NET exceptions are slow/slower in the grand scheme of things - normally you would not throw tens millions of exceptions per second. The difference is purely in that Rust assumes the worst case scenario, where .NET is a bit 
-more optimistic. Some Rust code can rely on errors being cheap to be performant, and we should not break it.
-
-Now that I established the different approaches to handling errors in Rust and .NET, I should probably get right back to the point and explain how Rust's checked arithmetic's work.
+In our case, the issue is that Rust promises checked arithmetic's to succeed and fail in roughly the same time. The error case is not special - it is just a return value, like `7` or `42`. The cost of raising an exception is significant when compared
+to just adding 2 numbers - so this normally useful feature of .NET is useless for our case. This overhead could break some Rust programs - precisely because they may rely on this errors-are-cheap behavior. 
 
 #### Differences in checked arithmetics
 
