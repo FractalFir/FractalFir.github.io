@@ -33,7 +33,7 @@
 
 <p>How many bytes do you think it takes to encode the CIL inside this method?</p>
 
-<p>Exactly 4 bytes. The word <code>byte</code> takes the same amount of space as the code inside this function. Rust MIR or LLVM IR - compile-time representations which preform arithmetic's directly on variables, would take this much space just to encode <strong>one of the variables the operation is preformed on</strong>. They can afford to waste space - they are temporary, after all. But .NET's IL must be much more resource conservative, since it is stored permanently.</p>
+<p>Exactly 4 bytes. The word <code>byte</code> takes the same amount of space as the code inside this function. Rust MIR or LLVM IR - compile-time representations which preform arithmetic's directly on variables, would take this much space just to encode <strong>one of the variables the operation is performed on</strong>. They can afford to waste space - they are temporary, after all. But .NET's IL must be much more resource conservative, since it is stored permanently.</p>
 
 <h2 id='the_behavior_depends_on_context.'>The behavior depends on context.</h2>
 
@@ -68,14 +68,14 @@
 
 <pre><code class="language-cil">// load the value of field `int Somefield` on the stack
 ldfld int32 SomeType::Somefield
-// load the intiger behind the pointer on top of the stack
+// load the integer behind the pointer on top of the stack
 ldind.i4 </code></pre>
 
 <p>when it should have looked like this:</p>
 
 <pre><code class="language-cil">// load the address of field `int Somefield` on the stack
 ldflda int32 SomeType::Somefield
-// load the intiger behind the pointer on top of the stack
+// load the integer behind the pointer on top of the stack
 ldind.i4 </code></pre>
 
 <p>One letter difference - hard to spot even when all else is removed. I would have expected this to fail - after all, 32bit integers and 64 bit pointers are completely different things. The runtime promoted the <code>int</code> to a <code>int*</code>, turning a value of <code>0</code> into a null pointer. I would expect it to throw an exception and refuse to compile such a thing - requiring an explicit <code>conv.i</code> instruction to change an int to a pointer.</p>

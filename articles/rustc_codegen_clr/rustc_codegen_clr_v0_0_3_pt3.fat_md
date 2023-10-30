@@ -41,7 +41,7 @@ In order to showcase both the assembly size savings and to further explain CIL, 
 How many bytes do you think it takes to encode the CIL inside this method?
 
 Exactly 4 bytes. The word `byte` takes the same amount of space as the code inside this function. Rust MIR or LLVM IR - compile-time representations which preform arithmetic's directly on variables, would take this much space just to encode 
-**one of the variables the operation is preformed on**. They can afford to waste space - they are temporary, after all. But .NET's IL must be much more resource conservative, since it is stored permanently. 
+**one of the variables the operation is performed on**. They can afford to waste space - they are temporary, after all. But .NET's IL must be much more resource conservative, since it is stored permanently. 
 
 ## The behavior depends on context.
 
@@ -84,14 +84,14 @@ a pointer to it. The problematic CIL looked something like this:
 ```cil
 // load the value of field `int Somefield` on the stack
 ldfld int32 SomeType::Somefield
-// load the intiger behind the pointer on top of the stack
+// load the integer behind the pointer on top of the stack
 ldind.i4 
 ```
 when it should have looked like this:
 ```cil
 // load the address of field `int Somefield` on the stack
 ldflda int32 SomeType::Somefield
-// load the intiger behind the pointer on top of the stack
+// load the integer behind the pointer on top of the stack
 ldind.i4 
 ```
 
