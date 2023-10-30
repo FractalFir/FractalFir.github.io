@@ -152,13 +152,19 @@ The difference is pretty fundamental and comes from the different philosophy of 
 
 #### Error handling - .NET vs Rust
 
-.NETs assumes that errors rarely occur. The cost of raising an exception is significant - but not noticeable in most cases. Looking at some online measurements, the error path can take a couple of thousand nanoseconds longer than an exception-less one. 
-This tiny overhead is not perceivable by a human, but can impact performance if it occurs often enough. 
+.NETs assumes that errors rarely occur. The cost of raising an exception is significant - but not noticeable in most cases. Looking at some online measurements, the error path can take a couple of thousand nanoseconds longer than an exception-less 
+one. This normally negligible overhead is quite siginificant in our case, because it can occur quite often in Rust programs.
 
 Rust is very explicit about errors and assumes they happen often. It forces you to either explicitly handle all errors or to tell the compiler that the program should crash if it occurs. You can tell if a function could fail by just looking at its
 return type. Panics are a small exception to this, since you can't see them without looking into the relevant function, but they are intended mostly for errors so critical, that the program should just crash. Returning an `Err` result is way cheaper 
 than throwing an exception (since it works just like returning any ordinary value), and the performance cost of returning something like `Result<i32>` instead of just `i32` is usually negligible, and in some cases - not present at all (Due to
 optimizations).
+
+Rust promises checked adds to be a `Zero-cost abstraction`. This confusingly named concept roughly means that the abstraction is as fast as the best possible implementation. Rust promises that `CheckedAdd` is done in an optimal way,
+where both the success and failure have roughly the same overhead. The .NET checked ops are significantly slower in the case of failure than in the case of success, which makes them unsuitable for our use case.
+
+This does not mean that .NET exceptions are slow/slower in the grand scheme of things - normally you would not throw millions of exceptions per second. The difference is purely in that Rust assumes the worst case scenario, where .NET is a bit more
+optimistic. Some Rust code can rely on this to be performant, and we should not break it.
 
 Now that I established the different approaches to handling errors in Rust and .NET, I should probably get right back to the point and explain how Rust's checked arithmetic's work.
 
