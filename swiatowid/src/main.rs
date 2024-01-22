@@ -68,7 +68,7 @@ struct Markdown{
 impl Markdown{
     fn from_string(string:&str)->Self{
         let html = markdown::to_html(string);
-        let html = html.replace("&#8217;","'");
+        let html = html.replace("&#8217;","'");//.replace("<code","<div class = \"code\"><code").replace("</code","</div></code");
         let html = vec![html];
         //println!("Begun count");
         let words = string.split(|c:char| c.is_whitespace()).map(|word|(word.len() > 0) as usize).sum::<usize>();
@@ -136,7 +136,12 @@ impl Article{
     fn to_html(&self,articles:&[Article])->String{
         let title = self.metadata.title();
         let style = self.metadata.style();
-        let head = format!("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=0.5\"><title>{title}</title><link rel=\"stylesheet\" href=\"{style}.css\"></head>");
+        let hljs ="<link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css\">
+<script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js\"></script>
+<!-- and it's easy to individually load additional languages -->
+<script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js\"></script>
+<script>hljs.highlightAll();</script>";
+        let head = format!("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=0.5\"><title>{title}</title><link rel=\"stylesheet\" href=\"{style}.css\">{hljs}</head>");
         let words = self.markdown.words();
         let time_min = ((words as f32/350.0).floor() as usize).max(1);
         let time_max = ((words as f32/220.0).ceil() as usize).max(2);
