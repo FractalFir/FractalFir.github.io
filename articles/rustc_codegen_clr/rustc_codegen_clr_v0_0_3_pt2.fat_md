@@ -123,7 +123,7 @@ This is the deepest layer of abstractions almost all people will be dealing with
 
 One question still remains - how on earth does the compiler know that `instance0` should be changed to call a managed function? Or that `ctor0` should be replaced with a `newobj` instruction? Let's look at 
 the implementation of `instance0`:
-```
+```rust
     #[inline(always)]
     pub fn instance0<const METHOD: &'static str, Ret>(self) -> Ret {
         rustc_clr_interop_managed_call1_::<ASSEMBLY, CLASS_PATH, false, METHOD, false, Ret, Self>(
@@ -136,9 +136,7 @@ the phrase `rustc_clr_interop_managed_call` the codegen recognizes that this fun
 The definition of `rustc_clr_interop_managed_call1_` looks like this:
 
 ```rust
-pub fn rustc_clr_interop_managed_call1_<
-const ASSEMBLY: &'static str,const CLASS_PATH: &'static str,const IS_VALUETYPE: bool,
-const METHOD: &'static str,const IS_STATIC: bool,Ret,Arg1>(arg1: Arg1) -> Ret 
+pub fn rustc_clr_interop_managed_call1_<const ASSEMBLY: &'static str,const CLASS_PATH: &'static str,const IS_VALUETYPE: bool,const METHOD: &'static str,const IS_STATIC: bool,Ret,Arg1>(arg1: Arg1) -> Ret 
 ```
 
 The codegen checks the functions' generic arguments (string literals and booleans

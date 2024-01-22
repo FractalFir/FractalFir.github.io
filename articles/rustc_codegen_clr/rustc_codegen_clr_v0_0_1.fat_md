@@ -107,8 +107,8 @@ You would assume that if some CIL code is blatantly wrong, `ilasm` would be unab
 The part of the message about invalid IL code, instruction position and the instruction itself could lead you to believe that the instruction in question `ldc.i4.s` was the issue. So I tried removing it. Issue persisted. So I removed more. Nothing. Even more. More. MORE. Until all that was left was a single `ret` opcode. What? How is that possible? There is almost nowhere the issue can be? The only part left, besides the function signature and name, is...
 ## .locals
 Any function in CIL has to declare all of its local variables. A valid declaration of locals looks something like this:
-```
-.local(
+```cil
+.locals(
    [0] int32,
    [1] float32,
    [2] int8,
@@ -117,8 +117,8 @@ Any function in CIL has to declare all of its local variables. A valid declarati
 )
 ```
 And one with the particular issue I was facing looks like this:
-```
-.local(
+```cil
+.locals(
    [0] int32,
    [1] float32,
    [2] int8,

@@ -1,17 +1,67 @@
 :root {  
-  --background: hsla(156, 1.25%, 11%, 1);
-  --post_background: hsla(153, 5%, 15.5%, 1);
+  --background: hsla(156, 0.25%, 7.6%, 1);
+  --post_background: hsla(153, 2%, 14.5%, 1);
+  --header_background: hsla(153, 2%, 14%, 1);
+  --title_background: hsla(120, 9.5%, 20.5%, 1);
   --topic_background: hsla(153, 2.5%, 30%, 1);
   --nav_background:hsl(156,98%,35%);
   --link: hsla(150, 80%, 85%, 1);
   --text: hsla(186, 4%, 98%, 1);
+   font-family: Arial, Helvetica, sans-serif;
 }
-.language-csharp hljs{
-   filter:invert(10);
+.hljs-ln-numbers{
+  scale: .75; 
+  color:  hsla(186, 4%, 98%, .5);
+}
+.hljs-ln-n{
+  margin-left: -10px;
+  margin-right: 5px;
+}
+h1{
+  background-color: var(--header_background);  
+  border-radius: 5px;
+  box-shadow: 1px 1.25px 1.25px black;
+}
+
+h2{
+  background-color: var(--header_background);  
+  border-radius: 5px;
+   box-shadow: .5px .75px .75px black;
+}
+.title{
+  font-size:210%;
+  margin-left: 1.5%;
+  margin-right:1.5%;
+  margin-top: -.5%;
+  margin-bottom:-1.75%;
+  background-color: hsla(0, 0%, 0%, 0);
+  box-shadow: 0px 0px 0px black;
+}
+.article_header{
+  box-sizing: border-box;
+  padding: 0.25%;
+  border-radius: 10px;
+  margin: auto;
+  background-color:var(--title_background);
+  max-width: 1000px;
+  word-wrap: break-word;
+  text-align: justify;
+  text-justify: inter-word;
+  line-height: 1.7;
+  margin-bottom: 1%;
+  box-shadow: 3px 2px 1px black;
+}
+.article_metadata{
+  margin-left: 2%;
+}
+code{
+  font-family: system-ui;
+  border-radius:7px;
+  
 }
 body {
     background-color:  var(--background);
-    background-image: url("test_bkg.svg");
+ 
     background-attachment: fixed; 
     color: var(--text);
 }
@@ -20,7 +70,10 @@ a{
 }
 .article{
   box-sizing: border-box;
-  padding: 1%;
+  padding-left: .75%;
+  padding-right: .75%;
+  padding-top: .01%;
+  padding-bottom:1%;
   border-radius: 10px;
   margin: auto;
   background-color:var(--post_background);
@@ -28,7 +81,8 @@ a{
   word-wrap: break-word;
   text-align: justify;
   text-justify: inter-word;
-  line-height: 1.6;
+  line-height: 1.7;
+  box-shadow: 3px 2px 1px black;
 }
 .topic_field{
    background-color: var(--topic_background);
@@ -44,9 +98,11 @@ a{
   text-align: center;
   border-radius: 5px;
   overflow: hidden;
+
 }
 .nav_container{
    padding: 1.625rem;
+   margin-bottom:0.5%;
 }
 .topnav a {
   float: left;
@@ -60,6 +116,9 @@ a{
   filter:invert(10);
   background-color: #222;
   color: white;
+}
+.paragraph{
+  margin-top: 5%;
 }
 .github_link{
   
@@ -76,6 +135,10 @@ a{
   filter:grayscale(100%);
   border-radius: 0px;
 }
+h1{
+  margin-top: 5%;
+   margin-left: -0.6125%;
+}
 img{
   size: auto;
   border-radius: 5px;
@@ -84,4 +147,72 @@ img{
   display: block;
   margin-left: auto;
   margin-right: auto;
+}
+.hljs-copy-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+.hljs-copy-wrapper:hover .hljs-copy-button,
+.hljs-copy-button:focus {
+  transform: translateX(0);
+}
+.hljs-copy-button {
+  position: absolute;
+  transform: translateX(calc(100% + 1.125em));
+  top: 0.5em;
+  right: 0.5em;
+  width: 2rem;
+  height: 2rem;
+  text-indent: -9999px; /* Hide the inner text */
+  color: var(--hljs-theme-color);
+  border-radius: 0.25rem;
+  border: 1px solid;
+  border-color: color-mix(in srgb, var(--hljs-theme-color), transparent 80%);
+  background-color: var(--hljs-theme-background);
+  transition: background-color 200ms ease, transform 200ms ease-out;
+  overflow: hidden;
+}
+.hljs-copy-button:not([data-copied="true"])::before {
+  content: "";
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  background-color: currentColor;
+  mask: url('data:image/svg+xml;utf-8,<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M6 5C5.73478 5 5.48043 5.10536 5.29289 5.29289C5.10536 5.48043 5 5.73478 5 6V20C5 20.2652 5.10536 20.5196 5.29289 20.7071C5.48043 20.8946 5.73478 21 6 21H18C18.2652 21 18.5196 20.8946 18.7071 20.7071C18.8946 20.5196 19 20.2652 19 20V6C19 5.73478 18.8946 5.48043 18.7071 5.29289C18.5196 5.10536 18.2652 5 18 5H16C15.4477 5 15 4.55228 15 4C15 3.44772 15.4477 3 16 3H18C18.7956 3 19.5587 3.31607 20.1213 3.87868C20.6839 4.44129 21 5.20435 21 6V20C21 20.7957 20.6839 21.5587 20.1213 22.1213C19.5587 22.6839 18.7957 23 18 23H6C5.20435 23 4.44129 22.6839 3.87868 22.1213C3.31607 21.5587 3 20.7957 3 20V6C3 5.20435 3.31607 4.44129 3.87868 3.87868C4.44129 3.31607 5.20435 3 6 3H8C8.55228 3 9 3.44772 9 4C9 4.55228 8.55228 5 8 5H6Z" fill="black"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7 3C7 1.89543 7.89543 1 9 1H15C16.1046 1 17 1.89543 17 3V5C17 6.10457 16.1046 7 15 7H9C7.89543 7 7 6.10457 7 5V3ZM15 3H9V5H15V3Z" fill="black"/></svg>');
+  mask-repeat: no-repeat;
+  mask-size: 1rem;
+  mask-position: center center;
+}
+
+.hljs-copy-button:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--hljs-theme-color),
+    transparent 90%
+  );
+}
+.hljs-copy-button:active {
+  border-color: color-mix(in srgb, var(--hljs-theme-color), transparent 60%);
+}
+.hljs-copy-button[data-copied="true"] {
+  text-indent: 0px; /* Shows the inner text */
+  width: auto;
+}
+@media (prefers-reduced-motion) {
+  .hljs-copy-button {
+    transition: none;
+  }
+}
+
+/* visually-hidden */
+.hljs-copy-alert {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }

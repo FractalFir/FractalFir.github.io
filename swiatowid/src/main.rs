@@ -136,11 +136,14 @@ impl Article{
     fn to_html(&self,articles:&[Article])->String{
         let title = self.metadata.title();
         let style = self.metadata.style();
-        let hljs ="<link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css\">
+        let hljs_cil = include_str!("hljs_cil.js");
+        let hljs = format!("<link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css\">
 <script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js\"></script>
 <!-- and it's easy to individually load additional languages -->
 <script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js\"></script>
-<script>hljs.highlightAll();</script>";
+<script src=\"https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js\"></script>
+<script src=\"https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js\"></script>
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();{hljs_cil}</script>");
         let head = format!("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=0.5\"><title>{title}</title><link rel=\"stylesheet\" href=\"{style}.css\">{hljs}</head>");
         let words = self.markdown.words();
         let time_min = ((words as f32/350.0).floor() as usize).max(1);
@@ -151,7 +154,7 @@ impl Article{
         else{
             "".into()
         };
-        let article_top = format!("<h1 class=\"title\">{title}</h1><br><small>{date}<i>{time_min} - {time_max} minute read</i></small>");
+        let article_top = format!("<div class = \"article_header\"><h1 class=\"title\">{title}</h1><br><small><div class = \"article_metadata\">{date}<i>{time_min} - {time_max} minute read</i></div></small></div>");
         let article_html = self.markdown.to_html();
         let references = if self.id() == "home"{
             let mut categories = find_categories(articles);
@@ -171,7 +174,7 @@ impl Article{
         }else{
             "".to_owned()
         };
-        let article_html = format!("<div class=\"article\">{article_top}{article_html}{references}</div>");
+        let article_html = format!("{article_top}<div class=\"article\">{article_html}{references}</div>");
         let github = "https://www.github.com/FractalFir";
         let reddit = "https://www.reddit.com/user/FractalFir";
         let linked_in = "https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/";
