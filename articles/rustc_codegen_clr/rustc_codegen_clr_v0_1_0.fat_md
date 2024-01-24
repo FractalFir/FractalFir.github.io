@@ -2,7 +2,7 @@
 title = "My experience working on rustc_codegen_clr - half a year retrospective"
 id = "rustc_codegen_clr_v0_1_0"
 category = "Rustc Codegen CLR"
-date = "21 Jan 2024"
+date = "25 Jan 2024"
 </metadata>
 <markdown>
 
