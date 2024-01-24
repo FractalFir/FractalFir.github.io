@@ -7,11 +7,15 @@
 <script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();function cil() {
   const regex = hljs.regex;
      const KEYWORDS = ["locals","method","public","static","private","hidebysig"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","valuetype"];
+   var short_types = ["i1","i2","i4","i8","s"];
+   var ops = ["conv","ldloc","ldc","add","stloc"];
+
    var keywords = {
     keyword: KEYWORDS,
     $pattern:/(\w+)/,
     relevance:10,
-    literal: ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","valuetype"]
+    literal: types.concat(ops).concat(short_types),
   }
   
   var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');

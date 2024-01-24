@@ -1,0 +1,10 @@
+<metadata>
+title = "Why do Rust enums need `LayoutKind.Explicit` - a small addendum"
+id = "rustc_codegen_clr_v0_1_0_enums"
+category = "Rustc Codegen CLR"
+category = "hidden"
+date = "21 Jan 2024"
+</metadata>
+<markdown>
+
+</markdown>

@@ -1,13 +1,18 @@
 :root {  
   --background: hsla(156, 0.25%, 7.6%, 1);
   --post_background: hsla(153, 2%, 14.5%, 1);
-  --header_background: hsla(153, 2%, 14%, 1);
+  --header_background: hsla(153, 0%, 12%, 1);
+  --header2_background: hsla(140, 2%, 13%, 1);
   --title_background: hsla(120, 9.5%, 20.5%, 1);
   --topic_background: hsla(153, 2.5%, 30%, 1);
+  --shadow: hsla(203, 92%, 2.5%);
   --nav_background:hsl(156,98%,35%);
   --link: hsla(150, 80%, 85%, 1);
   --text: hsla(186, 4%, 98%, 1);
    font-family: Arial, Helvetica, sans-serif;
+}
+code{
+  color:orange;
 }
 .hljs-ln-numbers{
   scale: .75; 
@@ -20,13 +25,13 @@
 h1{
   background-color: var(--header_background);  
   border-radius: 5px;
-  box-shadow: 1px 1.25px 1.25px black;
+  box-shadow: 1px 1.25px 1.25px var(--shadow);
 }
 
 h2{
-  background-color: var(--header_background);  
+  background-color: var(--header2_background);  
   border-radius: 5px;
-   box-shadow: .5px .75px .75px black;
+   box-shadow: .5px .75px .75px var(--shadow);
 }
 .title{
   font-size:210%;
@@ -47,9 +52,9 @@ h2{
   word-wrap: break-word;
   text-align: justify;
   text-justify: inter-word;
-  line-height: 1.7;
+  line-height: 1.9;
   margin-bottom: 1%;
-  box-shadow: 3px 2px 1px black;
+  box-shadow: 2px .75px .5px var(--shadow);
 }
 .article_metadata{
   margin-left: 2%;
@@ -82,7 +87,7 @@ a{
   text-align: justify;
   text-justify: inter-word;
   line-height: 1.7;
-  box-shadow: 3px 2px 1px black;
+  box-shadow: 2px .75px .5px var(--shadow);
 }
 .topic_field{
    background-color: var(--topic_background);
@@ -121,19 +126,22 @@ a{
   margin-top: 5%;
 }
 .github_link{
-  
+  background-color: transparent;  
 }
 .reddit_link{
   filter:grayscale(100%);
+  background-color: transparent;  
   align-content: right;
 }
 .linked_id_link{
   filter:grayscale(100%) brightness(250%);
+  background-color: transparent;  
   border-radius: 0px;
 }
 .rss_link{
   filter:grayscale(100%);
   border-radius: 0px;
+  background-color: transparent;  
 }
 h1{
   margin-top: 5%;
@@ -147,6 +155,7 @@ img{
   display: block;
   margin-left: auto;
   margin-right: auto;
+  background-color: #3B3C36;
 }
 .hljs-copy-wrapper {
   position: relative;
