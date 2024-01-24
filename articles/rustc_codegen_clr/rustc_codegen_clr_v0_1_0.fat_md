@@ -453,6 +453,7 @@ Compiling Rust to C is also not out of the question - this could enable the use 
 
 I also believe there is an opportunity for really, really, powerful metaprograming, lurking just behind the corner. 
 
+## Reflection + metaprograming?
 
 The rough idea is kinda similar to proc-macros, except that it operates on the MIR, and not token streams.
 
