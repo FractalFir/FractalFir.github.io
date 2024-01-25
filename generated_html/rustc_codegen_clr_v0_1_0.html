@@ -6,10 +6,10 @@
 <script src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
 <script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();function cil() {
   const regex = hljs.regex;
-     const KEYWORDS = ["locals","method","public","static","private","hidebysig"];
-   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","valuetype"];
-   var short_types = ["i1","i2","i4","i8","s"];
-   var ops = ["conv","ldloc","ldc","add","stloc"];
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call"];
 
    var keywords = {
     keyword: KEYWORDS,
@@ -37,7 +37,7 @@ hljs.registerLanguage('cil',cil);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">My experience working on rustc_codegen_clr - half a year retrospective</h1><br><small><div class = "article_metadata">Published on 25 Jan 2024<br><i>12 - 20 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I have spent a good chunk of the past 6 months <a href='https://github.com/FractalFir/rustc_codegen_clr'>trying to bring Rust to .NET</a>.</p>
+        </nav></div><div class = "article_header"><h1 class="title">My experience working on rustc_codegen_clr - half a year retrospective</h1><br><small><div class = "article_metadata">Published on 25 Jan 2024<br><i>13 - 22 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I have spent a good chunk of the past 6 months <a href='https://github.com/FractalFir/rustc_codegen_clr'>trying to bring Rust to .NET</a>.</p>
 
 <p>During that time, I had learned quite a bit about both the Rust compiler, and the .NET runtime. In this article, I will write about the most interesting parts of this journey: interesting quirks of software, challenging problems, my weird solutions to them.</p>
 
@@ -335,6 +335,43 @@ public struct _ZN4core5panic10panic_info9PanicInfo17ha57987986f46e937E
 
 <p>...but it does the job - and that is what really matters.</p>
 
+<h1 id='.net_verifcation_-_all_or_nothing'>.NET verifcation - all or nothing</h1>
+
+<p>Another, smaller issue related to .NET is its all-or-nothing verification: an assembly can either be safe (no pointers used) or unsafe. There is no in-between. The problem is that enabling the use of pointers disables nearly all checks, many of whose I would like to remain on.</p>
+
+<p>Consider this bit of invalid CIL:</p>
+
+<pre><code class="language-cil">.assembly Wrong{}
+.class SomeValueType extends [System.Runtime]System.ValueType{
+    .field float32 a
+    .field float32 b
+}
+.class Issue{
+    .method static native uint InvalidMethod(){
+        .locals init(
+            [0] valuetype SomeValueType
+        )
+        // Loads zero-initialzed SomeValueType 
+        ldloc.0
+        // Returns SomeValueType as nint. This is invalid, and would cause an exception in mono.
+        ret
+    }
+    .method static void Main(){
+        .entrypoint
+        call native uint Issue::InvalidMethod()
+        conv.u8
+        // Prints 0
+        call void [System.Console]System.Console::WriteLine(uint64)
+        ret
+    }
+}</code></pre>
+
+<p>Its snippet is invalid, and its behavior is not defined by the standard. It loads a value of type <code>SomeValueType</code> and then returns it as an integer.</p>
+
+<p>It does not covert this value to an integer - it just interprets its bytes as one. This is not something you should be able to do.</p>
+
+<p>Sadly, neither <code>ILVerify</code> nor the .NET runtime detect this when unsafe code (pointers and such) is enabled. This is something that <em>*is</em> worked on (currently seems to be planned for .NET 9), but the lack of such a feature made debugging more painful than it had to be.</p>
+
 <h1 id='rustc_-_community_and_documentation'>Rustc - community and documentation</h1>
 
 <p>I have already talked about how it felt to use the compiler-internal rustc APIs. But a good API is not all that makes or breaks a tool. What is, arguably, even more important is the experience of a newcomer. In this area, I have a lot of praise to give, but there are some rough spots I would like to point out.</p>
@@ -408,6 +445,24 @@ public struct _ZN4core5panic10panic_info9PanicInfo17ha57987986f46e937E
 <p>This may be a terrible idea, but one that has some interesting ramifications. Since it would operate on MIR, it should be able to do nearly everything the compiler can. Depending on some other stuff (like certain security considerations), it could also be quite performant.</p>
 
 <p>I will probably write another article on this, if/when I have time.</p>
+
+<h1 id='.net's_documentation_-_sometimes_contradictory.'>.NET's documentation - sometimes contradictory.</h1>
+
+<p>The documentation of the more mature .NET environment is better, but it still has some small issues. The behavior of the runtime and the Microsoft documentation seem to deviate slightly from the official spec.</p>
+
+<p>According to <a href='https://learn.microsoft.com/en-us/dotnet/api/system.reflection.emit.opcodes.ldloca?view=net-8.0'>Microsoft docs</a>, the result of the <code>ldloca</code> op is a pointer</p>
+
+<blockquote>
+<p>The result is a transient pointer (type *).</p>
+</blockquote>
+
+<p>According to the <a href='https://ecma-international.org/publications-and-standards/standards/ecma-335/'>2012 ECMA standard</a>, this results in a reference</p>
+
+<blockquote>
+<p>The result is a managed pointer (type &amp;).</p>
+</blockquote>
+
+<p>The .NET runtime seems to work with both interpretations, so this is not a big problem, but the ambiguity makes me a bit anxious. Due to this small difference, some of my programs may not be entirely spec compliant. The spec is quite old, so I trust the MS documentation more, but a clarification may be needed.</p>
 
 <h1 id='conclusion'>Conclusion</h1>
 
