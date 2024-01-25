@@ -11,9 +11,7 @@
   --text: hsla(186, 4%, 98%, 1);
    font-family: Arial, Helvetica, sans-serif;
 }
-code{
-  color:orange;
-}
+
 .hljs-ln-numbers{
   scale: .75; 
   color:  hsla(186, 4%, 98%, .5);
@@ -67,9 +65,9 @@ h2{
   margin-left: 2%;
 }
 code{
-  font-family: system-ui;
+  font-family: monospace;
   border-radius:7px;
-  
+  color:orange;
 }
 body {
     background-color:  var(--background);
