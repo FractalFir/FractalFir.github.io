@@ -1,0 +1,138 @@
+<metadata>
+title = "Metafunctions - an unusual alternative to reflection, variadics, macros and bunch more"
+id = "metafunctions_1"
+category = "The Rust Compiler"
+category = "hidden"
+</metadata>
+<markdown>
+
+I have a unusual hobby - I like making wierd things. My favoirte kind of programing problems are the ones noone needs solved. 
+I also really enjoy Rust and tinkering with compilers. A couple moths ago, I accidentaly stumbled across a pretty unique solution to a very real problem: reflection and metaprograming in Rust.
+While I am prertty sure this is not the best solution to that problem, I still belive it is a good food for tought, and could serve as inspiration for the final design of reflection in Rust.
+
+# Reflecting on reflcetion
+
+The very first question we must ask ourselves is: what is reflection, exactly? If I asked you to describe it in one short sentence, what would it be?
+
+> Reflection is a way to get information **from** the compiler.
+
+This is all reflection is: a way for the compiler to tell us what **it knows** about our program. The rest is nothing more than semantic differences.
+
+Let us now take a short look at something seemingly unrelated: generating code. What do things like proc macros and binding generators do?
+At their most basic level, they tell the compiler about things **it does not know** about. A binding generator will produce code describing how to use an external library.
+
+> Code generation is a way to pass information **to** the compiler
+
+Can you notice the symmetry there? We use reflection to get info about types, functions, and statics from the compiler.
+Code generation is used to do the exact opposite: to tell the compiler about external types and functions, and show it how to use them properly. 
+
+*They are nothing more than an interface between your code and the compiler. The only major difference is the* **direction** *the data flows.*
+
+To me, both of them seem like two sides of the same coin. So, what if, for a moment, we started treating them as such? 
+
+
+I propose we try to turn those two monologues, into a conversation between your code and compiler.
+
+
+# Metafunctions 
+
+Metafunctions are a crosbreed between generics, reflection and code generation. They allow you to programaticaly proivde different implementation of a generic function for each varaint.
+
+A metafunctions consts of 2 distinct, yet interlinked parts. The "target" descirbes the functions signature, but lacks an implemantation.
+
+The implemeantainon is provided at compile time by, well, the "provider". Take a look:
+
+```rust 
+// The "target" - function which counts the fields of a type, and whose implementation is provided by `field_count_prov`.
+#[metafn(provider = field_count_prov)]
+unsafe fn field_count<T>()->usize;
+
+// The "provider" - a const function invoked by the compiler, which returns the implementation
+// of `field_count`.
+const fn field_count_prov(ctx:MetaFnCtx)->Result<MIRBody,MetaFnError>{
+    // ...
+}
+```
+
+The keen eyed amoung you might have already noticed a couple of things. Let me explain how this works, step-by-step.
+
+The function `field_count` is marked with a very special attribute - `#[metafn]`. This attribute tells the compiler the implemenation of this function will be generated proceduraly by `field_count_prov`.
+
+`field_count_prov` is a const function - it needs to be called at compile-time,  after all. It takes in one argument, of type `MetaFnCtx`. 
+This name stands for `Meta Function Context`. Such a context contains information about which generic variant of `field_count` is needed. 
+So, for example, the exact type `T` is will be contained there.
+
+The context also contains references to internal compiler data structures - this is what will enable us to query the compiler for more details.
+
+The provider function returns a `Result<MIRBody,MetaFnError>`. So, if everyting goes well, it will return MIR implementing the target function.
+MIR is the repersentation of a Rust program used internaly, by the compiler. This may seem strange at first - after all, we don't want to expose any unstable APIs!
+
+Chosing MIR is very deliberate - while not stable yet, it will be, one day. The stable MIR project aims to expose stable APIs for interacting with the compiler - we can just reuse that work here.
+MIR is also the represenation used by the Rust compiler during the morphization stage - the point at which the copiler turns generic functions into many specialzed(concreate) ones.
+
+Since `field_count_prov` will be called at that point, it will be able to provide specialzed implemenation for each `T`!
+
+```rust
+struct Vec3(f32,f32,f32);
+struct Vec2(f32,f32);
+fn main(){
+    unsafe{
+        assert_eq!(field_count::<Vec3>(),3);
+        assert_eq!(field_count::<Vec2>(),2);
+        // Works for external types too!
+        assert_eq!(field_count::<String>(),3);
+    }
+}
+```
+
+You might have noticed that `field_count` is unsafe - but why? 
+
+MIR itself is very unsafe. Since it is ususaly created after all the safety checks, the compiler does not need to check it the 
+second time. We "bypass" those checks by creating MIR directly - so the compiler can't guarantee this function is safe.
+
+I haven't looked into how hard it would be to check MIR for safety - so for now, I want to be extra carefull and assume it is impossible. Because of that, all generated code is assumed to be unsafe.
+
+Now that I explained the concept, let me show you how you would use it.
+
+## Proceduraly implementing `field_count`
+
+The very first step we need to take is to get the 1 generic argument of `field_count`(our `T`).
+
+```rust
+    let t = ctx.gargs()[0];
+```
+
+Here, we take it from the generic argument array. But what happens if we accidentaly tried to index out of bounds of the `gargs` array?
+
+```rust
+// The `std` will proivde certain APIs for dealing with MIR. `std::metafunctions` is a placeholder and may be changed.
+use std::metafunctions::{MetaFnCtx,MIRBody,MetaFnError,ADTKind,TerminatorKind,const_scalar};
+// The "target" - function which whose implementation is provided by `field_count_prov`
+#[metafunction(provider = field_count_prov)]
+unsafe fn field_count<T>()->usize;
+// The "provider" - a const function invoked by the compiler, which returns the implementation
+// of `field_count`.
+const fn field_count_prov(ctx:MetaFnCtx)->Result<MIRBody,MetaFnError>{
+    // We check that the generic arg number 0 is a type, and is an ADT(struct,enum or union).
+    let adt = ctx.gargs()[0].as_ty()?.as_adt()?;
+    // Panics are reported as errors(MetaFnError::ImplBug) by the compiler 
+    if adt.kind() != AdtKind::Struct{
+        todo!("Can't yet count the fields of types that are not structs!");
+    }
+    // We count the number of fields
+    let field_count = atd.fields().count();
+    // The MIR builder does not need to be mutable, since multiple blocks can be created at the same time.
+    let builder = ctx.mir_builder();
+    // Creates a new MIR basic block
+    let mut bb0 = builder.next_bb();
+    // We assign a constant value of type `usize` to the returned local(_0)
+    bb0.assign_statement(ctx.return_place(),const_scalar::<usize>(field_count));
+    // Every block ends with a terminator - in this case, it ends with a return 
+    bb0.terminate(TerminatorKind::Return);
+    // A call to `finalize` validates the MIR and turns a `MIRBuilder` into `MIRBody`
+    builder.finalize()
+}
+
+```
+[^1]
+</markdown>

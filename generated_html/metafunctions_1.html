@@ -1,0 +1,144 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=0.5"><title>Metafunctions - an unusual alternative to reflection, variadics, macros and bunch more</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js"></script>
+<script src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();function cil() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: types.concat(ops).concat(short_types),
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['cil','common_intermediate_language'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+
+hljs.registerLanguage('cil',cil);
+</script></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+        </nav></div><div class = "article_header"><h1 class="title">Metafunctions - an unusual alternative to reflection, variadics, macros and bunch more</h1><br><small><div class = "article_metadata"><i>2 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I have a unusual hobby - I like making wierd things. My favoirte kind of programing problems are the ones noone needs solved. I also really enjoy Rust and tinkering with compilers. A couple moths ago, I accidentaly stumbled across a pretty unique solution to a very real problem: reflection and metaprograming in Rust. While I am prertty sure this is not the best solution to that problem, I still belive it is a good food for tought, and could serve as inspiration for the final design of reflection in Rust.</p>
+
+<h1 id='reflecting_on_reflcetion'>Reflecting on reflcetion</h1>
+
+<p>The very first question we must ask ourselves is: what is reflection, exactly? If I asked you to describe it in one short sentence, what would it be?</p>
+
+<blockquote>
+<p>Reflection is a way to get information <strong>from</strong> the compiler.</p>
+</blockquote>
+
+<p>This is all reflection is: a way for the compiler to tell us what <strong>it knows</strong> about our program. The rest is nothing more than semantic differences.</p>
+
+<p>Let us now take a short look at something seemingly unrelated: generating code. What do things like proc macros and binding generators do? At their most basic level, they tell the compiler about things <strong>it does not know</strong> about. A binding generator will produce code describing how to use an external library.</p>
+
+<blockquote>
+<p>Code generation is a way to pass information <strong>to</strong> the compiler</p>
+</blockquote>
+
+<p>Can you notice the symmetry there? We use reflection to get info about types, functions, and statics from the compiler. Code generation is used to do the exact opposite: to tell the compiler about external types and functions, and show it how to use them properly.</p>
+
+<p><em>They are nothing more than an interface between your code and the compiler. The only major difference is the</em> <strong>direction</strong> <em>the data flows.</em></p>
+
+<p>To me, both of them seem like two sides of the same coin. So, what if, for a moment, we started treating them as such?</p>
+
+<p>I propose we try to turn those two monologues, into a conversation between your code and compiler.</p>
+
+<h1 id='metafunctions'>Metafunctions</h1>
+
+<p>Metafunctions are a crosbreed between generics, reflection and code generation. They allow you to programaticaly proivde different implementation of a generic function for each varaint.</p>
+
+<p>A metafunctions consts of 2 distinct, yet interlinked parts. The &quot;target&quot; descirbes the functions signature, but lacks an implemantation.</p>
+
+<p>The implemeantainon is provided at compile time by, well, the &quot;provider&quot;. Take a look:</p>
+
+<pre><code class="language-rust ">// The &quot;target&quot; - function which counts the fields of a type, and whose implementation is provided by `field_count_prov`.
+#[metafn(provider = field_count_prov)]
+unsafe fn field_count&lt;T&gt;()-&gt;usize;
+
+// The &quot;provider&quot; - a const function invoked by the compiler, which returns the implementation
+// of `field_count`.
+const fn field_count_prov(ctx:MetaFnCtx)-&gt;Result&lt;MIRBody,MetaFnError&gt;{
+    // ...
+}</code></pre>
+
+<p>The keen eyed amoung you might have already noticed a couple of things. Let me explain how this works, step-by-step.</p>
+
+<p>The function <code>field_count</code> is marked with a very special attribute - <code>#[metafn]</code>. This attribute tells the compiler the implemenation of this function will be generated proceduraly by <code>field_count_prov</code>.</p>
+
+<p><code>field_count_prov</code> is a const function - it needs to be called at compile-time,  after all. It takes in one argument, of type <code>MetaFnCtx</code>. This name stands for <code>Meta Function Context</code>. Such a context contains information about which generic variant of <code>field_count</code> is needed. So, for example, the exact type <code>T</code> is will be contained there.</p>
+
+<p>The context also contains references to internal compiler data structures - this is what will enable us to query the compiler for more details.</p>
+
+<p>The provider function returns a <code>Result&lt;MIRBody,MetaFnError&gt;</code>. So, if everyting goes well, it will return MIR implementing the target function. MIR is the repersentation of a Rust program used internaly, by the compiler. This may seem strange at first - after all, we don't want to expose any unstable APIs!</p>
+
+<p>Chosing MIR is very deliberate - while not stable yet, it will be, one day. The stable MIR project aims to expose stable APIs for interacting with the compiler - we can just reuse that work here. MIR is also the represenation used by the Rust compiler during the morphization stage - the point at which the copiler turns generic functions into many specialzed(concreate) ones.</p>
+
+<p>Since <code>field_count_prov</code> will be called at that point, it will be able to provide specialzed implemenation for each <code>T</code>!</p>
+
+<pre><code class="language-rust">struct Vec3(f32,f32,f32);
+struct Vec2(f32,f32);
+fn main(){
+    unsafe{
+        assert_eq!(field_count::&lt;Vec3&gt;(),3);
+        assert_eq!(field_count::&lt;Vec2&gt;(),2);
+        // Works for external types too!
+        assert_eq!(field_count::&lt;String&gt;(),3);
+    }
+}</code></pre>
+
+<p>You might have noticed that <code>field_count</code> is unsafe - but why? MIR itself is very unsafe. Since it is ususaly created after all the safety checks, the compiler does not need to check it the second time. I haven't looked into how hard it would be to check MIR for safety - so for now, I want to be extra carefull and assume it is impossible.</p>
+
+<p>Now that I explained the concept, let me show you how you would use it.</p>
+
+<h2 id='proceduraly_implementing_field_count'>Proceduraly implementing <code>field_count</code></h2>
+
+<pre><code class="language-rust">// The `std` will proivde certain APIs for dealing with MIR. `std::metafunctions` is a placeholder and may be changed.
+use std::metafunctions::{MetaFnCtx,MIRBody,MetaFnError,ADTKind,TerminatorKind,const_scalar};
+// The &quot;target&quot; - function which whose implementation is provided by `field_count_prov`
+#[metafunction(provider = field_count_prov)]
+unsafe fn field_count&lt;T&gt;()-&gt;usize;
+// The &quot;provider&quot; - a const function invoked by the compiler, which returns the implementation
+// of `field_count`.
+const fn field_count_prov(ctx:MetaFnCtx)-&gt;Result&lt;MIRBody,MetaFnError&gt;{
+    // We check that the generic arg number 0 is a type, and is an ADT(struct,enum or union).
+    let adt = ctx.gargs()[0].as_ty()?.as_adt()?;
+    // Panics are reported as errors(MetaFnError::ImplBug) by the compiler 
+    if adt.kind() != AdtKind::Struct{
+        todo!(&quot;Can't yet count the fields of types that are not structs!&quot;);
+    }
+    // We count the number of fields
+    let field_count = atd.fields().count();
+    // The MIR builder does not need to be mutable, since multiple blocks can be created at the same time.
+    let builder = ctx.mir_builder();
+    // Creates a new MIR basic block
+    let mut bb0 = builder.next_bb();
+    // We assign a constant value of type `usize` to the returned local(_0)
+    bb0.assign_statement(ctx.return_place(),const_scalar::&lt;usize&gt;(field_count));
+    // Every block ends with a terminator - in this case, it ends with a return 
+    bb0.terminate(TerminatorKind::Return);
+    // A call to `finalize` validates the MIR and turns a `MIRBuilder` into `MIRBody`
+    builder.finalize()
+}</code></pre>
+
+<p>[^1]</p>
+</div></div></body></html>
