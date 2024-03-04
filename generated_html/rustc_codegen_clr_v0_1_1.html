@@ -37,7 +37,11 @@ hljs.registerLanguage('cil',cil);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Stack unwinding, ARM and CIL trees</h1><br><small><div class = "article_metadata">Published on 4 Mar 2024<br><i>5 - 9 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>It has been over a month since my last article on compiling Rust to .NET - and I had made quite a bit of progress! I had managed to fix a lot of bugs, and get stack unwinding(Rust's way of handling &quot;panics&quot;) to work. There have been also some architectural changes: I reworked the way I reperesent .NET assemblies.</p>
+        </nav></div><div class = "article_header"><h1 class="title">Stack unwinding, ARM and CIL trees</h1><br><small><div class = "article_metadata">Published on 4 Mar 2024<br><i>5 - 10 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>It has been over a month since my last article on compiling Rust to .NET - and I had made quite a bit of progress! I had managed to fix a lot of bugs, and get stack unwinding(Rust's way of handling &quot;panics&quot;) to work. There have been also some architectural changes: I reworked the way I reperesent .NET assemblies.</p>
+
+<h2 id='quick_recap'>Quick recap</h2>
+
+<p><a href='https://github.com/FractalFir/rustc_codegen_clr'>rustc_codegen_clr</a> is a Rust compiler backend(compiler module/pluigin), which allows it to produce .NET assemblies from Rust code.</p>
 
 <h1 id='cil_trees'>CIL trees</h1>
 
@@ -186,9 +190,13 @@ impl Database&lt;Developement&gt;{
 
 <p>This feature is not yet finished - but I plan on allowing you to reference native shared libraries in Rust code compiled for .NET. This basicaly involves the linker autogenerating the necesary PInvoke method declarations. This featrue already works for <code>libc</code>, which made testing a whole lot easier. Extending it to all shared libraries would make a lot of more complex crates work out of the box - but this is still a feature I am not certain about.</p>
 
-<p>Since I am able to use <code>libc</code>, I had been able to test the compiler using a modified version of <a href=''>rustlantis</a>. It is a rust compiler fuzzer, which can detect compiler bugs automaticaly. It did uncover quite a bit of issues, but it makes me more optimistic for the futrure of the project. If I can plug all the holes it finds, I would be much more confiedent in the relayability of this project.</p>
+<p>Since I am able to use <code>libc</code>, I had been able to test the compiler using a modified version of <a href='https://github.com/cbeuw/rustlantis'>rustlantis</a>. It is a rust compiler fuzzer, which can detect compiler bugs automaticaly. It did uncover quite a bit of issues, but it makes me more optimistic for the future of the project. If I can plug all the holes it finds, I would be much more confiedent in the relayability of this project.</p>
 
-<h1 id=''></h1>
+<h1 id='dead-code_elimnation'>Dead-code elimnation</h1>
+
+<p>I also recently added(very basic) dead-code elimination to the project. It is far from perfect, but it managed to shrink down the resulting assemblies by 75%.</p>
+
+<p><a href='https://youtu.be/qegPczXYSKE'>videolink</a></p>
 
 <p></p>
 </div></div></body></html>
