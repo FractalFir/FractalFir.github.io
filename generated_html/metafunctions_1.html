@@ -9,7 +9,7 @@
      const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint"];
    var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
    var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
-   var ops = ["conv","ldloc","ldc","add","stloc","ret","call"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj"];
 
    var keywords = {
     keyword: KEYWORDS,
@@ -37,7 +37,7 @@ hljs.registerLanguage('cil',cil);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Metafunctions - an unusual alternative to reflection, variadics, macros and bunch more</h1><br><small><div class = "article_metadata"><i>2 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I have a unusual hobby - I like making wierd things. My favoirte kind of programing problems are the ones noone needs solved. I also really enjoy Rust and tinkering with compilers. A couple moths ago, I accidentaly stumbled across a pretty unique solution to a very real problem: reflection and metaprograming in Rust. While I am prertty sure this is not the best solution to that problem, I still belive it is a good food for tought, and could serve as inspiration for the final design of reflection in Rust.</p>
+        </nav></div><div class = "article_header"><h1 class="title">Metafunctions - an unusual alternative to reflection, variadics, macros and bunch more</h1><br><small><div class = "article_metadata"><i>3 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I have a unusual hobby - I like making wierd things. My favoirte kind of programing problems are the ones noone needs solved. I also really enjoy Rust and tinkering with compilers. A couple moths ago, I accidentaly stumbled across a pretty unique solution to a very real problem: reflection and metaprograming in Rust. While I am prertty sure this is not the best solution to that problem, I still belive it is a good food for tought, and could serve as inspiration for the final design of reflection in Rust.</p>
 
 <h1 id='reflecting_on_reflcetion'>Reflecting on reflcetion</h1>
 
@@ -106,11 +106,21 @@ fn main(){
     }
 }</code></pre>
 
-<p>You might have noticed that <code>field_count</code> is unsafe - but why? MIR itself is very unsafe. Since it is ususaly created after all the safety checks, the compiler does not need to check it the second time. I haven't looked into how hard it would be to check MIR for safety - so for now, I want to be extra carefull and assume it is impossible.</p>
+<p>You might have noticed that <code>field_count</code> is unsafe - but why?</p>
+
+<p>MIR itself is very unsafe. Since it is ususaly created after all the safety checks, the compiler does not need to check it the second time. We &quot;bypass&quot; those checks by creating MIR directly - so the compiler can't guarantee this function is safe.</p>
+
+<p>I haven't looked into how hard it would be to check MIR for safety - so for now, I want to be extra carefull and assume it is impossible. Because of that, all generated code is assumed to be unsafe.</p>
 
 <p>Now that I explained the concept, let me show you how you would use it.</p>
 
 <h2 id='proceduraly_implementing_field_count'>Proceduraly implementing <code>field_count</code></h2>
+
+<p>The very first step we need to take is to get the 1 generic argument of <code>field_count</code>(our <code>T</code>).</p>
+
+<pre><code class="language-rust">    let t = ctx.gargs()[0];</code></pre>
+
+<p>Here, we take it from the generic argument array. But what happens if we accidentaly tried to index out of bounds of the <code>gargs</code> array?</p>
 
 <pre><code class="language-rust">// The `std` will proivde certain APIs for dealing with MIR. `std::metafunctions` is a placeholder and may be changed.
 use std::metafunctions::{MetaFnCtx,MIRBody,MetaFnError,ADTKind,TerminatorKind,const_scalar};

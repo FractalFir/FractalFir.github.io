@@ -11,7 +11,6 @@
   --text: hsla(186, 4%, 98%, 1);
    font-family: Arial, Helvetica, sans-serif;
 }
-
 .hljs-ln-numbers{
   scale: .75; 
   color:  hsla(186, 4%, 98%, .5);
@@ -30,7 +29,7 @@ blockquote{
 h1{
   background-color: var(--header_background);  
   border-radius: 5px;
-  box-shadow: 1px 1.25px 1.25px var(--shadow);
+  box-shadow: .5px .75px .75px var(--shadow);
 }
 
 h2{
@@ -157,6 +156,7 @@ img{
   border-radius: 5px;
   width:100%;
   max-width:1000px;
+  max-height:500px;
   display: block;
   margin-left: auto;
   margin-right: auto;
