@@ -37,7 +37,7 @@ hljs.registerLanguage('cil',cil);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Stack unwinding, ARM and CIL trees</h1><br><small><div class = "article_metadata">Published on 4 Mar 2024<br><i>5 - 10 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>It has been over a month since my last article on compiling Rust to .NET - and I had made quite a bit of progress! I had managed to fix a lot of bugs, and get stack unwinding(Rust's way of handling &quot;panics&quot;) to work. There have been also some architectural changes: I reworked the way I reperesent .NET assemblies.</p>
+        </nav></div><div class = "article_header"><h1 class="title">Stack unwinding, ARM and CIL trees</h1><br><small><div class = "article_metadata">Published on 8 Mar 2024<br><i>9 - 16 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>It has been over a month since my last article on compiling Rust to .NET - and I have made quite a bit of progress! I had managed to fix a lot of bugs and get stack unwinding(Rust's way of handling &quot;panics&quot;) to work. There have been also some architectural changes: I reworked the way I represent .NET assemblies.</p>
 
 <h2 id='quick_recap'>Quick recap</h2>
 
@@ -45,9 +45,9 @@ hljs.registerLanguage('cil',cil);
 
 <h1 id='cil_trees'>CIL trees</h1>
 
-<p>CIL, or Common Intermediate Language, is what is actualy stored in a .NET assembly. s is what I am compiling Rust code into - so it is really important that the code handling CIL is robust, and can be easily extended. Previosly, I picked a very simple way to store CIL. In an assebmly, Ops are stored in a contigus array. They push and pop values from the evaluation stack.</p>
+<p>CIL, or Common Intermediate Language, is what is actually stored in a .NET assembly. s is what I am compiling Rust code into - so it is really important that the code handling CIL is robust, and can be easily extended. Previously, I picked a very simple way to store CIL. In an assembly, Ops are stored in a contiguous array. They push and pop values from the evaluation stack.</p>
 
-<p>This format is great for saving disk space, but it does not store some of the information that is curcial to me. For optimizing and validating CIL, the <em>way ops are related to each other</em> is key. Take a look at this sequence of ops:</p>
+<p>This format is great for saving disk space, but it does not store some of the information that is crucial to me. For optimizing and validating CIL, the <em>way ops are related to each other</em> is key. Take a look at this sequence of ops:</p>
 
 <pre><code class="language-cil">ldarg.0
 ldarg.1
@@ -57,13 +57,13 @@ add
 ldobj T
 ret</code></pre>
 
-<p>It is not imedieately obvious where the values each op operates on come from. What values are added? Which ones are the inputs of the <code>mul</code> instruction? Using graphs makes those questions trivial to answer:</p>
+<p>It is not immediately obvious where the values each op operates on come from. What values are added? Which ones are the inputs of the <code>mul</code> instruction? Using graphs makes those questions trivial to answer:</p>
 
 <p><img src='../images/codegen_clr_v1_1_fg1.svg' alt='graph with a CIL tree' /></p>
 
-<p>Looking at this graph, it is very easy to see which ops depend on what - and that makes it easy to optimize such a tree. Trees also have another interesting property - only the &quot;root&quot; of a tree may write4 to any variable. By restricting instructions such as &quot;stind.i8&quot;(set 8byte int at adress) or &quot;stloc.n&quot; (set local varaible n) to only appear in the root of a tree, I can very easily check if trees may be reordered.</p>
+<p>Looking at this graph, it is very easy to see which ops depend on what - and that makes it easy to optimize such a tree. Trees also have another interesting property - only the &quot;root&quot; of a tree may write to any variable. By restricting instructions such as &quot;stind.i8&quot;(set 8byte int at address) or &quot;stloc.n&quot; (set local variable n) to only appear in the root of a tree, I can very easily check if trees may be reordered.</p>
 
-<p>Another neat thing about &quot;CIL trees&quot; is that they are validated at construction. If I removed one instruction form the last example, it would be quite hard to see the problem:</p>
+<p>Another neat thing about &quot;CIL trees&quot; is that they are validated at construction. If I removed one instruction from the last example, it would be quite hard to see the problem:</p>
 
 <pre><code class="language-cil">ldarg.0
 ldarg.1
@@ -76,21 +76,53 @@ ret</code></pre>
 
 <p><img src='../images/codegen_clr_v1_1_fg2.svg' alt='graph with an invalid CIL tree: the mul instruction has 3 inputs, when it should have 2' /></p>
 
-<p>You know what is even better? Due to the way the nodes of a tree are coded, it is not possible for a <code>mul</code> instruction to have 3 inputs. A <code>mul</code> node can hold references to exactly 2 other nodes. No more, no less. All nodes, besides <code>Call</code>, have a fixed ammount of inputs and exactly one output. There is no way to make a mistake when constrcuting them.</p>
+<p>Do you know what is even better? Due to the way the nodes of a tree are coded, it is not possible for a <code>mul</code> instruction to have 3 inputs. A <code>mul</code> node can hold references to exactly 2 other nodes. No more, no less. All nodes, besides <code>Call</code>, have a fixed amount of inputs and exactly one output. There is no way to make a mistake when constructing them.</p>
 
-<p>Looking back, I fell like I should have taken this approach from the start. At the time, I tought using &quot;linear&quot; ops would make the codebase simpler, but, in hindsigth, the added complexity is well worth it.</p>
+<p>Looking back, I feel like I should have taken this approach from the start. At the time, I thought using &quot;linear&quot; ops would make the codebase simpler, but, in hindsight, the added complexity is well worth it.</p>
 
-<p>Now, it is not all sunshine and roses. CIL trees are a good abstraction, but they can't reperesent all possible CIL. The <code>dup</code> instruction has one input, but <strong>two</strong> outputs. You can't represent a method containing it using a simple tree.</p>
+<h2 id='no_dup_for_you'>No <code>dup</code> for you</h2>
+
+<p>Now, it is not all sunshine and roses. CIL trees are a good abstraction, but they can't represent all valid combinations of CIL ops. There is one instruction that is particularly hard to represent in CIL:</p>
+
+<p><code>dup</code>.</p>
+
+<p>The <code>dup</code> instruction has one input, but <strong>two</strong> outputs. You can't represent a method containing it using a simple tree. By definition, a tree may only have 1 path connecting any 2 nodes.</p>
 
 <p><img src='../images/codegen_clr_v1_1_fg3.svg' alt='graph with a method using the dup instruction: it has two outputs, meaining it can't be stored nicely in a tree' /></p>
 
-<p>You may think: this is not a big deal, you can just allow a node to be referenced twice.</p>
+<p>You may think: this is not a big deal, you can just allow a node to be referenced twice. Sure, it will not be a tree anymore, but who cares about semantics?</p>
 
-<p>But allowing that would force me to consider the exact <em>order</em> of values on the evaluation stack. A small change here could lead to a <strong>lot</strong> of bugs. I want to keep the representation simple and idiot-proff - I know I can't trust myself not to screw this up.</p>
+<p>Sadly, using <code>dup</code> would force me to consider the exact <em>order</em> of values on the evaluation stack. And this is not as easy as it may seem. Consider this math formula:</p>
 
-<p>This means that the main optimizer can't use <code>dup</code>: it must be inserted after trees are &quot;falttened&quot;. Even if I don't use this instruction at all, the performance impact is not noticable. The benchmark results are within the noise range.</p>
+<pre><code class="language-math">f(x,y) = (x / y) / x;</code></pre>
 
-<p>This representation also does not support one neat trick related to branching. In CIL, if all branches have the same ammount and type of values on their stack, they can join, and the value may be used later. This makes something like this possible:</p>
+<p>It would be implemented using the following CIL:</p>
+
+<pre><code class="language-cil">ldarg.x
+ldarg.y
+ldarg.x
+div
+div</code></pre>
+
+<p>We can reorder it to make it more readable:</p>
+
+<pre><code class="language-cil">ldarg.x
+ldarg.y
+// Divides x by y
+div
+// Divides (x/y) by x
+ldarg.x
+div</code></pre>
+
+<p>You can't use <code>dup</code> here: the value of <code>y</code> needs to be in between two <code>x</code>s. So, if I were to allow <code>dup</code> in CIL trees, I would have to keep track of the evaluation stack. Seeing as avoiding that was one of the main reason I ditched linear CIL, I am not keen on doing that.</p>
+
+<p>This means that the main optimizer can't use <code>dup</code>: it must be inserted after trees are &quot;flattened&quot;. I might consider adding another optimization pass just for inserting <code>dup</code> where needed, but it is not a priority right now. Even if I don't use this instruction at all, the performance impact is not noticeable. The slowdown mainly occurs in &quot;cold&quot; functions and during startup. This project mainly targets &quot;hot&quot; code - places where rewriting something in Rust makes the most sense.</p>
+
+<p>In &quot;hot&quot; code the benchmark results are within the noise range, so not using <code>dup</code> seems to have little to no impact.</p>
+
+<h2 id='this_one_weird_branching_trick_will_make_you_lose_4_bytes!'>This one weird branching trick will make you lose 4 bytes!</h2>
+
+<p>This representation also does not support one neat trick related to branching. In CIL, if all branches have the same amount and type of values on their stack, they can join, and the value may be used later. This makes something like this possible:</p>
 
 <pre><code class="language-cil">ldarg.0
 ldc.i4.0
@@ -105,47 +137,49 @@ RESULT:
 // The &quot;negative&quot; and &quot;positive&quot; branches both pushed a float on the stack, so we can pop and return it here!
 ret</code></pre>
 
-<p>It is a quite nice trick, but it is just that - a trick. Does it reduce method sizes, potentaily improving preformance?</p>
+<p>It is a quite nice trick, but it is just that - a trick. Does it reduce method sizes, potentially improving performance?</p>
 
 <p><em>Yes.</em></p>
 
-<p>Are the perofmrance gains big enough to bother right now?</p>
+<p>Are the performance gains big enough to bother right now?</p>
 
 <p><em>Nope.</em></p>
 
-<p>So, I chose to go with a more convienent abstraction: it is not perfrect, but more than good enough.</p>
+<p>So, I chose to sacrifice those micro-optimzations and go with a more convenient abstraction: it is not perfect, but more than good enough.</p>
 
-<h1 id='the_project_got_tested_on_arm!'>The project got tested on ARM!</h1>
+<h1 id='the_project_got_runs_arm!'>The project got runs ARM!</h1>
 
 <p>I had wanted to test the cross-platform potential of Rust on .NET for quite a while, but I did not have any devices to test with.</p>
 
-<p>Turns out, Rasberry Pis don't like being stepped on, and solder paste, hot glue and prayers can only go so far, even if you are very sorry.</p>
+<p>Turns out, Rasberry Pis <em>really</em> don't like being stepped on, and solder paste, hot glue, and prayers can only go so far, even if you are very sorry.</p>
 
-<p>Thankfully, Rasberry Pis are not the only ARM devices in the world. After some struggle, I managed to get a Rust compiler and the .NET runtime to work on my Android phone.</p>
+<p>Thankfully, they are not the only ARM devices in the world. After some struggle, I managed to get a Rust compiler and the .NET runtime to work on my Android phone.</p>
 
 <p>I did have to raise the timeout limit of some tests significantly, but, in the end, the project built and passed all the tests on ARM!</p>
 
-<p>I also loaded some Rust-.NET assemblies from my PC, and conformed they work on both machines. So, while the project is mainly developed on x86_64, ARM works too!</p>
+<p>I also loaded some Rust-.NET assemblies from my PC and confirmed they work on both machines. So, while the project is mainly developed on x86_64, ARM works too!</p>
 
-<p><em>side note: I tired to test it on a RISC-V emulator, but .NET is not supported there :(</em></p>
+<p><em>side note: I tried to test it on a RISC-V emulator, but .NET is not supported there :(</em></p>
 
 <h1 id='stack_unwinding'>Stack unwinding</h1>
 
-<p>Stack unwiding is one of the ways Rust handles panics. For those unfailiar with the language, they are kind of like exceptions. The big difference is that they are meant to be used for super special,' &quot;everything-is-on-fire&quot; scenarios. Rust uses the Result type for &quot;normal&quot; errors, but the ability to handle panics propely is still very important. All the tests relly on this: if a test panics, the runner should be able to handle it. So, getting this up-and-running was very important.</p>
+<p>Stack unwinding is one of the ways Rust handles panics. For those unfamiliar with the language, they are kind of like exceptions. The big difference is that they are meant to be used for super special, &quot;everything-is-on-fire&quot; scenarios. Rust uses the Result type for &quot;normal&quot; errors, but the ability to handle panics properly is still very important. All the tests rely on this: if a test panics, the harness should be able to catch that and print the test result. So, getting this up and running was very important.</p>
 
-<p>I had been able to use the .NET exception handling mechanisms to implement stack unwinding - but there were some hiccups. A lot of concepts sadly do not map very nicely.</p>
+<p>The good news is that I had been able to use the .NET exception handling mechanisms to implement stack unwinding - but there were some hiccups. Sadly, in spite of the similarities between panics and exceptions, a lot of concepts do not map very nicely.</p>
 
 <p>The first issue was how restrictive exception handlers are. They are well suited for their job - but I wanted them to do a bit more. In Rust, multiple handlers can share code: the handler <code>A</code> may execute and then jump into the middle of the handler <code>B</code>. In fact, it is quite hard to say any cleanup block &quot;belongs&quot; to any particular handler: they are all intermingled.</p>
 
-<p>.NET really did not like that. The runtime sadly refused to run my abominations.</p>
+<p>.NET really did not like that. It expects all <code>catch</code> blocks to be independent. Sure, you can have nested <code>try/catch</code>, but you can't just jump between handlers. This makes sense - the logic executed in a handler tends to be relatively simple. The cost of adding support for a Rust-like complex handler is probably not worth it if such a thing would be impossible to create in C#. The ability for handlers to share code is a nice optimization, but it is very Rust-specific.</p>
 
-<p>In the end, I had to have a separate copy of all needed cleanup blocks for each handler. This is not very efficent, but, after some optizations, it is tollerable.<br /></p>
+<p>In the end, I had to have a separate copy of all needed cleanup blocks for each handler. This is not very efficient, but, after some minor optimizations, it is tolerable.<br /></p>
 
-<p>This was not the end of my struggles: the runtime is also very picky about the way you <em>exit</em> form a protected region of code. You can't just jump out of a <code>try</code> block - you have to use the <code>leave</code> instruction.</p>
+<h2 id='trying_to_exit_a_try'>Trying to exit a <code>try</code></h2>
 
-<p>The reasoning behind this is a bit compilcated, and I am not sure I fully understand it myself, but I don't have to understand why a rule exists to follow it.</p>
+<p>This was not the end of my struggles: the runtime is also very picky about the way you <em>exit</em> from a protected region of code. You can't just jump out of a <code>try</code> block - you have to use the <code>leave</code> instruction.</p>
 
-<p>Since you have to use the <code>leave</code> instruction, branching looks a bit wierd - in code generated by my project and the C# compiler. In order to jump out of a <code>try</code> block using a conditional, you have to do that indirectly:</p>
+<p>The reasoning behind this is a bit complicated, but, from what I could gather, having one dedicated way to jump out of <code>try</code> simplifies the JIT, and improves the performance. I am pretty sure I don't fully understand this myself, but I don't have to know why a rule exists to follow it. Besides, working around this turned out to be quite easy.</p>
+
+<p>Since you have to use the <code>leave</code> instruction, branching looks a bit weird. This is roughly what the C# compiler does, and I mostly just tried to mimic that behavior. In order to jump out of a <code>try</code> block using a conditional, you have to do that indirectly:</p>
 
 <pre><code class="language-cil">.try{
     ldarg.0
@@ -158,45 +192,136 @@ ret</code></pre>
 OUTSIDE_TRY:
 // ...</code></pre>
 
-<p>this may seem inefficent, but it is what Roslyn does. I assume the C# compiler developers know the runtime better than me, so - if this is what they do, it should be a good soultion.</p>
+<p>this may seem inefficient, but it is what Roslyn does. I assume the C# compiler developers know the runtime better than me, so - if this is what they do, it should be a good solution.</p>
 
-<p>But, after all this work - stack unwinding works! It is not perfect, and I am sure I will uncover some issues in the future, but it is a great leap forwards for the project.</p>
+<p>But, after all this work - stack unwinding works! It is not perfect, and I am sure I will uncover some issues in the future, but it is a great leap forward for the project.</p>
 
 <h1 id='zsts'>ZSTs</h1>
 
-<p>There is one more concept that did not map well to .NET - Zero Sized Types. They are a bizzare feature of Rust which is not as uselles as it sounds. ZSTs are often used as marker types - for example, with generics. Suppose you need to distinguish between two identical databases. The way you access them and the data you need to access them is identical - but one of them is a developement enviorment. You could coppy their defintions and have 2 identical types - but that fells clunky and error-prone. In Rust, you can make them generic, and use zero-sized marker types:</p>
+<p>There is one more concept that did not map well to .NET - Zero Sized Types. They are a bizarre feature of Rust which is not as useless as it sounds. ZSTs are often used as marker types - for example, with generics. Suppose you need to distinguish between two identical databases. The way you access them and the data you need to access them is identical - but one of them is a development environment. You could copy their definitions and have 2 identical types - but that feels clunky and error-prone. In Rust, you can make them generic, and use zero-sized marker types:</p>
 
-<pre><code class="language-rust">// No fields, consumes no space, and is present only during compilation!
+<pre><code class="language-rust">// No fields consume no space, and are present only during compilation!
 struct Production;
-struct Developement;
+struct Development;
 
 struct Database&lt;Kind&gt;{
     //..
 }
-impl Database&lt;Developement&gt;{
-    // Can only be called on a developement database, and will throw a compiler errors if you try to do otherwise!
+impl Database&lt;Development&gt;{
+    // Can only be called on a development database, and will throw a compiler error if you try to do otherwise!
     pub fn test_function_dont_use_in_prod(&amp;mut self){
         //..
     }
 }</code></pre>
 
-<p>This is a nice abstraction - it has no runtime cost, but helps you avoid mistakes.</p>
+<p>This is a nice abstraction - it has no runtime cost but helps you avoid mistakes.</p>
 
-<p>It is not so nice to implement in .NET. In .NET, each type has a size of at least 1. Even when you ask the runtime very nicely, you will not get a zero-sized type. Peroid. If you accidentaly forget about that, you will see some really &quot;fun&quot; side-effects. By far, my favoirte one was related to Rust enums. I used to place the enum variant type after the tag - which is fine, untill you have an enum variant without any fields. It's size is supposed to be zero, and it lays at the very end of the type. If it really had the size of 0, nothing would happen - but it does not. When the type it was stoed in was copied, it was copied too. So, instead of coppying 8 bytes, the runtime copied 8 + 1(the size of &quot;zero&quot; sized field) bytes. Because of that, it has overriten the very next bit of data - which just so happened to store some pretty important data. This is not the fault of the runtime - this is something that is explcitily not allowed.</p>
+<p>It is not so nice to implement in .NET. In .NET, each type has a size of at least 1. Even when you ask the runtime very nicely, you will not get a zero-sized type. Period. If you accidentally forget about that, you will see some really &quot;fun&quot; side effects.</p>
 
-<p>Still, this forced me to be quite a bit more carefull when it comes to type sizes. I am pretty sure I plugged all the major holes realted to ZSTs, but I am also expecting to find more of them.</p>
+<p>By far, my favorite one was related to Rust enums(tagged unions). Most of the time, the enum variant data is placed after the tag - which is fine, until you have an enum variant without any fields. Its size is supposed to be zero, and so it lays at the very end of the &quot;parent&quot; type. If it really had the size of 0, nothing would happen - but it does not.</p>
+
+<p>When the &quot;parent&quot; type it belonged to was copied, it was copied too. So, instead of copying 8 bytes, the runtime copied 8 + 1(the size of a &quot;zero&quot; sized field) bytes. Because of that, it overrode the very next bit of data - which may or may not be very important. This is not the fault of the runtime - I was doing something that is explicitly not allowed.</p>
+
+<p>Still, this forced me to be quite a bit more careful when it comes to type sizes. I am pretty sure I plugged all the major holes related to ZSTs, but I am also expecting to find more of them.</p>
 
 <h1 id='native_libs'>Native libs</h1>
 
-<p>This feature is not yet finished - but I plan on allowing you to reference native shared libraries in Rust code compiled for .NET. This basicaly involves the linker autogenerating the necesary PInvoke method declarations. This featrue already works for <code>libc</code>, which made testing a whole lot easier. Extending it to all shared libraries would make a lot of more complex crates work out of the box - but this is still a feature I am not certain about.</p>
+<p>This feature is not yet finished - but I plan on allowing you to reference native shared libraries in Rust code compiled for .NET. This basically involves the linker autogenerating the necessary PInvoke method declarations. This feature already works for <code>libc</code>, which made testing a whole lot easier. Extending it to all shared libraries would make a lot of more complex crates work out of the box - but this is still a feature I am not so certain about. It has the unfortunate side-effect of making code less &quot;.NETish&quot; and portable - which is something I want to avoid. I will probably just lock this behind a config flag.</p>
 
-<p>Since I am able to use <code>libc</code>, I had been able to test the compiler using a modified version of <a href='https://github.com/cbeuw/rustlantis'>rustlantis</a>. It is a rust compiler fuzzer, which can detect compiler bugs automaticaly. It did uncover quite a bit of issues, but it makes me more optimistic for the future of the project. If I can plug all the holes it finds, I would be much more confiedent in the relayability of this project.</p>
+<h1 id='fuzzing'>Fuzzing</h1>
 
-<h1 id='dead-code_elimnation'>Dead-code elimnation</h1>
+<p>Since I am able to use <code>libc</code>, I have been able to test the compiler using a modified version of <a href='https://github.com/cbeuw/rustlantis'>rustlantis</a>. It is a Rust compiler fuzzer, which can detect a lot of compiler bugs automatically. It is geared more towards mature Rustc backends, but it still was very helpful. I have generated 100 programs that <code>rustc_codegen_clr</code> compiled incorrectly, and I have fully fixed ~39% percent of them. Another ~10% of them run correctly when optimizations are enabled. When fixing those, I found some interesting differences between Rust and .NET.</p>
 
-<p>I also recently added(very basic) dead-code elimination to the project. It is far from perfect, but it managed to shrink down the resulting assemblies by 75%.</p>
+<h2 id='saturating_vs_wrapping_casts'>Saturating vs wrapping casts</h2>
 
-<p><a href='https://youtu.be/qegPczXYSKE'>videolink</a></p>
+<p>There are many things that Rust and .NET do differently. However, there was one difference that I did not expect: floating-point to integer casts.</p>
 
-<p></p>
+<p>In Rust, float to int casts are saturating. In .NET they are wrapping. What is the difference?</p>
+
+<p>Suppose you cast a value of <code>257.45</code> to a byte(u8 in Rust).</p>
+
+<p>The result in Rust will be <code>255</code> since it is clamped to the range that a byte may represent.</p>
+
+<p>In C#, you will get 1, since the cast wraps around.</p>
+
+<p>The number gets &quot;modulo-d&quot; to the requested range. If it is too big, it will just wrap right around. This is a bit unusual, but it seems way more weird when you deal with <em>unsigned</em> integers. Casting <code>129.0</code> to <code>sbyte</code>(i8 in Rust) will <a href='https://dotnetfiddle.net/TIoknl'>result in -127</a>.</p>
+
+<pre><code>using System;
+
+public class C
+{
+	public static void Main()
+	{
+		float f = 129.0f;
+		Console.WriteLine(unchecked((sbyte)f));
+	}
+}</code></pre>
+
+<p>You know what is even more bizarre? This is not always the case! When you <a href='https://dotnetfiddle.net/Z4qGj4'>cast a *constant*</a> that is out of range, you will get... 0!</p>
+
+<pre><code>using System;
+
+public class C
+{
+	const float f = 129.0f;
+	public static void Main()
+	{
+		Console.WriteLine(unchecked((sbyte)f));
+	}
+}</code></pre>
+
+<p>I am pretty sure this is the documented and intended behavior, but it still felt kind of weird to stumble across something like this.  Now, let's get back to the problem at hand: compiling Rust-style casts for .NET.</p>
+
+<p>It is important to get casts right: some programs may rely on this behavior. My solution was quite simple: I just checked if the float was in range before the cast. In the end, it looks something like this:</p>
+
+<pre><code class="language-csharp">private static sbyte cast_f32_i8(float P_0)
+{
+    if (!(P_0 &lt; 127f))
+    {
+        return 127;
+    }
+    if (!(P_0 &gt; -128f))
+    {
+        return -128;
+    }
+    return (sbyte)P_0;
+}</code></pre>
+
+<p>I could maybe try to optimize this more using <code>Math.Min</code>/<code>Math.Max</code>, but this should suffice for now.</p>
+
+<h1 id='dead-code_elimination'>Dead-code elimination</h1>
+
+<p>I also worked on one more thing: adding basic dead-code elimination to my linker. The compiler frontend does quite a bit of that by itself, but it can't &quot;see&quot; across crate(library) boundaries. Since it can't tell for certain a part of the standard library is not being used, it has to keep all public functions. So, the linker needs to only keep those functions that are really needed. Without that, the final assemblies ballooned to the size of 8.0 MB. This makes debugging/analyzing the assemblies a chore - they lag <code>ILSpy</code> and are hard to navigate through.</p>
+
+<p>The algorithm I used is very simple, and based on copying GCs. I <a href='https://www.youtube.com/watch?v=qegPczXYSKE'>recorded a video on implementing it</a> for functions - so, if you are interested in the inner workings of the project, feel free to watch. It is very much a low-production &quot;a guy tries to program and not stumble over his words too much&quot; kinda thing, tough.</p>
+
+<p>In the end, removing dead functions cut the assembly size by half. Why only half? Turns out, a lot of the assembly size comes from the types(which are a bit harder to eliminate) and static data. My current way of storing static data is far from optimal - I basically generate a function that initializes it, byte by byte. There is a way to store binary blobs directly in an assembly, but I have not looked into doing that just yet. They do make ~50% of the final assembly(after unneeded methods are removed), so I probably will fix that soon, but removing unused statics should almost eliminate this problem for now.</p>
+
+<p>Eliminating statics should not be that hard, since I would have to &quot;only&quot; check if their value or address is ever read, and then remove their initializer functions. As for types, they are a completely different breed. First of all, I will need to refactor type paths - since they are currently implemented in a very dumb and clunky way.</p>
+
+<h2 id='type_paths'>Type paths</h2>
+
+<p>I need to refactor type paths at some point anyway, because of a bug related to nested classes. Recently, I started to put type names in quotes - this enables me to use any sequence of characters and keep names consistent with Rust. This messes with nested classes.</p>
+
+<p>The bug is really simple:</p>
+
+<p>I should be saving type paths like this: <code>'Namespace.Class'/'NestedType'</code> I am saving them like this: <code>'Namespace.Class/NestedType'</code></p>
+
+<p>The Mono ILASM ignores the quotes when parsing <code>/</code>, and interprets it as a class separator.</p>
+
+<p>CoreCLR ILASM assumes everything between two <code>'</code> is a name, and thinks <code>\</code> is a part of this name. Thus, it can't find the nested class.</p>
+
+<p>I think the CoreCLR ILASM is correct here, and the first option works for all ILASMs, so I will switch to using the more clear/correct syntax.</p>
+
+<h1 id='closing_thoughts'>Closing thoughts</h1>
+
+<p>While <a href='https://github.com/FractalFir/rustc_codegen_clr'>the project</a> is still far from being complete, I feel like I have made some pretty substantial progress.</p>
+
+<p>Thanks to new features, such as stack unwinding, testing is going to be much easier. Currently, the the single biggest roadblock is the low reliability of the project: it is mostly feature-complete (~70% done), but miscompilations are far too common to use for anything serious.</p>
+
+<p>It is quite hard to juggle school and working on the project, especially with my high school finals(matura exam) creeping closer and closer. I probably won't be able to work on it nearly as much, since I will have to revise some time-consuming stuff(polish literature, basics of C++). Still, I plan on focusing on refactors/bugfixes - those kinds of things can be slightly more self-contained, which should enable me to work on the project under time constraints.</p>
+
+<p>I would also like to thank you, the reader, for the positive reception those articles and the project had. It really brightens my day and helps me in finding motivation.</p>
+
+<p>Goodbye, and see you next time!</p>
 </div></div></body></html>
