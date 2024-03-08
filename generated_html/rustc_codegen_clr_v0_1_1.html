@@ -181,7 +181,7 @@ ret</code></pre>
 
 <p>The reasoning behind this is a bit complicated, but, from what I could gather, having one dedicated way to jump out of <code>try</code> simplifies the JIT, and improves the performance. I am pretty sure I don't fully understand this myself, but I don't have to know why a rule exists to follow it. Besides, working around this turned out to be quite easy.</p>
 
-<p>Since you have to use the <code>leave</code> instruction, branching looks a bit weird. This is roughly what the C# compiler does, and I mostly just tried to mimic that behavior. In order to jump out of a <code>try</code> block using a conditional, you have to do that indirectly:</p>
+<p>Since you have to use the <code>leave</code> instruction, branching looks a bit weird. In order to jump out of a <code>try</code> block using a conditional, you have to do that indirectly:</p>
 
 <pre><code class="language-cil">.try{
     ldarg.0
