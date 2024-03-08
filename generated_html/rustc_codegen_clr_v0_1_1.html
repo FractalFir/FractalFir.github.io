@@ -9,7 +9,7 @@
      const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint"];
    var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
    var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
-   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj","div"];
 
    var keywords = {
     keyword: KEYWORDS,
@@ -116,9 +116,11 @@ div</code></pre>
 
 <p>You can't use <code>dup</code> here: the value of <code>y</code> needs to be in between two <code>x</code>s. So, if I were to allow <code>dup</code> in CIL trees, I would have to keep track of the evaluation stack. Seeing as avoiding that was one of the main reason I ditched linear CIL, I am not keen on doing that.</p>
 
-<p>This means that the main optimizer can't use <code>dup</code>: it must be inserted after trees are &quot;flattened&quot;. I might consider adding another optimization pass just for inserting <code>dup</code> where needed, but it is not a priority right now. Even if I don't use this instruction at all, the performance impact is not noticeable. The slowdown mainly occurs in &quot;cold&quot; functions and during startup. This project mainly targets &quot;hot&quot; code - places where rewriting something in Rust makes the most sense.</p>
+<p>The best solution seems to be insertring <code>dup</code> after the main optimzer runs, just after the trees are &quot;flattened&quot;.  This is not a priority right now, since the performance does not seem to be affected.</p>
 
-<p>In &quot;hot&quot; code the benchmark results are within the noise range, so not using <code>dup</code> seems to have little to no impact.</p>
+<p>Even if I don't use this instruction at all, there seems to be little to no change in terms of speed. The slowdown mainly occurs in &quot;cold&quot; functions, and during startup. Of course, I would prefer the generated assebmlies to run buttery smooth in all scenarios, but this project mainly targets &quot;hot&quot; code - places where rewriting something in Rust makes the most sense.</p>
+
+<p>In &quot;hot&quot; code the difference in benchmark results is well within the noise range, so not using <code>dup</code> seems to have almost no impact there.</p>
 
 <h2 id='this_one_weird_branching_trick_will_make_you_lose_4_bytes!'>This one weird branching trick will make you lose 4 bytes!</h2>
 

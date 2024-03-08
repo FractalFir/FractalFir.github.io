@@ -94,12 +94,12 @@ div
 You can't use `dup` here: the value of `y` needs to be in between two `x`s. So, if I were to allow `dup` in CIL trees, I would have to keep track of the evaluation stack. Seeing as avoiding that was one of 
 the main reason I ditched linear CIL, I am not keen on doing that.
 
-This means that the main optimizer can't use `dup`: it must be inserted after trees are "flattened". I might consider adding another optimization pass just for inserting `dup` where needed, but it is not a 
-priority right now.
-Even if I don't use this instruction at all, the performance impact is not noticeable. The slowdown mainly occurs in "cold" functions and during startup. This project mainly targets "hot" code - places where
-rewriting something in Rust makes the most sense.
+The best solution seems to be insertring `dup` after the main optimzer runs, just after the trees are "flattened".  This is not a priority right now, since the performance does not seem to be affected.
 
-In "hot" code the benchmark results are within the noise range, so not using `dup` seems to have little to no impact.
+Even if I don't use this instruction at all, there seems to be little to no change in terms of speed. The slowdown mainly occurs in "cold" functions, and during startup. Of course, I would prefer the generated 
+assebmlies to run buttery smooth in all scenarios, but this project mainly targets "hot" code - places where rewriting something in Rust makes the most sense.
+
+In "hot" code the difference in benchmark results is well within the noise range, so not using `dup` seems to have almost no impact there.
 
 ## This one weird branching trick will make you lose 4 bytes!
 
