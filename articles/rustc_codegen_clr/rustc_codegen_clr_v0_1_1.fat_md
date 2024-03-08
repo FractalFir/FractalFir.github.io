@@ -169,7 +169,7 @@ This was not the end of my struggles: the runtime is also very picky about the w
 The reasoning behind this is a bit complicated, but, from what I could gather, having one dedicated way to jump out of `try` simplifies the JIT, and improves the performance.
 I am pretty sure I don't fully understand this myself, but I don't have to know why a rule exists to follow it. Besides, working around this turned out to be quite easy.
 
-Since you have to use the `leave` instruction, branching looks a bit weird. This is roughly what the C# compiler does, and I mostly just tried to mimic that behavior.
+Since you have to use the `leave` instruction, branching looks a bit weird.
 In order to jump out of a `try` block using a conditional, you have to do that indirectly:
 ```cil
 .try{
