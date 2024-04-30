@@ -200,7 +200,9 @@ fn collect_articles_from_dir(path:&Path)->std::io::Result<Vec<Article>>{
             continue;
         } 
         if file.file_type()?.is_file() && file.path().extension().is_some_and(|extension| extension == "fat_md"){
+            println!("Parsing article {:?}...",file.path());
             let file = std::fs::File::open(file.path())?;
+            
             let article = Article::from_file(file)?;
             articles.push(article);
         }
