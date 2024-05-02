@@ -1,0 +1,53 @@
+<metadata>
+title = "Rabid Rust - Dealing with an insane compiler"
+id = "rabid_rust_1"
+category = "Rabid Rust"
+category = "hidden"
+date = "21 Jan 2024"
+</metadata>
+<markdown>
+I have a bit of a wierd problem - my Rust compiler is insane.
+
+Well, this is a slight oversimplification. I am currently working on [`rustc_codegen_clr`](https://github.com/FractalFir/rustc_codegen_clr) -
+ a Rust compiler backend, targeting .NET. It basically enables the Rust compiler
+to produce .NET assemblies from Rust code. Ok, nice, but what does this have to do with the topic of this article? 
+
+Well, my compiler is not exactly bug free. For the past few weeks, I have been playing whack-a-mole with bugs, and sadly, I think I am loosing. 
+
+Turns out, testing a brand-new compiler backend is not a trivial task. 
+
+First of all, you can't trust anything to be right. Even something as simple as arthritics must be extensively tested - because it can be broken.
+
+Second of all - most test programs are not as simple as they look. Even the simplest Rust test:
+
+```rust
+#[test]
+fn simple(){
+    // How complicated can this be?
+}
+```
+
+requires a lot of stuff to work flawlesly to even start running. Argument parsing, unwinding, allocations, String formating - the list could go on for ages. 
+
+This means that the test suite used by your "standard" Rust compiler is of no use here. Because of that, I have been writing my own, custom test programs.
+
+Recently, I have asked myself an unusal question:
+
+*What is the simplest way to **prove** a Rust compiler is working correctly?*
+
+# Proff start
+## What do I want?
+
+Before searching for such a proof, we must first know what are we looking for.
+
+First of all, this "proof" is meant for simple, WIP projects. Our tests **must** be stupidly simple, and depend on almost nothing.  
+
+Second of all, the "proof" should relay on minimal assumptions. Sadly, we must assume some things about the compiler we test are true.
+The set of initial assumptions I went with is pretty small(3 assumptions), so this should not be an issue.
+
+The assumptiuons should be also easy to fuliffl and check. 
+
+Our proof will relly on some tests that we will perform.
+
+A test can have 3 possible results: Pass, Fail, and Unknown. A test has an  Unknown state 
+</markdown>

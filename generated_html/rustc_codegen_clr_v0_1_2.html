@@ -1,0 +1,510 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=0.5"><title>Rust to .NET compiler - Progress update</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js"></script>
+<script src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();function cil() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj","div","blt","br"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: types.concat(ops).concat(short_types),
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['cil','common_intermediate_language'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+
+hljs.registerLanguage('cil',cil);
+</script></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+        </nav></div><div class = "article_header"><h1 class="title">Rust to .NET compiler - Progress update</h1><br><small><div class = "article_metadata">Published on 22 Apr 2024<br><i>10 - 18 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>The past few months have been quite chaotic, both for the Rust to .NET compiler backend I am working on, and for me personaly. As I am writing this article, I am in the metaphorical eye of the hurracine - I have just graduated high school, and I will be writing my national final exams in about a week. Still, I since I have a bit of free-ish time, I will try to write about some of the progress I had made!</p>
+
+<h3 id='tiny_recap_-_what_is_rustc_codegen_clr_?'>Tiny recap - what is <code>rustc_codegen_clr</code>?</h3>
+
+<p><em><code>rustc_codegen_clr</code> is a compiler backend, which allows the Rust compiler to turn Rust code into .NET assembiles.</em> <em>You can imagine it as a plugin, replacing the very last stage of Rust compilation.</em></p>
+
+<h1 id='big_news_-_the_project_got_accepted_into_gsoc.'>Big news - the project got accepted into GSoC.</h1>
+
+<p>One of the things I have worked on recently was submiting a proposal related to this project to Google Summer of Code. And, today I am proud to announce that it has been accepted!</p>
+
+<p>What does this mean for the project? Well, first of all, I will be able to foccus soley <code>rustc_codegen_clr</code> for the following months. Before that, I had been working on the project in my free time - in evenings or weekends. So, the speed of developement should increase.</p>
+
+<p>My proposal will also be mentored by Jack Huey, a member of the Rust language team. Having an outside perspective, from someone experienced, should allow me to increase the quality of my project.</p>
+
+<p>So, what is the proposal about, specificaly?</p>
+
+<h2 id='trouble_with_tests'>Trouble with tests</h2>
+
+<p>Currently, my project relies on custom-written test executables. If the test crashes, then it fails, if it does not, then it passes.</p>
+
+<pre><code class="language-rust">fn main(){
+    let a = b&quot;Hello, Bob!\n\0&quot;;
+    let b = &quot;Hello, Bob!\n\0&quot;;
+    if black_box(a) != black_box(b).as_bytes(){
+        core::intrniscs::abort();
+    }
+    let a:&amp;[u8] = &amp;b&quot;Hello, Bob!\n\0&quot;[..];
+    let b:&amp;[u8] = &amp;b&quot;Hello, Bob!\n\0&quot;[..];
+    if black_box(a) != black_box(b){
+        core::intrniscs::abort();
+    }
+      
+}</code></pre>
+
+<p>This works, but it certianly is not the way Rust is usualy tested. As many of you propably know, Rust has built-in test support:</p>
+
+<pre><code>#[test]
+fn should_pass(){
+}
+#[test]
+#[should_panic]
+fn should_fail(){
+    panic!();
+}</code></pre>
+
+<p>You can run those tests using the <code>cargo test</code> command.</p>
+
+<p>Currently, the codegen is not able to compile &amp; run the test shown above. At the moment of writing, the test harness crashes when trying to parse the command line arguments. While this test program looks ridiculusly simple, the harness generated by the compiler is not.</p>
+
+<p>My GSoC proposal is simple: I want to get the test presented above to run correclty within the .NET runtime.</p>
+
+<h3 id='why_work_on_tests?'>Why work on tests?</h3>
+
+<p>You may wonder: why foccus on adding support for a different way of testing, if I already have a way to write tests?</p>
+
+<p>First of all, I would be able to run tests not wrtien with my project in mind. Things like the Rust test suite relly on this feature. While I running the whole compiler test suite is a whole other can of worms, this is a good first step.</p>
+
+<p>I could also test individual crates(Rust libraries), or try to use something like <a href='https://github.com/rust-lang/crater'>crater</a>. <code>crater</code> is a Rust tool, which test <em>every single rust library</em> - all 100 000 of them. With this kind of testing, I would be able to find almost any issue with this project. That is still far off in the future, but still - you can see why better tests could be really usefull.</p>
+
+<p>The Rust tests would also run faster than my crappy, custom ones. Curretnly, I build a separate test binary for each test case - and that adds up quickly. At the time of writing, my test suite takes 44.461 seconds to run, on my machine. On gihub actions, the tests are even solwer - takning <strong>4m</strong> to run. With cargo tests, I could build <em>one</em> big binary for all tests - cutting down the build times singificantly.</p>
+
+<p>So, you propalby can understand why I feel this is a good goal for the near future.</p>
+
+<h3 id='what_is_needed_for_running_better_tests?'>What is needed for running better tests?</h3>
+
+<p>This is a small list of the work needed to get tests to work:</p>
+
+<ol type="1">
+<li>Command Line Argument Support - this one is partialy done, but it is <strong>suprisingly</strong> complex.</li>
+
+<li>Support for Atomic Intrinsics - The test harness is multihtrheaded, so it needs atomics for synchronization.</li>
+
+<li>Support for multiple threads - Kind of self-explanatory, this includes support for launching/handling multiple threads.</li>
+
+<li>Better interop - neccesary to implement multi-threading propely. Storing thread safely handles off-stack requires a lot more work, like adding first-class support for GCHandles.</li>
+
+<li>Support for <code>dyn Trait</code> objects - while I personaly almost never use them, and I don't like them, they undeniably  have their uses. Since the standrad library needs them to propely function, I will need to deal with them.</li>
+
+<li>The ability to catch panics - Rust has a concept of panicking and unwinding. This way of handling errors is remarkably similar to .NET exceptions(an I implement unwinds using .NETs exceptions). Since the failign test cases will unwind(or throw exceptions), I will need to add support for catching them.</li>
+</ol>
+
+<p>As you can see, the work I will need to put in was needed anyway - and getting better, faster tests is just the cherry on top.</p>
+
+<p>If you have any question/suggestion/whatever regarding my GSoC work, feel free to ask me on <a href='https://rust-lang.zulipchat.com/#narrow/stream/421156-gsoc/topic/Project.3A.20Rust.20to.20.2ENET.20compiler'>Rust Zulip</a>, or in the reddit comments.  Currently, I am in the &quot;Community bonding&quot; GSoC phase - the point at which any feedback will be appreciated.</p>
+
+<h1 id='command_line_arguments'>Command line arguments</h1>
+
+<p>You might have noticed I said that support for comamnd line arguments &quot;is <strong>suprisingly</strong> complex&quot;. Why, tough? This seems like something that <em>should</em> be very simple, borederilne trivail.  Well, it turns out Rust uses something unusal to get the command line arguments: wierd linker tricks.</p>
+
+<h1 id='getting_command-line_arguments_the_cool_way'>Getting command-line arguments the cool way</h1>
+
+<p>In most languages, command line arguments are passed to the main function of your program, like this:</p>
+
+<pre><code class="language-csharp">public static void Main(string[] args){
+    // handle the args here 
+}</code></pre>
+
+<p>Or this:</p>
+
+<pre><code class="language-c">int main(int argc, char** argv){
+    // handle the args here 
+}</code></pre>
+
+<p>This makes a lot of sense: most OSs pass arguments to the program this way. Your programing language only inserts a thin wrapper around the OS entrypoint, and passes the OS-provided arguments to your app. Parsing command line-arguments is a bit different in Rust:</p>
+
+<pre><code class="language-rust">fn main(){
+    let args = std::env::args();
+}</code></pre>
+
+<p>The arguments are not directly passed to the main function, and you retrive them by calling <code>std::env::args</code>. You may assume this is implemented roughly like that:</p>
+
+<pre><code class="language-rust">// OS-args are stored here.
+static mut ARGS:Option&lt;Vec&lt;String&gt;&gt; = None;
+unsafe fn _start(argc:c_int,argv:*const *const c_char){
+    // Set the args
+    ARGS = Some(convert_args(argc,argv));
+    // call main
+    main();
+    // tell the OS that this program has finished.
+    exit(0);
+}
+fn main(){
+    // Just gets the value of `ARGS`.
+    let args = std::env::args();
+}</code></pre>
+
+<p>And you would be partialy correct: the command line arguments are indeed stored in a static variables. But they are retirved from the OS <em>before your program even fully loads</em>.</p>
+
+<h2 id='dynamic_linkers_and_init_array'>Dynamic linkers and <code>init_array</code></h2>
+
+<p>For most OSs, the Rust standard library uses a function named <code>really_init</code> to initialize the static variables containing command-line arguments.</p>
+
+<pre><code class="language-rust">static ARGC: AtomicIsize = AtomicIsize::new(0);
+static ARGV: AtomicPtr&lt;*const u8&gt; = AtomicPtr::new(ptr::null_mut());
+
+unsafe fn really_init(argc: isize, argv: *const *const u8) {
+    // These don't need to be ordered with each other or other stores,
+    // because they only hold the unmodified system-provide argv/argc.
+    ARGC.store(argc, Ordering::Relaxed);
+    ARGV.store(argv as *mut _, Ordering::Relaxed);
+}</code></pre>
+
+<p>Ok, that makes sense. But what calls <code>really_init</code>? <code>really_init</code> is called by a &quot;static initialzier&quot; - on GNU linux, it uses '.init_array'.</p>
+
+<pre><code>#[used]
+#[link_section = &quot;.init_array.00099&quot;]
+static ARGV_INIT_ARRAY: extern &quot;C&quot; fn(
+    crate::os::raw::c_int,
+    *const *const u8,
+    *const *const u8,
+) = {
+    extern &quot;C&quot; fn init_wrapper(
+        argc: crate::os::raw::c_int,
+        argv: *const *const u8,
+        _envp: *const *const u8,
+    ) {
+        unsafe {
+            really_init(argc as isize, argv);
+        }
+    }
+    init_wrapper
+};</code></pre>
+
+<p>The purpose of a static initializer is pretty self-explanatory: it is supposed to initialze static variables. The really interesting thing about static initialzers is that they run before your program even starts.</p>
+
+<p>A static initialzer is called by a &quot;dynamic linker&quot; - the part of your OS responsible for loading executables. This has a really interesting consequence: a static initialzer will also run when you load a library. This means that you can write something like this:</p>
+
+<pre><code>extern &quot;C&quot; fn can_be_called_by_other_langs(){
+    // Can get OS args, even in a shared library
+    let args = std::env::args();
+}</code></pre>
+
+<p>in a shared library(aka. dynamic library), and it will still work just fine.</p>
+
+<p>Ok, all of that is pretty nice, but how can something like this be implemented in .NET?</p>
+
+<h2 id='implementing_gnu-style_static_initialzers_in_.net'>Implementing GNU-style static initialzers in .NET</h2>
+
+<p>Implementing static initalizers may seem like quite the task at first glance. I would have to handle the linker directives passed to me by the frontend, and then call those static functions with proper arguments, and in the right order.<br /></p>
+
+<p>That would be compilcated, but I have been able to take a very big shortut. You see, at least on GNU Linux, there is only 1 static initailzer used in the whole Rust standard library.</p>
+
+<p>This makes my job a whole lot easier: I can &quot;just&quot; call <code>really_init</code> directly, and not worry about anything else.</p>
+
+<h2 id='.cctor'>.cctor</h2>
+
+<p>.NET has a pretty nice feature, that allows me to easily emulate the behaviour of <code>.init_arrays</code>: static constructors. They are pieces of code, which run while a type is being initialzed. I store my Rust code in a class called <code>RustModule</code>. It contains all the comipiled functions, static allocations, and other stuff like that.</p>
+
+<p>Since a static constructor will run before the RustModule class is used, I can guarantee all static data is propely initialzed.</p>
+
+<p>I can also use the static constructor to retrive the command line arguemnts, and call <code>really_init</code> directly. This is realtively easy, since the static constructor is just an onrdiranry static method, with a funny name(<code>.cctor</code>). So, I don't need all that much code to handle all of that propely.</p>
+
+<p>The exact implementation is not as simple as this, but this should give you a rough idea about what is really happeing.</p>
+
+<h1 id='100(+1)_test_cases'>100(+1) test cases</h1>
+
+<p>Some time ago(4 months to be exact), I started using a slightly modified version of a tool called <a href='https://github.com/cbeuw/rustlantis'>rustlantis</a> to fuzz test my compiler. Rustlantis is a pretty amaizng tool: it can automaticaly creates complex, but UB-free Rust programs, extensively testing the Rust compiler. It is a really marvelous thing, and I can't stress enoguh how helpfull it has been.</p>
+
+<p>With my minor changes, I have been able to hook this amazing tool into my compiler - and generate 101 failing test cases for me to fix.</p>
+
+<p>No, this is not an elabortae reference to <em>One Hundred and One Dalmatians</em> - I am just stupid and made an off by one error.</p>
+
+<p>I saved failing test cases from 0 to 100, instead of from 1 to 100, and I just decided to keep all of them, and live with my mistakes.</p>
+
+<p>Anyway, I have made some <em>big</em> progress fixing those issues - currently, only 3 of them remain(case 16, 47, and 58)!</p>
+
+<p>This means I am 97.0297% done!</p>
+
+<p><em>Yes, the precentage is all messed up - 101 is prime, so no nice precentages for me :(.</em></p>
+
+<p>The test cases are compiled with and without optimizations, and the behavior of the resulting program is compared between &quot;standard&quot; Rust and the .NET version.</p>
+
+<p>While fixing those cases, I have discovered some interesting consequences of certain... quiks of .NET.</p>
+
+<h1 id='.nets_selective_sign_dementia'>.NETs selective sign dementia</h1>
+
+<p>If I asked you this simple question:</p>
+
+<blockquote>
+<p>Does the .NET runtime have an unsigned intiger type?</p>
+</blockquote>
+
+<p>Your answer would propably be:</p>
+
+<blockquote>
+<p>Yes, of course! What a silly question!</p>
+</blockquote>
+
+<p>My answer would be:</p>
+
+<blockquote>
+<p>Yes, but no, but also yes.</p>
+</blockquote>
+
+<p>You see, the .NET runtime obviosly has support for unsigned intiger types:</p>
+
+<pre><code class="language-csharp">uint unsinged = 0;</code></pre>
+
+<p>.NET clearly separates signed and unsigned intigers almost everywhere, besides the evaluation stack. As soon as an initger lands on the evaluation stack, the runtime gets a wierd case of sign-amnesia, and instanly forgets if it is suposed to be signed.</p>
+
+<p>Let me show you an example. Look at this C# function:</p>
+
+<pre><code class="language-csharp">public static int Add(int signed, uint unsigned){
+    // Requires an explict sign cast!
+    return signed + (int)unsigned;
+}</code></pre>
+
+<p>This C# function then gets compiled into CIL - .NET's bytecode, which works by pushing and poping values from the evaulation stack. You would expect the CIL this function compiled into to look like this:</p>
+
+<pre><code class="language-cil">.method static 
+        int32 Add(
+            int32 'signed',
+            uint32 'unsigned'
+        ) 
+    {
+    // Load argument 0(int signed)
+    ldarg.0
+    // Load argument 1(uint usigned)
+    ldarg.1
+    // Convert uint to int
+    conv.u4
+    // Add them together
+    add
+    // Return their sum.
+    ret
+}</code></pre>
+
+<p>The arguments get pushed onto the evaluation stack, the second one gets converted from signed to unsigned, and then they get added togeter. Nope! The sign convertion is not needed.</p>
+
+<pre><code class="language-cil">.method static 
+        int32 Add(
+            int32 'signed',
+            uint32 'unsigned'
+        ) 
+    {
+    // Load argument 0(int signed)
+    ldarg.0
+    // Load argument 1(uint usigned)
+    ldarg.1
+    // Add them together(even tough they have different signs)
+    add
+    // Return their sum.
+    ret
+}</code></pre>
+
+<p>Ok, so what is the problem here?</p>
+
+<p><em>Oh no, I don't have to use one more instruction to convert some intigers, what a terrible tragedy!</em></p>
+
+<p>Well, while it may not seem that bad, this makes some things... less than intuitve.</p>
+
+<p>I will now ask you a seemginly trivial question. If you had to convert a 32 bit unsigned value(<code>uint</code>) to a 64 bit signed type(<code>long</code>), which one of those instructions would you use?</p>
+
+<p><code>conv.i8</code> - <em>Convert to int64, pushing int64 on stack.</em></p>
+
+<p><code>conv.u8</code> - <em>Convert to unsigned int64, pushing int64 on stack.</em></p>
+
+<p>At first, your intuition would suggest using <code>conv.i8</code> - it is supposed to convert a value to signed int64(<code>long</code>). Your intuition would be, however, wrong.</p>
+
+<p>This C# function:</p>
+
+<pre><code class="language-csharp">static long UIntToLong(uint input){
+    return (long)input;
+}</code></pre>
+
+<p>Compiles into the following CIL:</p>
+
+<pre><code class="language-cil">.method assembly hidebysig static 
+    int64 'UIntToLong' (
+        uint32 input
+    ) 
+{
+    .maxstack 8
+    ldarg.0
+    conv.u8
+    ret
+} </code></pre>
+
+<p>Let me explain what is exactly happening, and why on earth is the instruction for <strong>unsigned</strong> convertion used here. The real difference between <code>conv.u8</code> and <code>conv.i8</code> is the <em>kind</em> of convertion they use.</p>
+
+<p><code>conv.i8</code> uses <em>sign extension</em> - meaning it tries to preserve the sign bit of the input value.</p>
+
+<p>So, when its input is an <em>unsigned</em> intiger, it treats its last bit as a sign, even when we don't want it to. <code>conv.u8</code> uses <em>zero extension</em> - it does not try to preserve the sign, and simply fills all the &quot;new&quot; bits with 0s.</p>
+
+<p>You can imagine this as <code>conv.i8</code> assuming its input is signed, and <code>conv.u8</code> assuming its input is unsigned.</p>
+
+<p>They are named in a prety confusing way, but this is not really a big issue it at least supports unsigned intigeres, unlike <strong>certain</strong> languages(I am looking at you, Java!).</p>
+
+<p>Now, this is not a problem in all the languages using .NET. You don't have to think about, or even know this stuff. The smart peopele developing your compiler have you covered!</p>
+
+<p>(Un) fortunately, I am the alegedly smart person writing the Rust to .NET compiler. So, this, and other &quot;small&quot; detalis and edge cases are sadly my problem.</p>
+
+<p>Seeing as I can't count 100 test cases without messing up, I don't have big hopes ;).</p>
+
+<h1 id='.nets_magic_3rd_variable-sized_binary_floating_point_format'>.NETs magic 3rd variable-sized binary floating point format</h1>
+
+<p>Did you know that .NET has a 3rd binary floating-point type(and no, I am not taking about <code>decimal</code>). In CIL, you have direct equiavlents to <code>float</code> and <code>dobule</code> - <code>float32</code> and <code>float64</code>, but there is also a 3rd type.</p>
+
+<p>Well, what is it?</p>
+
+<p>The confusingly-named F type is supposed to be an internal implementation detali. The spec says:</p>
+
+<blockquote>
+<p>The internal representation shall have precision and range greater than or equal to the nominal type.  Conversions to and from the internal representation shall preserve value.</p>
+</blockquote>
+
+<p>So, its size may vary across implementations. Ok, so what? Why does this internal type even matter? Well, it turns out that it (sometimes) matters quite a lot.</p>
+
+<p>First of all, all floating-point instructions operate on this &quot;F&quot; type - when you load a <code>float</code> or a <code>double</code> onto the evaluation stack, it gets converted to the <code>F</code> type.</p>
+
+<p>Still, most of the time, you can just pretend it does not exist - since its size depends on the contex. In practice, it is 32 bit when you operate on <code>float</code>s, and 64 bit when you operate on <code>double</code>s.</p>
+
+<p>You can imagine you are directly operating on <code>float32</code> and <code>float64</code>, and the &quot;F&quot; type never bothers you.</p>
+
+<p>The &quot;F&quot; type always has just the right size for your operation: never too small, never too big. So, it should not be noticable.</p>
+
+<p>Alright, it is a wierd type whose size depends on the context, but none is perfect. Of course, it may look odd, but it is just an implementation detali. Surely, it won't suddenly rear its ugly head and cause wierd precision issues in one, very specific case?</p>
+
+<h2 id='meet_conv.r.un'>Meet <code>conv.r.un</code></h2>
+
+<p>There are 3 .NET instructions used for converting values to floating-point types: <code>conv.r4</code> - Convert to float32, pushing F on stack. <code>conv.r8</code>-  Convert to float64, pushing F on stack. <code>conv.r.un</code> - Convert unsigned integer to floating-point, pushing F on stack</p>
+
+<p>Can you spot the odd one out?</p>
+
+<p><code>conv.r.un</code> does not specify the size of its result. So, what is the size of the type it pushes onto the stack? The answer is... it depends. Could you spot the issue with this snippet of code:</p>
+
+<pre><code class="language-cil">.method static float64 ULongToDouble(uint64 'ulong'){
+   
+    ldarg.0
+    conv.r.un
+    ret
+}</code></pre>
+
+<p>This code will convert the <code>uint64</code> to a <strong>32bit float type</strong> and <em>then</em> it will convert that <code>float</code> into a <code>double</code>(<code>float64</code>). This will result in a loss of precision. What is even worse is that this behaviour is not very consistent: sometimes I can reproduce it, sometimes I can't.</p>
+
+<p>Well, there is one instruction missing: <code>conv.r.un</code> <em>should</em> be followed by <code>conv.r8</code>. Even tough it <em>seems</em> like it is unnecesarry, it is actualy <em>crucial</em> this instruction is there.</p>
+
+<p>This <em>looks</em> wierd, but this is what the C# compiler would do. So, I just have to stick a <code>conv.r8</code> there, and everyting is fine again.</p>
+
+<pre><code class="language-cil">.method static float64 ULongToDouble(uint64 'ulong'){
+   
+    ldarg.0
+    conv.r.un
+    conv.r8
+    ret
+}</code></pre>
+
+<p>Once again, this is something that you are extermely unlikely to ever encounter. This is just an &quot;invisble&quot; implementation detali - but it is still interesting to see it pop up.</p>
+
+<p>One of my favorite things about this project is just learing about the inner workings of Rust and .NET. As an aonther example: did you know there is a cap on the total length of the strings in a .NET assembly?</p>
+
+<h1 id='strings,_strings,_more_strings'>Strings, strings, more strings</h1>
+
+<p>You can’t store more than 4GBs worth of strings in a .NET assembly. You may wonder: how on earth would you encounter <em>that</em>?</p>
+
+<p>The answer is quite simple: a dumb approach to debuing.</p>
+
+<p>You see, there are some things that make the runtime just... crash. No exception, no message, nothing. It just kind of... dies.</p>
+
+<p>As an example, calling a null pointer using <code>calli</code> will just crash the runtime.</p>
+
+<pre><code>ldnull
+conv.i
+calli void ()</code></pre>
+
+<p>So, we can't get a backtrace and check what caused the problem.</p>
+
+<p>How do we solve that?</p>
+
+<p>Well, we can &quot;simply&quot; log to the console the name of every single function we call: this way, we can at least know where we crashed. We can also log messages on who called the funcion, and provide yet entry and exit,</p>
+
+<p>Orignaly, I did something dumb: I stored the whole message for each function call. So, the total string length was:</p>
+
+<p>The number of <strong>function calls</strong> × 2 × 40+ bytes per message.</p>
+
+<p>You can see how quickly things will start to add up.</p>
+
+<p>The solution tunred out to be quite simple: split the stored strings, and reassmble then at runtime. We can change this message:</p>
+
+<blockquote>
+<p>Calling FN1 from FN2</p>
+</blockquote>
+
+<p>into 4 strings: &quot;Callling &quot;, FN1, &quot; from &quot; and FN2.</p>
+
+<p>So, now our total string length will just be:</p>
+
+<p>Number of <strong>functions</strong> × function name length + &quot;Calling &quot; and &quot; from &quot;</p>
+
+<p>Much better.</p>
+
+<p>This incredibley &quot;advanced&quot; debuging solution is, of course, disabled by default and only meant for edge cases, such as the runtime crashing without any messages.</p>
+
+<p>However stupid it may be, it works.</p>
+
+<h1 id='suprise_for_the_end'>Suprise for the end</h1>
+
+<p>Oh, did I forget to metion that <code>rustc_codegen_clr</code> can also compiler Rust to C?</p>
+
+<p>I don't know how to integrate that nicely into the article, but the project can also serve as a Rust to C compiler, when you set the <code>C_MODE</code> config flag.</p>
+
+<p>Why???</p>
+
+<p>Well, it all ciricles back to GSoC. I was not sure if my main proposal would be accepted, so I tought about submiting another, &quot;safer&quot; one.</p>
+
+<p>After a particualry bad migrene, I realized my internal IR(CIL trees) is baisacly just an AST. And I can convert it to C without major issues.</p>
+
+<p>So, I kind of.. did that? I wrote around 1K loc, and the my Rust to .NET compiler now ouptuts C for some reason. Cool.</p>
+
+<p>A lot of my tests already pass, and it can compile &amp; run a very broken version of the Rust standard library.</p>
+
+<p>The whole thing works by just pretending the C language is a very wierd .NET runtime.</p>
+
+<p>I will proably write a bit more about it in the future, but this article is already a bit too long for my taste.</p>
+
+<p>It was a nice experiment, is relaitvely easy to maintian, and it helped a lot with debuging - so it will proably stay for now.</p>
+
+<h1 id='mixed-mode_assemblies,_native_passtrough,_and_my_linker'>Mixed-mode assemblies, NATIVE_PASSTROUGH, and my linker</h1>
+
+<p>Some peopele have asked me about mixed-mode assemblies: assemblies containing both native code, and .NET CIL.</p>
+
+<p>I have made some progres towards that too. First of all, my linker can now link assemblies with shared libraries: it will emmit all the info the .NET runtime needs to load the functions from such a library. It can also link static native libraries. They will come bundled with the final excutable, and will too be loaded by the .NET runtime. So, my linker, cleverly named &quot;linker&quot;, will now enable you to bundle native code with your Rust compiled for .NET.</p>
+
+<p>I call this(experimental) feature NATIVE_PASSTROUGH.</p>
+
+<p>Now, this featrue is not perfect by any means(it crahses when you try to use calling conventions other than &quot;C&quot;), but this is a singifcant step towards future Mixed-mode assemblies.</p>
+
+<h1 id='wrapping_stuff_up'>Wrapping stuff up</h1>
+
+<p>Orignaly, I had more stuff to talk about, but I don't want this article to become an unreadable wall of text. Once again, if you have any questions, fell free to ask. You can use the Rust Zulip, open a disucssion on the projects GitHub, or just ask in the reddit comments.</p>
+</div></div></body></html>
