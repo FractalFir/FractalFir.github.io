@@ -2,7 +2,7 @@
 title = "Rust to .NET compiler - Progress update"
 id = "rustc_codegen_clr_v0_1_2"
 category = "Rustc Codegen CLR"
-category = "hidden"
+
 date = "22 Apr 2024"
 </metadata>
 <markdown>
