@@ -34,12 +34,12 @@ fn main(){
     let a = b"Hello, Bob!\n\0";
     let b = "Hello, Bob!\n\0";
     if black_box(a) != black_box(b).as_bytes(){
-        core::intrniscs::abort();
+        core::intrinsics::abort();
     }
     let a:&[u8] = &b"Hello, Bob!\n\0"[..];
     let b:&[u8] = &b"Hello, Bob!\n\0"[..];
     if black_box(a) != black_box(b){
-        core::intrniscs::abort();
+        core::intrinsics::abort();
     }
       
 }

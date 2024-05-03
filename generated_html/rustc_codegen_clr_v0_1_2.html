@@ -61,12 +61,12 @@ hljs.registerLanguage('cil',cil);
     let a = b&quot;Hello, Bob!\n\0&quot;;
     let b = &quot;Hello, Bob!\n\0&quot;;
     if black_box(a) != black_box(b).as_bytes(){
-        core::intrniscs::abort();
+        core::intrinsics::abort();
     }
     let a:&amp;[u8] = &amp;b&quot;Hello, Bob!\n\0&quot;[..];
     let b:&amp;[u8] = &amp;b&quot;Hello, Bob!\n\0&quot;[..];
     if black_box(a) != black_box(b){
-        core::intrniscs::abort();
+        core::intrinsics::abort();
     }
       
 }</code></pre>
