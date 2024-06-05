@@ -1,0 +1,223 @@
+<metadata>
+title = ".NET and Zombies"
+id = "rustc_codegen_clr_v0_1_3"
+category = "Rustc Codegen CLR"
+category = "hidden"
+date = "11 May 2024"
+</metadata>
+<markdown>
+!-----
+
+
+
+Conversion time: 0.732 seconds.
+
+
+Using this Markdown file:
+
+1. Paste this output into your source file.
+2. See the notes and action items below regarding this conversion run.
+3. Check the rendered output (headings, lists, code blocks, tables) for proper
+   formatting and use a linkchecker before you publish this page.
+
+Conversion notes:
+
+* Docs to Markdown version 1.0β36
+* Wed Jun 05 2024 08:24:16 GMT-0700 (PDT)
+* Source doc: Statically Sized, dynamically sized 
+----->
+
+
+Statically Sized, dynamically sized, and other.
+
+While working on my Rust to .NET compiler, I have encountered countless bugs. Some trivial, some a bit difficult, and some that made me want to go live in the wilderness that are the Bieszczady mountains
+
+Today,I will talk about one such bug. 
+
+
+# My formatter is corrupt 
+
+The symptom of this particular miscompilation is glaringly obvious: any Rust program will crash when trying to format a string.
+
+Even something as simple as this:
+
+```
+
+let msg = format!("Hi {name}!");
+
+```
+
+Would throw this exception:
+
+```
+
+Unreachable reaceched at .
+
+```
+
+You probably can see that there is some kind of issue there, but you may not know what it is exactly.
+
+
+## What is "Unreachable"
+
+When compiling Rust code, the compiler will make some pretty straightforward assumptions about the values of certain types. For example, it will assume that a `bool` has a value of either 0 or 1, and not something like 134.
+
+Similarly, for enums, it assumes their discriminant (or tag) has a value corresponding to a variant of an enum.
+
+So this enum:
+
+``` 
+
+enum Pet{
+
+   Dog(Breed,Color),
+
+   Fish(Species),
+
+}
+
+```
+
+Which is represented by the compiler roughly like this:
+
+```
+
+union VaraintData{
+
+  dog:(Breed,Color),
+
+  fish:(Species),
+
+}
+
+struct PetTaged{
+
+   tag:usize, // has value of 0(Dog) or 1(Fish)
+
+   data:VariantData,
+
+}
+
+```
+
+should have a tag of either 0 or 1. Any other value would be UB, so the compiler is free to assume such value can't exist. 
+
+When you write a `match` statement like this:
+
+```
+
+match animal{
+
+  Dog(b,c)=>bark(),
+
+  Fish(s)=>glup(),
+
+}
+
+```
+
+In order to optimize and properly compile this piece of code, the _frontend_ of the compiler will turn it from Rust into a simplified form called MIR.
+
+```
+
+
+```
+bb0: {
+        _2 = discriminant(_1);
+        switchInt(move _2) -> [0: bb3, 1: bb2, otherwise: bb1];
+    }
+
+    bb1: {
+        unreachable;
+    }
+
+    bb2: {
+        _0 = gulp() -> [return: bb4, unwind continue];
+    }
+
+    bb3: {
+        _0 = bark() -> [return: bb4, unwind continue];
+    }
+
+    bb4: {
+        return;
+    }
+```
+
+
+```
+
+As you can see, the compiler frontend will tell the backend what to do if the enum animal has a tag 0(is a dog), tag 1(is a Fish), or has some other tag.
+
+Normally, this "other" case may be used to match multiple variants:
+
+```
+
+_=>todo!("Unsupported animal {animal:?}"),
+
+```
+
+However, since the compiler frontend _knows_ there may be no other variant, it will tell the backend (the part tuning MIR into the final executable) that it can assume the tag is either 0 or 1.
+
+This information is encoded using the Unreachable Block Terminator. If a block ends with u reachable, the compiler may assume the block itself is unreachable, so it can safely remove this block.
+
+My backend, `rustc_codegen_clr` is still far from being mature. So, instead of removing unreachable blocks, I replace them with a `throw`. So, if my compiler gets bugged out, and an unreachable is reached, it will stop and tell me something went very wrong.
+
+
+## None, Some and `15167372159`e
+
+OK, so we now know that this particular issue is caused by an "impossible" value. That is helpful, but we are still far from deducting the exact cause of this problem. Knowing a bit more context would be helpful.
+
+There is one small problem: when I tried fixing this issue, my stack traces still didn't contain source file information. This information was emitted, but it could not be used by the .NET Runtime. Why?
+
+
+### Generational warfare
+
+There are 2 "flavours" of ILASM. The Mono one is a bit less feature rich, but its error messages are a bit nicer. 
+
+The one bundled with CoreCLR is (or at least should be) slightly faster, and more modern. In theory, there should be no difference between the two. 
+
+Well, life is hard and theory does not equal practice. Mono ILASM supports only the standard-specified way of declaring source file info:
+
+```
+
+.line 64:5 'add.rs'
+
+```
+
+This is not shocking. It is an older tool, so I should not expect it to implement extensions to the standard. Mono debug info format(`.mdb`) also only works with the Mono runtime. So, in order to support debug info in the new .NET runtime, I need to use a different version of ILASM.
+
+The CoreCLR version of ILASM used to support the standard-specified way of providing source-file info. The key word here being "used to".
+
+There exists an extension to the standard-specified `.line` directive. In CoreCLR, you can specify both the lines and columns as _ranges_. You can write something like this:
+
+```
+
+.line 64,65:5,6 'add.rs'
+
+```
+
+This extension, however, needed to keep backwards compatibility with the standard. So, a directive like this:
+
+```
+
+.line 64:5 'add.rs'
+
+```
+
+was treated as
+
+```
+
+.Iine 64,63:5,5 'add.rs'
+
+```
+
+Seems fine, right? A nice, backward-compatible way of providing richer info. Well, there is just one small issue: this does not work with PDBs.
+
+You see, PDBs mandate that, if the start line is equal to the end line (source file info contains less than one line), then the start column index must be smaller than the end column index. 
+
+All this complex techy sounding stuff basically boils down to "source file info must contain at least one charactercharacter"
+</markdown> 
+<ignored>
+</ignored>

@@ -1,0 +1,93 @@
+<metadata>
+title = ".NET and Zombies"
+id = "rustc_codegen_clr_v0_1_3"
+category = "Rustc Codegen CLR"
+category = "hidden"
+date = "11 May 2024"
+</metadata>
+<markdown>
+
+# Ensuring higher aligement of .NET types
+
+Most of the time, concepts and features from `rustc`'s MIR map nicely to *something* in CIL. For type layout, I can use explict field offsets, for atomics, I can use the `Interlocked` class and insert
+memory fences.
+
+Sure, the translation is not always all that clean, but the convertion is almost always *relatively* striagtforward. Thing "X" in Rust gets tunrned into thing "Y".
+
+A couple days ago, I finaly encountered something in Rust that had *no* direct mapping in .NET - type aligement.
+
+## The un-aligned Menace 
+
+Before I ramble on about type aligment, I should proapbly first explain **what it is**. 
+
+
+Type aligement, is, at its core, nothing more than a constraint on *where* a piece of data may be placed. 
+
+
+If a type requires an "aligement of 2 bytes", it means it can **only** be placed at an even address.
+
+So, if you want to store a `short`(`i16` in Rust), it **must** be  at an address divisisble by `2`.
+
+It works the same way for any other aligement:
+
+
+For 4 byte aligned stuff(`float` - `f32`, `uint` - `u32`), its address **must** be divisisble by `4`.
+
+
+For 8 byte aligned stuff(`double` - `f64`, `ulong` - `u64`), its address **must** be divisisble by `8`.
+
+
+And so on.
+
+
+You may ask: 
+
+> Why does this even matter? Can't I just place data at an unaligned address? Who is going to stop me?
+
+And that is a fair question. The answer is a bit boring:
+
+
+*Your hardware or your boss, depending on the circumstances.* 
+
+
+Sorry, there is no secret "soceiety of aligned types" which will hunt you down for disrespecting their secret, acient ways.
+
+Truth be told, most CPUs don't like unaligned access - thats all. 
+
+And the reason why they don't like it is equaly trivial - implementing unaligned access is slower and more costly than not bothering with the stuff.
+
+Most popular CPUs will just deal with your idiocy, and use additonal, *slow*, special hardware to load the unaligned value.
+
+Unaligned data is not common, so loading it slowly is not a big issue. The CPU manuafcturer can foccus die space and developement time working on stuff that is *usefull*. 
+
+Other (often cheaper) CPUs will just see that you are stupid and refuse to collaborate with such an idiot, faulting instead. In the embeded world, wasting precious die space and power on suppoting
+something almost nonone uses would be insane. So, the developers of embeded CPUs just... don't support unaligned access and say "*skill issue*" if anyone compilains.
+
+So, since being not slow, and not crashing are pretty imporant things when we program, you could start to guess why compiles bother enforcing type aligement. 
+
+## Attack of the Higher Aligement
+
+Ok, so we can't have fun and read unaligned data, because the boring CPU manufactures are too foccused on making CPUs that are "fast" and "efficent".
+
+And if we play with unaligned data anyway, we will either crash or be very slow, right?
+
+Why is this a problem for a Rust to .NET compiler? The .NET runtime is not famous for crashing, and while it is not the fastest thing in the world, it certanly is not *slow*.
+
+Knowing those things, it seems logical to assume .NET already delas with this "aligement" stuff for us, and we should not have to do anything more.
+
+
+
+Most of the time, Rust and .NET agree on type aligement. `int` and `i32` both must be aligned to a 4 byte boundary, `ulong` and `u64` both align to 8 bytes, etc.
+
+This means that, untill a week-ish ago, I never even hand to consider where my types lay in memory. Sure, I had to consider *how* they are arranged, but I never had to 
+force them to be placed in a partuclar spot.
+
+
+
+
+# The return of the Rewrite
+
+Besides the "boring" stuff, like fixing bugs, I also had the immense pleasure of rewritting a piece of code I had already rewriten a couple months ago.
+</markdown> 
+<ignored>
+</ignored>
