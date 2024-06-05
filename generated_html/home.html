@@ -4,12 +4,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js"></script>
 <script src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
-<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();function cil() {
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();
+function cil() {
   const regex = hljs.regex;
-     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint"];
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint","line"];
    var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
    var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
-   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj","div","blt","br"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj","div","blt","br",".rs"];
 
    var keywords = {
     keyword: KEYWORDS,
@@ -29,8 +30,33 @@
     ]
   };
 }
+function mir() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["switchInt","unreachable","return","unwind","continue"];
+
+   var vars = ["bb0","bb1","bb2","bb3","bb4","_0","_1","_2"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: vars,
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['mir'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
 
 hljs.registerLanguage('cil',cil);
+hljs.registerLanguage('mir',mir);
 </script></head><body><div class = "nav_container"><nav class="topnav">
             <b><a class="active" href="./home.html">Home</a></b>
             <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
@@ -42,4 +68,4 @@ hljs.registerLanguage('cil',cil);
 <p>I am a relatively young and inexperienced programer from the wonderful country of Poland(Europe). The question that fascinates me the most about computers is <code>Could I?</code>, when I should propably ask myself <code>Should I?</code> a little bit more. This is reflected in my projects, which often find new and innovative way to solve problems none has. But programing is sometimes a little bit like art, it is not the destination that is important. What is often key is what we learn and discover along the way.</p>
 
 <p>So, sit tight, and join me on my adventures, as we find whacky ways to do things, we propably would be better off not doing!</p>
-</div><h2>Categories, and articles in them.</h2><div class = "category_field"><h3>Compilers, Transpilers and such<h3><br><a href="jtcpp.html">Adding some C++ to your coffee - transpling Java to C++</a></div><div class = "category_field"><h3>Rustc Codegen CLR<h3><br><a href="rustc_codegen_clr_v0_0_1.html">Compiling Rust for .NET, using only tea and stubbornness!</a><br><a href="rustc_codegen_clr_v0_0_3.html">Enumerating over Generics - rustc_codegen_clr v0.0.3</a><br><a href="rustc_codegen_clr_v0_0_3_2.html">Mixing C# and Rust - Interop</a><br><a href="rustc_codegen_clr_v0_0_3_3.html">Mischievous miscompilations</a><br><a href="rustc_codegen_clr_v0_1_0.html">My experience working on rustc_codegen_clr - half a year retrospective</a><br><a href="rustc_codegen_clr_v0_1_1.html">Stack unwinding, ARM and CIL trees</a><br><a href="rustc_codegen_clr_v0_1_2.html">Rust to .NET compiler - Progress update</a></div></div></body></html>
+</div><h2>Categories, and articles in them.</h2><div class = "category_field"><h3>Compilers, Transpilers and such<h3><br><a href="jtcpp.html">Adding some C++ to your coffee - transpling Java to C++</a></div><div class = "category_field"><h3>Rustc Codegen CLR<h3><br><a href="rustc_codegen_clr_v0_0_1.html">Compiling Rust for .NET, using only tea and stubbornness!</a><br><a href="rustc_codegen_clr_v0_0_3.html">Enumerating over Generics - rustc_codegen_clr v0.0.3</a><br><a href="rustc_codegen_clr_v0_0_3_2.html">Mixing C# and Rust - Interop</a><br><a href="rustc_codegen_clr_v0_0_3_3.html">Mischievous miscompilations</a><br><a href="rustc_codegen_clr_v0_1_0.html">My experience working on rustc_codegen_clr - half a year retrospective</a><br><a href="rustc_codegen_clr_v0_1_1.html">Stack unwinding, ARM and CIL trees</a><br><a href="rustc_codegen_clr_v0_1_2.html">Rust to .NET compiler - Progress update</a><br><a href="rustc_codegen_clr_v0_1_3.html">Statically Sized, dynamically sized, and other.</a></div></div></body></html>

@@ -1,15 +1,16 @@
-<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=0.5"><title>.NET and Zombies</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css">
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=0.5"><title>Statically Sized, dynamically sized, and other.</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <!-- and it's easy to individually load additional languages -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js"></script>
 <script src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
-<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();function cil() {
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();
+function cil() {
   const regex = hljs.regex;
-     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint"];
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint","line"];
    var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
    var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
-   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj","div","blt","br"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","sizeof","mul","ldobj","div","blt","br",".rs"];
 
    var keywords = {
     keyword: KEYWORDS,
@@ -29,177 +30,428 @@
     ]
   };
 }
+function mir() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["switchInt","unreachable","return","unwind","continue"];
+
+   var vars = ["bb0","bb1","bb2","bb3","bb4","_0","_1","_2"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: vars,
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['mir'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
 
 hljs.registerLanguage('cil',cil);
+hljs.registerLanguage('mir',mir);
 </script></head><body><div class = "nav_container"><nav class="topnav">
             <b><a class="active" href="./home.html">Home</a></b>
             <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">.NET and Zombies</h1><br><small><div class = "article_metadata">Published on 11 May 2024<br><i>2 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>!-----</p>
+        </nav></div><div class = "article_header"><h1 class="title">Statically Sized, dynamically sized, and other.</h1><br><small><div class = "article_metadata">Published on 6 Jun 2024<br><i>11 - 19 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>While working on my <a href='https://github.com/FractalFir/rustc_codegen_clr'>Rust to .NET compiler</a>, I have encountered countless bugs.</p>
 
-<p>Conversion time: 0.732 seconds.</p>
+<p>Some trivial, some a bit difficult, and some that made me want to become a wild man, living in the mountains.</p>
 
-<p>Using this Markdown file:</p>
+<p>Today, I would like to tell you about one such a bug.</p>
 
-<ol type="1">
-<li>Paste this output into your source file.</li>
+<p>About how one simple mistake - just one wrong line of code - can be enough to cause a multi-week hunt.</p>
 
-<li>See the notes and action items below regarding this conversion run.</li>
+<pre><code class="language-rust">// Checks if a type is dynamically sized
+!pointed_type.is_sized(tyctx, ParamEnv::reveal_all())</code></pre>
 
-<li>Check the rendered output (headings, lists, code blocks, tables) for proper formatting and use a linkchecker before you publish this page.</li>
-</ol>
-
-<p>Conversion notes:</p>
-
-<ul>
-<li>Docs to Markdown version 1.0β36</li>
-
-<li>Wed Jun 05 2024 08:24:16 GMT-0700 (PDT)</li>
-
-<li>Source doc: Statically Sized, dynamically sized -----&gt;</li>
-</ul>
-
-<p>Statically Sized, dynamically sized, and other.</p>
-
-<p>While working on my Rust to .NET compiler, I have encountered countless bugs. Some trivial, some a bit difficult, and some that made me want to go live in the wilderness that are the Bieszczady mountains</p>
-
-<p>Today,I will talk about one such bug.</p>
+<p>So, sit down as I tell you about the most bizarre bug I have ever encountered.</p>
 
 <h1 id='my_formatter_is_corrupt'>My formatter is corrupt</h1>
 
-<p>The symptom of this particular miscompilation is glaringly obvious: any Rust program will crash when trying to format a string.</p>
+<p>The symptom of this particular miscompilation is glaringly obvious: any Rust program will crash when attempting to format a string.</p>
 
 <p>Even something as simple as this:</p>
 
-<pre><code>let msg = format!(&quot;Hi {name}!&quot;);</code></pre>
+<pre><code class="language-rust">let msg = format!(&quot;Hi {name}!&quot;);</code></pre>
 
 <p>Would throw this exception:</p>
 
-<pre><code>Unreachable reaceched at .</code></pre>
+<pre><code>Unreachable reached at STD_PATH/std/fmt/rt.rs.</code></pre>
 
-<p>You probably can see that there is some kind of issue there, but you may not know what it is exactly.</p>
+<p>You probably can see that there is some kind of issue there, but I bet you don't yet know what it is, exactly.</p>
 
 <h2 id='what_is_"unreachable"'>What is &quot;Unreachable&quot;</h2>
 
-<p>When compiling Rust code, the compiler will make some pretty straightforward assumptions about the values of certain types. For example, it will assume that a <code>bool</code> has a value of either 0 or 1, and not something like 134.</p>
+<p>When compiling Rust code, the compiler will make some pretty straightforward assumptions about the values of certain types. For example, it will assume that a <code>bool</code> has a value of either 0 or 1, and not something crazy like 134.</p>
 
 <p>Similarly, for enums, it assumes their discriminant (or tag) has a value corresponding to a variant of an enum.</p>
 
 <p>So this enum:</p>
 
-<pre><code class="language- ">enum Pet{
-
+<pre><code class="language- rust">enum Pet{
    Dog(Breed,Color),
-
    Fish(Species),
-
 }</code></pre>
 
 <p>Which is represented by the compiler roughly like this:</p>
 
-<pre><code>union VaraintData{
-
+<pre><code class="language-rust">union VaraintData{
   dog:(Breed,Color),
-
   fish:(Species),
-
 }
-
 struct PetTaged{
-
    tag:usize, // has value of 0(Dog) or 1(Fish)
-
    data:VariantData,
-
 }</code></pre>
 
-<p>should have a tag of either 0 or 1. Any other value would be UB, so the compiler is free to assume such value can't exist.</p>
+<p>should have a tag of either 0 or 1. Any other value would be UB, so the compiler is free to assume such a value can't exist.</p>
 
 <p>When you write a <code>match</code> statement like this:</p>
 
-<pre><code>match animal{
-
+<pre><code class="language-rust">match animal{
   Dog(b,c)=&gt;bark(),
-
   Fish(s)=&gt;glup(),
-
 }</code></pre>
 
-<p>In order to optimize and properly compile this piece of code, the <em>frontend</em> of the compiler will turn it from Rust into a simplified form called MIR.</p>
+<p>To optimize and properly compile this piece of code, the <em>frontend</em> of the compiler will turn it from Rust into a simplified form called MIR.</p>
 
-<pre><code></code></pre>
-
-<p>bb0: {</p>
-
-<pre><code>    _2 = discriminant(_1);
+<pre><code class="language-mir">bb0: {
+    _2 = discriminant(_1);
     switchInt(move _2) -&gt; [0: bb3, 1: bb2, otherwise: bb1];
-}</code></pre>
-
-<pre><code>bb1: {
+}
+bb1: {
     unreachable;
-}</code></pre>
-
-<pre><code>bb2: {
+}
+bb2: {
     _0 = gulp() -&gt; [return: bb4, unwind continue];
-}</code></pre>
-
-<pre><code>bb3: {
+}
+bb3: {
     _0 = bark() -&gt; [return: bb4, unwind continue];
-}</code></pre>
-
-<pre><code>bb4: {
+}
+bb4: {
     return;
 }</code></pre>
 
-<p>As you can see, the compiler frontend will tell the backend what to do if the enum animal has a tag 0(is a dog), tag 1(is a Fish), or has some other tag.</p>
+<p>As you can see, the compiler frontend will tell the backend what to do if the enum animal has a tag 0 (is a dog), tag 1 (is a Fish), or has some other tag.</p>
 
 <p>Normally, this &quot;other&quot; case may be used to match multiple variants:</p>
 
-<pre><code>_=&gt;todo!(&quot;Unsupported animal {animal:?}&quot;),</code></pre>
+<pre><code class="language-rust">_=&gt;todo!(&quot;Unsupported animal {animal:?}&quot;),</code></pre>
 
 <p>However, since the compiler frontend <em>knows</em> there may be no other variant, it will tell the backend (the part tuning MIR into the final executable) that it can assume the tag is either 0 or 1.</p>
 
-<p>This information is encoded using the Unreachable Block Terminator. If a block ends with u reachable, the compiler may assume the block itself is unreachable, so it can safely remove this block.</p>
+<p>This information is encoded using the Unreachable Block Terminator. If a block ends with unreachable, the compiler may assume the block itself is unreachable, so it can safely remove this block.</p>
 
 <p>My backend, <code>rustc_codegen_clr</code> is still far from being mature. So, instead of removing unreachable blocks, I replace them with a <code>throw</code>. So, if my compiler gets bugged out, and an unreachable is reached, it will stop and tell me something went very wrong.</p>
 
-<h2 id='none,_some_and_15167372159_e'>None, Some and <code>15167372159</code>e</h2>
+<h2 id='reaching_unreachable'>Reaching unreachable</h2>
 
 <p>OK, so we now know that this particular issue is caused by an &quot;impossible&quot; value. That is helpful, but we are still far from deducting the exact cause of this problem. Knowing a bit more context would be helpful.</p>
 
 <p>There is one small problem: when I tried fixing this issue, my stack traces still didn't contain source file information. This information was emitted, but it could not be used by the .NET Runtime. Why?</p>
 
-<h3 id='generational_warfare'>Generational warfare</h3>
+<h3 id='cooking_debug_info_with_ilasm'>Cooking debug info with ILASM</h3>
 
-<p>There are 2 &quot;flavours&quot; of ILASM. The Mono one is a bit less feature rich, but its error messages are a bit nicer.</p>
+<p>There are 2 &quot;flavors&quot; of ILASM. The Mono one is a bit less feature-rich, but its error messages are a bit nicer.</p>
 
 <p>The one bundled with CoreCLR is (or at least should be) slightly faster, and more modern. In theory, there should be no difference between the two.</p>
 
 <p>Well, life is hard and theory does not equal practice. Mono ILASM supports only the standard-specified way of declaring source file info:</p>
 
-<pre><code>.line 64:5 'add.rs'</code></pre>
+<pre><code class="language-cil">.line 64:5 'add.rs'</code></pre>
 
 <p>This is not shocking. It is an older tool, so I should not expect it to implement extensions to the standard. Mono debug info format(<code>.mdb</code>) also only works with the Mono runtime. So, in order to support debug info in the new .NET runtime, I need to use a different version of ILASM.</p>
 
-<p>The CoreCLR version of ILASM used to support the standard-specified way of providing source-file info. The key word here being &quot;used to&quot;.</p>
+<p>The CoreCLR version of ILASM is used to support the standard-specified way of providing source-file info. The key word here being &quot;used to&quot;.</p>
 
 <p>There exists an extension to the standard-specified <code>.line</code> directive. In CoreCLR, you can specify both the lines and columns as <em>ranges</em>. You can write something like this:</p>
 
-<pre><code>.line 64,65:5,6 'add.rs'</code></pre>
+<pre><code class="language-cil">.line 64,65:5,6 'add.rs'</code></pre>
 
-<p>This extension, however, needed to keep backwards compatibility with the standard. So, a directive like this:</p>
+<p>This extension, however, needed to keep backward compatibility with the standard. So, a directive like this:</p>
 
-<pre><code>.line 64:5 'add.rs'</code></pre>
+<pre><code class="language-cil">.line 64:5 'add.rs'</code></pre>
 
 <p>was treated as</p>
 
-<pre><code>.Iine 64,63:5,5 'add.rs'</code></pre>
+<pre><code class="language-cil">.line 64,63:5,5 'add.rs'</code></pre>
 
 <p>Seems fine, right? A nice, backward-compatible way of providing richer info. Well, there is just one small issue: this does not work with PDBs.</p>
 
 <p>You see, PDBs mandate that, if the start line is equal to the end line (source file info contains less than one line), then the start column index must be smaller than the end column index.</p>
 
-<p>All this complex techy sounding stuff basically boils down to &quot;source file info must contain at least one charactercharacter&quot;</p>
+<p>All this complex techy techy-sounding stuff basically boils down to &quot;source file info must contain at least one character&quot;. The problem is that since ilasm treats <code>.line line: column</code> as meaning <code>.line line, line: column, column</code> it creates <code>.line</code> directives which contain 0 characters(column start = column = column_end). So, the sequence point specified is not valid, and ILASM will refuse to assemble such a file.</p>
+
+<p>This got me in a bit of a pickle: the more common, standard-compliant way of doing things was supported in Mono, but not in CoreCLR. The version of ILASM bundled with modern .NET, on the other hand, did not support what the standard mandated.</p>
+
+<p>In the end, I found a very stupid, inefficient, but working solution.  Before creating a <code>.il</code> file, I call <code>ilasm</code>, to get its “help” message. It contains the list of command line options, supported by that version of <code>ilasm</code>.  If that message contains the phrase “PDB”, it means that I am using a “modern” flavor of <code>ilasm</code>, and need to emit the extended debug info.</p>
+
+<p>This solution is not pretty and has a lot of unneeded overhead (since ILASM takes a long time to even start up), but hey - it works. \</p>
+
+<h2 id='none,_some_and_15167372159_e'>None, Some and <code>15167372159</code>e</h2>
+
+<p>Alright, let's get back on track. After I got full debug info to <em>finally</em> work, I traced the issue to a piece of code, deep within the formatting machinery. It looked roughly like this:</p>
+
+<pre><code class="language-rust">  match fmt.width() {
+    Some(width) =&gt; do_something(width),
+    None =&gt; do_something_else(),
+}</code></pre>
+
+<p>The field <code>width</code> has the type <code>Option&amp;lt;usize&gt;</code>. Since this match statement fails, it seems like <code>width</code> has an incorrect value. In order to check the value of <code>with</code>, I created a mock implementation of the <code>std::fmt::debug</code>, which cast the <code>Option&amp;lt;usize&gt;</code> to a pair of 2 <code>usize</code>s (the tag and the value).  It then printed the value of those fields.</p>
+
+<pre><code class="language-rust">let raw_width: (usize, usize) = unsafe { std::mem::transmute(fmt.width()) };
+unsafe{printf(&quot;raw_width is %p,tag is %p.\n\0&quot;.as_ptr() as *const i8,raw_width.0,raw_width.1)};</code></pre>
+
+<p>The result seemed to suggest the Formatter struct got corrupted: both the value and tag fields of an enum had nonsensical values, like 15167372159.</p>
+
+<p>After a bunch more tests, I confirmed a few things. First of all, the <code>Formatter</code> was not corrupted before it was passed to <code>write_fmt</code>, meaning my issue must be somewhere in the formatting machinery. This is both a good thing and a bad thing. On one hand, I was closer to solving my problem. On the other hand, I would have to delve into the arcane depths of Rust string formatting. A place full of compiler magic and bizarre micro-optimizations, the meaning of which has been lost to time.</p>
+
+<h2 id='procrastinating,_with_style!'>Procrastinating, with style!</h2>
+
+<p>I <strong>really</strong> don’t like debugging issues within the depths of <code>std</code> - for a lot of reasons. The first of them is its sheer size. I still have not fully implemented dead code elimination, and my solution for initiating static data is less than optimal. Because of that, the compiled <code>std</code> is around 5 MB of .NET CIL. Most of this is just CIL instructions.</p>
+
+<p>While this is not too crazy, it is enough to make <code>ILSpy</code> choke and lag a bit. To be honest, it works surprisingly well(I expected it to just crash), taking the sheer volume of methods I emit into consideration.</p>
+
+<p>Still, debugging <code>std</code> within .NET is not pleasant. Because of that, I decided to try some lower-effort alternatives first.</p>
+
+<h3 id='checking_checked_mul'>Checking checked mul</h3>
+
+<p>Since the problematic variable had a type of <code>Option&amp;lt;usize&gt;</code>, I thought the issue <strong>could</strong> have something to do with checked multiplication. Implementing fast, Rust-compatible overflow detection in .NET is not easy (especially when dealing with multiplication), so I could have made a stupid mistake there.</p>
+
+<p>Sadly(?) it turned out, that the issue was not there.</p>
+
+<h3 id='automatic_validation'>Automatic validation</h3>
+
+<p>So, the most obvious cause has been ruled out, and the problem is a bit more complicated. Now, I could try doing one of 2 things. I could attempt separating out <code>fmt</code> from <code>std</code>, and see if I can replicate the issue within my copy of <code>fmt</code>. Alternatively, I could try improving the sanity checks I emit, in order to catch the issue earlier.</p>
+
+<p>I went with the second option since it seemed easier, and the work I did could be reused, to catch future issues.</p>
+
+<p>Inserting runtime checks, while not <em>trivial</em>, was surprisingly far easier than I expected. I created a validate function, which took in a <code>CILNode</code> (a node from my AST), and inserted code checking its value in-place. Since <code>CILNode</code> returned by this function is evaluated to the same value as the original node, I could simply use this function when handling an assignment, and it would add the checks, without the need to change any other code.</p>
+
+<p>My checks were, and still are, rather primitive. For each struct, I check if its fields are valid. For references, I check that they point to valid, readable memory. For enums, I simply check if their tag is OK. Nothing fancy, just some basic sanity checks.</p>
+
+<p>The advantage of this approach is rather obvious: it is lightweight, does not change the final program too much, and can catch many errors. It also did not require too much effort to implement.</p>
+
+<p>This approach, of course, is far from perfect. For example, it can’t check if a reference points to memory it should not point to.  So, things like heap corruption are still not caught.</p>
+
+<p>Still, thanks to this check, I had a bunch more info. The <code>Formatter</code> was in a good, non-corrupt state before it was passed to my <code>Debug::fmt</code> implementation. I also noticed other fields of <code>Formatter</code>, such as the alignment, had incorrect values. Weird.</p>
+
+<p>This issue has become far more puzzling now. How on earth could the formatter be OK <em>just before</em> a function call, and get completely borked immediately after? Was I somehow overwriting stack memory? But how? The formatter was located <em>way</em> above the stack frame of the problematic function - so, if a function call could corrupt it, it would have happened way earlier.</p>
+
+<h2 id='open-heart_surgery'>Open-heart surgery</h2>
+
+<p>Despite my best efforts, I was unable to avoid the daunting task of debugging a part of <code>std</code>. Since my debugging tools are not up to the task, I had to do it in a bit of a weird way.</p>
+
+<p>When debugging a part of <code>std</code>, I like to separate the module in question. Modifying <code>fmt</code> alone is far easier than trying to change the whole <code>std</code>. By operating on a vertical slice of <code>std</code>, I can minimize the impact of changes I make, and ensure I do not introduce any unrelated issues.</p>
+
+<p>In general, working on <code>std</code> feels kind of like open-heart surgery. One wrong step and the issue decides to disappear.</p>
+
+<p>Separating <code>fmt</code> was not easy, but, since it was my only hope, I clenched my teeth and, after a bit of work, I replicated the exact issue in my own version of <code>fmt</code>. After a bit of probing, I discovered that the <em>address</em>of <code>Formatter</code> in the caller and the callee did not match. The underlying data was not corrupted - I somehow passed a wrong pointer.</p>
+
+<p>At this point, I feel like I hit a brick wall. When I got the address of the formatter in the internals of the formatting machinery, everything seemed fine - I got the exact address I expected. However, as soon as a call happened - the address I received was different. It was still a valid stack address, that pointed to some piece of data, but I could not wrap my head around why.</p>
+
+<p>The caller and callee were both pieces of functioning CIL. The function signatures did not match exactly, but that was expected. <code>std</code> sometimes does weird stuff, like <strong>transmuting a function pointer</strong>.</p>
+
+<pre><code class="language-rust">// SAFETY: `mem::transmute(x)` is safe because
+//     1. `&amp;'b T` keeps the lifetime it originated with `'b`
+//              (so as to not have an unbounded lifetime)
+//     2. `&amp;'b T` and `&amp;'b Opaque` have the same memory layout
+//              (when `T` is `Sized`, as it is here)
+// `mem::transmute(f)` is safe since `fn(&amp;T, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result`
+// and `fn(&amp;Opaque, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result` have the same ABI
+// (as long as `T` is `Sized`)
+unsafe {
+    Argument {
+        ty: ArgumentType::Placeholder {
+            formatter: mem::transmute(f),
+            value: mem::transmute(x),
+        },
+    }
+}</code></pre>
+
+<p>This lured me into a false sense of security. The arguments provided matched the specified signature, and types seemed to roughly match up. My additional, built-in type/signature checks did not report any issues, so everything seemed to be fine.</p>
+
+<p>I have ruled out problem after problem and was no closer to finding a solution.</p>
+
+<h2 id='strawberries'>Strawberries</h2>
+
+<p>At this point in time, I had worked on this issue for about 2 weeks. Sure, I did work on some other stuff, like multithreading, but was mostly focused on this problem.</p>
+
+<p>After a couple of hours of work, I decided I needed a change of pace. I went gardening with my sister. When picking up some strawberries, we talked a bit about what I was working on.</p>
+
+<p>I told her that I was working on a particularly nasty issue.</p>
+
+<blockquote>
+<p>I bet it is something ridiculously simple - and I just can’t see it. In a week, or two, when I finally fix this stupid bug, it will turn out to be so obvious, that I will wonder how I could have been so blind.</p>
+</blockquote>
+
+<p>At this point in the story, you probably expect an epiphany. I see something, and the issue becomes immediately obvious. Nope. I went back home, maybe a little bit less stressed, but the problem remained. I poked and prodded the issue for a couple more hours, but - I still could not solve it.</p>
+
+<h2 id='ptrrepr_and_ptrcomponents'>PtrRepr and PtrComponents</h2>
+
+<p>The very next day, I noticed that a recent build of my project had failed. This is relatively common - it happens almost every time the nightly version of <code>rustc</code> gets updated. This change was a bit bigger than I expected. Besides the usual things, like changes to data layout, and some things getting renamed, this update removed two things - <code>PtrComponents</code> and <code>PtrRepr</code>.</p>
+
+<p>Previously, I used <code>PtrComponents</code> to represent fat pointers. You may ask: What are fat pointers, and what is their purpose?  A fat pointer is nothing more than a pointer with some metadata. Slices store their length as such metadata. <code>dyn Trait</code> objects store their VTable there. Overall, fat pointers are a pretty important part of Rust.<br /></p>
+
+<p>My reaction to this change was a bit mixed, at first. On one hand - I never intended to use <code>PtrComponents</code>. The only reason I used this particular type was a technical limitation. The compiler fronted assumed that assigning from <code>&amp;[T]</code> to <code>PtrComponents&lt;T&gt;</code> was possible, and did not require any conversion. .NET does not allow you to assign a value of a different type without any casts. So, I was kind of forced to use <code>PtrComponents</code>, even though I did not want to.</p>
+
+<p>On the other hand, changing my codegen to not use <code>PtrComponents</code> would require some effort. It was not too hard, but still - I had to spend some precious time updating, and I was not pleased about this.</p>
+
+<p>After a bit of work, I finished moving away from <code>PtrComponents</code>. This change allowed me to delete a bit of hacky code and made debugging easier, since I could use my own name-mangling scheme.</p>
+
+<p>Now instead of a slice being encoded as something like:</p>
+
+<pre><code class="language-csharp">core.ptr.metadata.PtrComponents.hba2223bcd383</code></pre>
+
+<p>It would be represented as:</p>
+
+<pre><code>FatPtru8</code></pre>
+
+<p>This is especially important in stack traces since only the last part of a type name is displayed there.</p>
+
+<pre><code class="language-csharp">hb90864bdb6f91c56 _ZN9build_std14test_fomratter17h971767c9409dc567E(hba1123bcd432,hbe47ff09aa56fc6f)</code></pre>
+
+<p>Now, slices in the backtrace should look more clean, and I should be able to understand them by just looking at them.</p>
+
+<pre><code>hb90864bdb6f91c56 _ZN9build_std14test_fomratter17h971767c9409dc567E(FatPtrg, hbe47ff09aa56fc6f)</code></pre>
+
+<p>Wait a second. <code>FatPtrg</code>? That can’t be right!</p>
+
+<h2 id='foreign_types'>Foreign types</h2>
+
+<p>Well, what does <code>FatPtrg</code> mean? And what does it have to do with this issue? What could such a strange type have to do with this bizarre bug?</p>
+
+<p>When designing my simple name mangler, I sacrificed speed and efficiency for clarity. The “g” after “FatPtr” is simply a one-letter type designation. In this case, it refers to a… foreign type?</p>
+
+<h3 id='what_is_a_foreign_type?'>What is a foreign type?</h3>
+
+<p>Foreign types in Rust are a bit of a rarity. Come to think of it, I think they are still behind a feature gate (<code>[extern_types](https://github.com/rust-lang/rust/issues/43467)</code>).</p>
+
+<p>They are very handy since they allow you to define an external type for FFI purposes, and ensure you don’t do stupid things with them.</p>
+
+<p>So you can do something like this:</p>
+
+<pre><code class="language-rust">extern {
+    type FFIType;
+}</code></pre>
+
+<p>You will be able to take references to this type, but the compiler will prevent you from dereferencing it. This is nice for FFI purposes since it allows you to safely store references to types of unknown size or layout.</p>
+
+<p>Alright, that is nice, but what does this kind of type do in the formatting machinery?</p>
+
+<p>Recall this piece of code:</p>
+
+<pre><code class="language-rust">// SAFETY: `mem::transmute(x)` is safe because
+//     1. `&amp;'b T` keeps the lifetime it originated with `'b`
+//              (so as to not have an unbounded lifetime)
+//     2. `&amp;'b T` and `&amp;'b Opaque` have the same memory layout
+//              (when `T` is `Sized`, as it is here)
+// `mem::transmute(f)` is safe since `fn(&amp;T, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result`
+// and `fn(&amp;Opaque, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result` have the same ABI
+// (as long as `T` is `Sized`)
+unsafe {
+    Argument {
+        ty: ArgumentType::Placeholder {
+            formatter: mem::transmute(f),
+            value: mem::transmute(x),
+        },
+    }
+}</code></pre>
+
+<p>Can you see the <code>Opaque</code> type there? It is a foreign type, used to store all the formatting arguments. Since the type of any formatting argument is not known, they are stored as  <code>Opaque</code> types.</p>
+
+<p>A pointer to a foreign type should not be fat. It does not require any metadata. It should be just a regular pointer - and nothing more.</p>
+
+<p>So, why on earth did my codegen use a fat pointer there? And how did I not notice?</p>
+
+<h3 id='explaining_the_bug'>Explaining the bug</h3>
+
+<p>You may remember the line that caused this whole issue:</p>
+
+<pre><code class="language-rust">// Checks if a type is dynamically sized
+!pointed_type.is_sized(tyctx, ParamEnv::reveal_all())</code></pre>
+
+<p>It makes a seemingly innocent, but fundamentally flawed assumption.</p>
+
+<p>It assumes there are 2 kinds of types: those which have a statically known size, and those with dynamic sizes. So, if a type does not have a known size, then it must have a dynamic size, so it must require a FatPointer(to store its metadata).</p>
+
+<p>Foreign types are not sized - neither statically, nor dynamically. Their whole purpose relies on them not having a known size.</p>
+
+<p>A foreign type is not sized, but it is not a DST either.</p>
+
+<p>To fix this bug, all I needed was to make this small change:</p>
+
+<pre><code class="language-rust">!pointed_type.is_sized(tyctx, ParamEnv::reveal_all()) &amp;&amp; !matches!(pointed_type.kind(),TyKind::Foreign(_))</code></pre>
+
+<p>And the whole Rust formatting machinery started to work. And this opened a whole world of opportunities. You would be shocked how much of Rust relies on string formatting.</p>
+
+<p>After I got string formatting to work, I could finally attempt running some more complex code.</p>
+
+<h3 id='explaining_how_the_bug_worked'>Explaining how the bug worked</h3>
+
+<p>So, you now know how I found the bug, and how I fixed it, but the exact way it worked may still be a bit unclear.</p>
+
+<p>Let me explain. When <code>std</code> transmuted values of type <code>&amp;T</code> to <code>&amp;Opaque</code>, my compiler emitted the following sequence of CIL ops:</p>
+
+<pre><code class="language-cil">   ldarga.s 0 // Load address of argument 0
+  ldobj valuetype FatPtrg // Load 16 bytes at the address of argument 0(invalid)
+ stloc.0 // Set the local variable to the result of the transmute</code></pre>
+
+<p>So, it created an invalid fat pointer to a foreign type.</p>
+
+<p>Since this was a transmute, my CIL validator assumed this operation was OK, even though the types did not match. The same thing happened when the function pointer got transmuted - my checks were fooled into ignoring the signature mismatch.</p>
+
+<p>Then the function pointer got called using this instruction:</p>
+
+<pre><code>calli  valuetype 'core.result.Result.hb90864bdb6f91c56' (valuetype 'FatPtrg', valuetype 'build_std.fmt.Formatter.hbe47ff09aa56fc6f'*)</code></pre>
+
+<p>The first argument - <code>FatPtrg</code>, was passed where the runtime expected a pointer to the formatter. Where the callee expected a pointer to the <code>Formatter</code>, the caller placed a part of <code>FatPtrg</code>. By coincidence, that part accidentally contained a pointer to another part of the stack. So, when the caller tried to get the fields of <code>Formatter</code>, it read garbage.</p>
+
+<h1 id='project_progress'>Project progress</h1>
+
+<p>I hope you enjoyed this article. In this closing section, I want to share a bit of miscellaneous progress.</p>
+
+<p>I have managed to compile a simple Rust program, which used TCP to connect to example.com. It still crashes most of the time, but - it manages to grab the website 30-40% of the time.  This is nothing groundbreaking, but it is the first network connection made by Rust running in .NET.</p>
+
+<p>The unmodified “guessing game” from the Rust book also <em>almost</em> works. It successfully initiates a thread-local RNG generator (using the <code>rand</code> crate), but reading a whole line from <code>std</code> is still a bit buggy.</p>
+
+<p><strong><em>NOTE: The <code>std</code> currently only works on POSIX-compliant systems. Since a .NET-specific version of <code>std</code> does not exist yet, the project uses a “surrogate” version of <code>std</code>, which will use P/Invoke to call platform-specific APIs.</em></strong></p>
+
+<h2 id='want_to_contribute?'>Want to contribute?</h2>
+
+<p><a href='https://github.com/FractalFir/rustc_codegen_clr'>The project</a> now has a few <a href='https://github.com/FractalFir/rustc_codegen_clr/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22'>good-first-issue</a>s. If you are interested in contributing, please feel free to take a look. Alternatively, you may also help by providing minimized bug cases. Test a <code>std</code> API, find bugs, minimize and report them.</p>
+
+<p>If you want to see daily updates about the progress, consider looking at <a href='https://rust-lang.zulipchat.com/#narrow/stream/421156-gsoc/topic/Project.3A.20Rust.20to.20.2ENET.20compiler'>its Zulip</a>.</p>
+
+<h3 id='small_faq:'>Small FAQ:</h3>
+
+<p><strong><em>What is the purpose of this project?</em></strong></p>
+
+<p>Besides learning/being an experiment, this project also serves a real purpose. It aims to allow for easy creation of .NET wrappers around Rust crates.</p>
+
+<p><strong><em>Why use a Rust crate when I can use a .NET library?</em></strong></p>
+
+<p>Rust code uses the stack heavily, and does not use the GC. This project can help you reduce GC pauses, and improve performance in memory-bound applications.</p>
+
+<p><strong><em>What is the performance of the compiled code?</em></strong></p>
+
+<p>While reliable benchmarking is difficult, in simple, not memory-sensitive tasks, the project is very close to C#, deviating by less than 10% in the worst case.</p>
+
+<p><strong><em>What about more detailed benchmarks?</em></strong></p>
+
+<p>I have performed more complex benchmarks, but the project is still far too buggy for me to be confident in my numbers. Being wrong fast is not impressive, and I don’t want to overpromise.</p>
+
+<p><strong><em>Why are you wasting your time working on an open-source .NET-related project, when .NET is owned by Microsoft?</em></strong></p>
+
+<p>.NET is open source, licensed under MIT - like Rust. It is not any more or less free than Rust is. While Microsoft is heavily involved in .NET, this does not mean that it is closed-source.</p>
 </div></div></body></html>

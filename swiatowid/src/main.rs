@@ -143,7 +143,7 @@ impl Article{
 <script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js\"></script>
 <script src=\"https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js\"></script>
 <script src=\"https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js\"></script>
-<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();{hljs_cil}</script>");
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();\n{hljs_cil}\n</script>");
         let head = format!("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=0.5\"><title>{title}</title><link rel=\"stylesheet\" href=\"{style}.css\">{hljs}</head>");
         let words = self.markdown.words();
         let time_min = ((words as f32/350.0).floor() as usize).max(1);
