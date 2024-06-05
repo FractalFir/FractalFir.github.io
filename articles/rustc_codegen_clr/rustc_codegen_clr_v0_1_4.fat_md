@@ -1,6 +1,6 @@
 <metadata>
 title = ".NET and Zombies"
-id = "rustc_codegen_clr_v0_1_3"
+id = "rustc_codegen_clr_v0_1_4"
 category = "Rustc Codegen CLR"
 category = "hidden"
 date = "11 May 2024"

@@ -37,71 +37,169 @@ hljs.registerLanguage('cil',cil);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">.NET and Zombies</h1><br><small><div class = "article_metadata">Published on 11 May 2024<br><i>1 - 4 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='ensuring_higher_aligement_of_.net_types'>Ensuring higher aligement of .NET types</h1>
+        </nav></div><div class = "article_header"><h1 class="title">.NET and Zombies</h1><br><small><div class = "article_metadata">Published on 11 May 2024<br><i>2 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>!-----</p>
 
-<p>Most of the time, concepts and features from <code>rustc</code>'s MIR map nicely to <em>something</em> in CIL. For type layout, I can use explict field offsets, for atomics, I can use the <code>Interlocked</code> class and insert memory fences.</p>
+<p>Conversion time: 0.732 seconds.</p>
 
-<p>Sure, the translation is not always all that clean, but the convertion is almost always <em>relatively</em> striagtforward. Thing &quot;X&quot; in Rust gets tunrned into thing &quot;Y&quot;.</p>
+<p>Using this Markdown file:</p>
 
-<p>A couple days ago, I finaly encountered something in Rust that had <em>no</em> direct mapping in .NET - type aligement.</p>
+<ol type="1">
+<li>Paste this output into your source file.</li>
 
-<h2 id='the_un-aligned_menace'>The un-aligned Menace</h2>
+<li>See the notes and action items below regarding this conversion run.</li>
 
-<p>Before I ramble on about type aligment, I should proapbly first explain <strong>what it is</strong>.</p>
+<li>Check the rendered output (headings, lists, code blocks, tables) for proper formatting and use a linkchecker before you publish this page.</li>
+</ol>
 
-<p>Type aligement, is, at its core, nothing more than a constraint on <em>where</em> a piece of data may be placed.</p>
+<p>Conversion notes:</p>
 
-<p>If a type requires an &quot;aligement of 2 bytes&quot;, it means it can <strong>only</strong> be placed at an even address.</p>
+<ul>
+<li>Docs to Markdown version 1.0β36</li>
 
-<p>So, if you want to store a <code>short</code>(<code>i16</code> in Rust), it <strong>must</strong> be  at an address divisisble by <code>2</code>.</p>
+<li>Wed Jun 05 2024 08:24:16 GMT-0700 (PDT)</li>
 
-<p>It works the same way for any other aligement:</p>
+<li>Source doc: Statically Sized, dynamically sized -----&gt;</li>
+</ul>
 
-<p>For 4 byte aligned stuff(<code>float</code> - <code>f32</code>, <code>uint</code> - <code>u32</code>), its address <strong>must</strong> be divisisble by <code>4</code>.</p>
+<p>Statically Sized, dynamically sized, and other.</p>
 
-<p>For 8 byte aligned stuff(<code>double</code> - <code>f64</code>, <code>ulong</code> - <code>u64</code>), its address <strong>must</strong> be divisisble by <code>8</code>.</p>
+<p>While working on my Rust to .NET compiler, I have encountered countless bugs. Some trivial, some a bit difficult, and some that made me want to go live in the wilderness that are the Bieszczady mountains</p>
 
-<p>And so on.</p>
+<p>Today,I will talk about one such bug.</p>
 
-<p>You may ask:</p>
+<h1 id='my_formatter_is_corrupt'>My formatter is corrupt</h1>
 
-<blockquote>
-<p>Why does this even matter? Can't I just place data at an unaligned address? Who is going to stop me?</p>
-</blockquote>
+<p>The symptom of this particular miscompilation is glaringly obvious: any Rust program will crash when trying to format a string.</p>
 
-<p>And that is a fair question. The answer is a bit boring:</p>
+<p>Even something as simple as this:</p>
 
-<p><em>Your hardware or your boss, depending on the circumstances.</em></p>
+<pre><code>let msg = format!(&quot;Hi {name}!&quot;);</code></pre>
 
-<p>Sorry, there is no secret &quot;soceiety of aligned types&quot; which will hunt you down for disrespecting their secret, acient ways.</p>
+<p>Would throw this exception:</p>
 
-<p>Truth be told, most CPUs don't like unaligned access - thats all.</p>
+<pre><code>Unreachable reaceched at .</code></pre>
 
-<p>And the reason why they don't like it is equaly trivial - implementing unaligned access is slower and more costly than not bothering with the stuff.</p>
+<p>You probably can see that there is some kind of issue there, but you may not know what it is exactly.</p>
 
-<p>Most popular CPUs will just deal with your idiocy, and use additonal, <em>slow</em>, special hardware to load the unaligned value.</p>
+<h2 id='what_is_"unreachable"'>What is &quot;Unreachable&quot;</h2>
 
-<p>Unaligned data is not common, so loading it slowly is not a big issue. The CPU manuafcturer can foccus die space and developement time working on stuff that is <em>usefull</em>.</p>
+<p>When compiling Rust code, the compiler will make some pretty straightforward assumptions about the values of certain types. For example, it will assume that a <code>bool</code> has a value of either 0 or 1, and not something like 134.</p>
 
-<p>Other (often cheaper) CPUs will just see that you are stupid and refuse to collaborate with such an idiot, faulting instead. In the embeded world, wasting precious die space and power on suppoting something almost nonone uses would be insane. So, the developers of embeded CPUs just... don't support unaligned access and say &quot;<em>skill issue</em>&quot; if anyone compilains.</p>
+<p>Similarly, for enums, it assumes their discriminant (or tag) has a value corresponding to a variant of an enum.</p>
 
-<p>So, since being not slow, and not crashing are pretty imporant things when we program, you could start to guess why compiles bother enforcing type aligement.</p>
+<p>So this enum:</p>
 
-<h2 id='attack_of_the_higher_aligement'>Attack of the Higher Aligement</h2>
+<pre><code class="language- ">enum Pet{
 
-<p>Ok, so we can't have fun and read unaligned data, because the boring CPU manufactures are too foccused on making CPUs that are &quot;fast&quot; and &quot;efficent&quot;.</p>
+   Dog(Breed,Color),
 
-<p>And if we play with unaligned data anyway, we will either crash or be very slow, right?</p>
+   Fish(Species),
 
-<p>Why is this a problem for a Rust to .NET compiler? The .NET runtime is not famous for crashing, and while it is not the fastest thing in the world, it certanly is not <em>slow</em>.</p>
+}</code></pre>
 
-<p>Knowing those things, it seems logical to assume .NET already delas with this &quot;aligement&quot; stuff for us, and we should not have to do anything more.</p>
+<p>Which is represented by the compiler roughly like this:</p>
 
-<p>Most of the time, Rust and .NET agree on type aligement. <code>int</code> and <code>i32</code> both must be aligned to a 4 byte boundary, <code>ulong</code> and <code>u64</code> both align to 8 bytes, etc.</p>
+<pre><code>union VaraintData{
 
-<p>This means that, untill a week-ish ago, I never even hand to consider where my types lay in memory. Sure, I had to consider <em>how</em> they are arranged, but I never had to force them to be placed in a partuclar spot.</p>
+  dog:(Breed,Color),
 
-<h1 id='the_return_of_the_rewrite'>The return of the Rewrite</h1>
+  fish:(Species),
 
-<p>Besides the &quot;boring&quot; stuff, like fixing bugs, I also had the immense pleasure of rewritting a piece of code I had already rewriten a couple months ago.</p>
+}
+
+struct PetTaged{
+
+   tag:usize, // has value of 0(Dog) or 1(Fish)
+
+   data:VariantData,
+
+}</code></pre>
+
+<p>should have a tag of either 0 or 1. Any other value would be UB, so the compiler is free to assume such value can't exist.</p>
+
+<p>When you write a <code>match</code> statement like this:</p>
+
+<pre><code>match animal{
+
+  Dog(b,c)=&gt;bark(),
+
+  Fish(s)=&gt;glup(),
+
+}</code></pre>
+
+<p>In order to optimize and properly compile this piece of code, the <em>frontend</em> of the compiler will turn it from Rust into a simplified form called MIR.</p>
+
+<pre><code></code></pre>
+
+<p>bb0: {</p>
+
+<pre><code>    _2 = discriminant(_1);
+    switchInt(move _2) -&gt; [0: bb3, 1: bb2, otherwise: bb1];
+}</code></pre>
+
+<pre><code>bb1: {
+    unreachable;
+}</code></pre>
+
+<pre><code>bb2: {
+    _0 = gulp() -&gt; [return: bb4, unwind continue];
+}</code></pre>
+
+<pre><code>bb3: {
+    _0 = bark() -&gt; [return: bb4, unwind continue];
+}</code></pre>
+
+<pre><code>bb4: {
+    return;
+}</code></pre>
+
+<p>As you can see, the compiler frontend will tell the backend what to do if the enum animal has a tag 0(is a dog), tag 1(is a Fish), or has some other tag.</p>
+
+<p>Normally, this &quot;other&quot; case may be used to match multiple variants:</p>
+
+<pre><code>_=&gt;todo!(&quot;Unsupported animal {animal:?}&quot;),</code></pre>
+
+<p>However, since the compiler frontend <em>knows</em> there may be no other variant, it will tell the backend (the part tuning MIR into the final executable) that it can assume the tag is either 0 or 1.</p>
+
+<p>This information is encoded using the Unreachable Block Terminator. If a block ends with u reachable, the compiler may assume the block itself is unreachable, so it can safely remove this block.</p>
+
+<p>My backend, <code>rustc_codegen_clr</code> is still far from being mature. So, instead of removing unreachable blocks, I replace them with a <code>throw</code>. So, if my compiler gets bugged out, and an unreachable is reached, it will stop and tell me something went very wrong.</p>
+
+<h2 id='none,_some_and_15167372159_e'>None, Some and <code>15167372159</code>e</h2>
+
+<p>OK, so we now know that this particular issue is caused by an &quot;impossible&quot; value. That is helpful, but we are still far from deducting the exact cause of this problem. Knowing a bit more context would be helpful.</p>
+
+<p>There is one small problem: when I tried fixing this issue, my stack traces still didn't contain source file information. This information was emitted, but it could not be used by the .NET Runtime. Why?</p>
+
+<h3 id='generational_warfare'>Generational warfare</h3>
+
+<p>There are 2 &quot;flavours&quot; of ILASM. The Mono one is a bit less feature rich, but its error messages are a bit nicer.</p>
+
+<p>The one bundled with CoreCLR is (or at least should be) slightly faster, and more modern. In theory, there should be no difference between the two.</p>
+
+<p>Well, life is hard and theory does not equal practice. Mono ILASM supports only the standard-specified way of declaring source file info:</p>
+
+<pre><code>.line 64:5 'add.rs'</code></pre>
+
+<p>This is not shocking. It is an older tool, so I should not expect it to implement extensions to the standard. Mono debug info format(<code>.mdb</code>) also only works with the Mono runtime. So, in order to support debug info in the new .NET runtime, I need to use a different version of ILASM.</p>
+
+<p>The CoreCLR version of ILASM used to support the standard-specified way of providing source-file info. The key word here being &quot;used to&quot;.</p>
+
+<p>There exists an extension to the standard-specified <code>.line</code> directive. In CoreCLR, you can specify both the lines and columns as <em>ranges</em>. You can write something like this:</p>
+
+<pre><code>.line 64,65:5,6 'add.rs'</code></pre>
+
+<p>This extension, however, needed to keep backwards compatibility with the standard. So, a directive like this:</p>
+
+<pre><code>.line 64:5 'add.rs'</code></pre>
+
+<p>was treated as</p>
+
+<pre><code>.Iine 64,63:5,5 'add.rs'</code></pre>
+
+<p>Seems fine, right? A nice, backward-compatible way of providing richer info. Well, there is just one small issue: this does not work with PDBs.</p>
+
+<p>You see, PDBs mandate that, if the start line is equal to the end line (source file info contains less than one line), then the start column index must be smaller than the end column index.</p>
+
+<p>All this complex techy sounding stuff basically boils down to &quot;source file info must contain at least one charactercharacter&quot;</p>
 </div></div></body></html>
