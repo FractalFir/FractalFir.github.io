@@ -2,7 +2,6 @@
 title = "Statically Sized, dynamically sized, and other."
 id = "rustc_codegen_clr_v0_1_3"
 category = "Rustc Codegen CLR"
-
 date = "6 Jun 2024"
 </metadata>
 <markdown>
@@ -291,7 +290,7 @@ After a bit of work, I finished moving away from `PtrComponents`. This change al
 Now instead of a slice being encoded as something like:
 
 ```csharp
-core.ptr.metadata.PtrComponents.hba2223bcd383
+core.ptr.metadata.PtrComponents.hf37c9675d456df2f
 ```
 It would be represented as:
 ```
@@ -301,13 +300,13 @@ FatPtru8
 This is especially important in stack traces since only the last part of a type name is displayed there. 
 
 ```csharp
-hb90864bdb6f91c56 _ZN9build_std14test_fomratter17h971767c9409dc567E(hba1123bcd432,hbe47ff09aa56fc6f)
+RustModule._ZN9build_std14test_fomratter17h971767c9409dc567E(hf37c966f05c9ef6f* self, he0133fba3c66f1d1* f)
 ```
 
 Now, slices in the backtrace should look more clean, and I should be able to understand them by just looking at them.
 
 ```
-hb90864bdb6f91c56 _ZN9build_std14test_fomratter17h971767c9409dc567E(FatPtrg, hbe47ff09aa56fc6f)
+RustModule._ZN9build_std14test_fomratter17h971767c9409dc567E(FatPtrg, hbe47ff09aa56fc6f)
 ```
 
 Wait a second. `FatPtrg`? That can’t be right!
@@ -436,6 +435,8 @@ The unmodified “guessing game” from the Rust book also _almost_ works. It su
 If you want to see daily updates about the progress, consider looking at [its Zulip](https://rust-lang.zulipchat.com/#narrow/stream/421156-gsoc/topic/Project.3A.20Rust.20to.20.2ENET.20compiler).
 
 
+
+
 ### Small FAQ:
 
 **_What is the purpose of this project?_**
@@ -444,11 +445,12 @@ Besides learning/being an experiment, this project also serves a real purpose. I
 
 **_Why use a Rust crate when I can use a .NET library?_**
 
-Rust code uses the stack heavily, and does not use the GC. This project can help you reduce GC pauses, and improve performance in memory-bound applications.
+Rust code uses the stack heavily, and does not use the GC. This project can help you reduce GC pauses, and improve performance in memory-bound applications. It is not a silver bulet, it will not magicaly outperform
+C# in most cases. It is a tool, designed for a very specific purpose. 
 
 **_What is the performance of the compiled code?_**
 
-While reliable benchmarking is difficult, in simple, not memory-sensitive tasks, the project is very close to C#, deviating by less than 10% in the worst case.
+While reliable benchmarking is difficult, in simple, **not memory-sensitive** tasks, the project is very close to C#, deviating by less than 10% in the worst case.
 
 **_What about more detailed benchmarks?_**
 
