@@ -176,7 +176,7 @@ Alright, let's get back on track. After I got full debug info to _finally_ work,
 }
 ```  
 
-The field `width` has the type `Option&lt;usize>`. Since this match statement fails, it seems like `width` has an incorrect value. In order to check the value of `with`, I created a mock implementation of the `std::fmt::debug`, which cast the `Option&lt;usize>` to a pair of 2 `usize`s (the tag and the value).  It then printed the value of those fields.
+The field `width` has the type `Option<usize>`. Since this match statement fails, it seems like `width` has an incorrect value. In order to check the value of `with`, I created a mock implementation of the `std::fmt::debug`, which cast the `Option<usize>` to a pair of 2 `usize`s (the tag and the value).  It then printed the value of those fields.
 
 ```rust
 let raw_width: (usize, usize) = unsafe { std::mem::transmute(fmt.width()) };
@@ -199,7 +199,7 @@ Still, debugging `std` within .NET is not pleasant. Because of that, I decided t
 
 ### Checking checked mul
 
-Since the problematic variable had a type of `Option&lt;usize>`, I thought the issue **could** have something to do with checked multiplication. Implementing fast, Rust-compatible overflow detection in .NET is not easy (especially when dealing with multiplication), so I could have made a stupid mistake there.
+Since the problematic variable had a type of `Option<usize>`, I thought the issue **could** have something to do with checked multiplication. Implementing fast, Rust-compatible overflow detection in .NET is not easy (especially when dealing with multiplication), so I could have made a stupid mistake there.
 
 Sadly(?) it turned out, that the issue was not there.
 
@@ -243,8 +243,8 @@ The caller and callee were both pieces of functioning CIL. The function signatur
 //              (so as to not have an unbounded lifetime)
 //     2. `&'b T` and `&'b Opaque` have the same memory layout
 //              (when `T` is `Sized`, as it is here)
-// `mem::transmute(f)` is safe since `fn(&T, &mut Formatter&lt;'_>) -> Result`
-// and `fn(&Opaque, &mut Formatter&lt;'_>) -> Result` have the same ABI
+// `mem::transmute(f)` is safe since `fn(&T, &mut Formatter<'_>) -> Result`
+// and `fn(&Opaque, &mut Formatter<'_>) -> Result` have the same ABI
 // (as long as `T` is `Sized`)
 unsafe {
     Argument {
@@ -345,8 +345,8 @@ Recall this piece of code:
 //              (so as to not have an unbounded lifetime)
 //     2. `&'b T` and `&'b Opaque` have the same memory layout
 //              (when `T` is `Sized`, as it is here)
-// `mem::transmute(f)` is safe since `fn(&T, &mut Formatter&lt;'_>) -> Result`
-// and `fn(&Opaque, &mut Formatter&lt;'_>) -> Result` have the same ABI
+// `mem::transmute(f)` is safe since `fn(&T, &mut Formatter<'_>) -> Result`
+// and `fn(&Opaque, &mut Formatter<'_>) -> Result` have the same ABI
 // (as long as `T` is `Sized`)
 unsafe {
     Argument {

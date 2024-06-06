@@ -207,7 +207,7 @@ bb4: {
     None =&gt; do_something_else(),
 }</code></pre>
 
-<p>The field <code>width</code> has the type <code>Option&amp;lt;usize&gt;</code>. Since this match statement fails, it seems like <code>width</code> has an incorrect value. In order to check the value of <code>with</code>, I created a mock implementation of the <code>std::fmt::debug</code>, which cast the <code>Option&amp;lt;usize&gt;</code> to a pair of 2 <code>usize</code>s (the tag and the value).  It then printed the value of those fields.</p>
+<p>The field <code>width</code> has the type <code>Option&lt;usize&gt;</code>. Since this match statement fails, it seems like <code>width</code> has an incorrect value. In order to check the value of <code>with</code>, I created a mock implementation of the <code>std::fmt::debug</code>, which cast the <code>Option&lt;usize&gt;</code> to a pair of 2 <code>usize</code>s (the tag and the value).  It then printed the value of those fields.</p>
 
 <pre><code class="language-rust">let raw_width: (usize, usize) = unsafe { std::mem::transmute(fmt.width()) };
 unsafe{printf(&quot;raw_width is %p,tag is %p.\n\0&quot;.as_ptr() as *const i8,raw_width.0,raw_width.1)};</code></pre>
@@ -226,7 +226,7 @@ unsafe{printf(&quot;raw_width is %p,tag is %p.\n\0&quot;.as_ptr() as *const i8,r
 
 <h3 id='checking_checked_mul'>Checking checked mul</h3>
 
-<p>Since the problematic variable had a type of <code>Option&amp;lt;usize&gt;</code>, I thought the issue <strong>could</strong> have something to do with checked multiplication. Implementing fast, Rust-compatible overflow detection in .NET is not easy (especially when dealing with multiplication), so I could have made a stupid mistake there.</p>
+<p>Since the problematic variable had a type of <code>Option&lt;usize&gt;</code>, I thought the issue <strong>could</strong> have something to do with checked multiplication. Implementing fast, Rust-compatible overflow detection in .NET is not easy (especially when dealing with multiplication), so I could have made a stupid mistake there.</p>
 
 <p>Sadly(?) it turned out, that the issue was not there.</p>
 
@@ -267,8 +267,8 @@ unsafe{printf(&quot;raw_width is %p,tag is %p.\n\0&quot;.as_ptr() as *const i8,r
 //              (so as to not have an unbounded lifetime)
 //     2. `&amp;'b T` and `&amp;'b Opaque` have the same memory layout
 //              (when `T` is `Sized`, as it is here)
-// `mem::transmute(f)` is safe since `fn(&amp;T, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result`
-// and `fn(&amp;Opaque, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result` have the same ABI
+// `mem::transmute(f)` is safe since `fn(&amp;T, &amp;mut Formatter&lt;'_&gt;) -&gt; Result`
+// and `fn(&amp;Opaque, &amp;mut Formatter&lt;'_&gt;) -&gt; Result` have the same ABI
 // (as long as `T` is `Sized`)
 unsafe {
     Argument {
@@ -356,8 +356,8 @@ unsafe {
 //              (so as to not have an unbounded lifetime)
 //     2. `&amp;'b T` and `&amp;'b Opaque` have the same memory layout
 //              (when `T` is `Sized`, as it is here)
-// `mem::transmute(f)` is safe since `fn(&amp;T, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result`
-// and `fn(&amp;Opaque, &amp;mut Formatter&amp;lt;'_&gt;) -&gt; Result` have the same ABI
+// `mem::transmute(f)` is safe since `fn(&amp;T, &amp;mut Formatter&lt;'_&gt;) -&gt; Result`
+// and `fn(&amp;Opaque, &amp;mut Formatter&lt;'_&gt;) -&gt; Result` have the same ABI
 // (as long as `T` is `Sized`)
 unsafe {
     Argument {
