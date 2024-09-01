@@ -89,7 +89,7 @@ GSoC 2024 has been a great opportunity, which allowed me to grow both as a progr
 While the project is already in a mostly functional state, there are some steps that will need to be taken in order for it to be more accessible to the genral public. The Rust project has very strict coding guidelines, so upstreaming the backend and making it a permanent component of the Rust compiler will require many changes, to bring the code closer to the desired quality. 
 
 This work is necessary for adding the .NET runtime as a Rust compiler target: according to the target policy, all official targets must build using an upstream backend.
- So, in order to make installation easier, the project will need to be upstreamed. Installation is not currently too difficult (instaltion process outlined in QUICKSTART.md), the process could be made more straightforward.
+ So, in order to make installation easier, the project will need to be upstreamed. Installation is not currently too difficult (detailed, step-by-step instaltion process is outlined in QUICKSTART.md), but the process could be made more straightforward.
 
 Additionally, the project has been designed in such a way as to allow for targeting more runtimes, like JVM, or even completely different languages - like JavaScript. While the usefulness of some such targets (the JS one) remains questionable, there is interest in some of them (like the JVM backend). The project is very flexible, and should serve a solid foundation for anyone wanting to target those platforms.
 </markdown> 
