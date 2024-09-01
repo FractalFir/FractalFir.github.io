@@ -69,9 +69,11 @@ Main project tasks:
 7. Fixing panics - when I started working on GSoC 2024, panic-related functions do not compile properly. While fixing them took a long time, since the bugs which caused them to not work were numerous, they also were not too difficult to fix,
 requiring 2–3 days of work each.
 
-# My contributions - project repository:
+# My contributions :
 
 [rustc_codegen_clr](https://github.com/FractalFir/rustc_codegen_clr)
+
+Detailed daily reports from my work: https://rust-lang.zulipchat.com/#narrow/stream/421156-gsoc/topic/Project.3A.20Rust.20to.20.2ENET.20compiler
 
 # Conclusion
 
