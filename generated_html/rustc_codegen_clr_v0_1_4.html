@@ -1,0 +1,133 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=0.5"><title>.NET and Zombies</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js"></script>
+<script src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();
+function cil() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint","line"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","ldarga","sizeof","mul","ldobj","div","blt","br",".rs",".s","calli"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: types.concat(ops).concat(short_types),
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['cil','common_intermediate_language'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+function mir() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["switchInt","unreachable","return","unwind","continue"];
+
+   var vars = ["bb0","bb1","bb2","bb3","bb4","_0","_1","_2"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: vars,
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['mir'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+
+hljs.registerLanguage('cil',cil);
+hljs.registerLanguage('mir',mir);
+</script></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+        </nav></div><div class = "article_header"><h1 class="title">.NET and Zombies</h1><br><small><div class = "article_metadata">Published on 11 May 2024<br><i>1 - 4 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='ensuring_higher_aligement_of_.net_types'>Ensuring higher aligement of .NET types</h1>
+
+<p>Most of the time, concepts and features from <code>rustc</code>'s MIR map nicely to <em>something</em> in CIL. For type layout, I can use explict field offsets, for atomics, I can use the <code>Interlocked</code> class and insert memory fences.</p>
+
+<p>Sure, the translation is not always all that clean, but the convertion is almost always <em>relatively</em> striagtforward. Thing &quot;X&quot; in Rust gets tunrned into thing &quot;Y&quot;.</p>
+
+<p>A couple days ago, I finaly encountered something in Rust that had <em>no</em> direct mapping in .NET - type aligement.</p>
+
+<h2 id='the_un-aligned_menace'>The un-aligned Menace</h2>
+
+<p>Before I ramble on about type aligment, I should proapbly first explain <strong>what it is</strong>.</p>
+
+<p>Type aligement, is, at its core, nothing more than a constraint on <em>where</em> a piece of data may be placed.</p>
+
+<p>If a type requires an &quot;aligement of 2 bytes&quot;, it means it can <strong>only</strong> be placed at an even address.</p>
+
+<p>So, if you want to store a <code>short</code>(<code>i16</code> in Rust), it <strong>must</strong> be  at an address divisisble by <code>2</code>.</p>
+
+<p>It works the same way for any other aligement:</p>
+
+<p>For 4 byte aligned stuff(<code>float</code> - <code>f32</code>, <code>uint</code> - <code>u32</code>), its address <strong>must</strong> be divisisble by <code>4</code>.</p>
+
+<p>For 8 byte aligned stuff(<code>double</code> - <code>f64</code>, <code>ulong</code> - <code>u64</code>), its address <strong>must</strong> be divisisble by <code>8</code>.</p>
+
+<p>And so on.</p>
+
+<p>You may ask:</p>
+
+<blockquote>
+<p>Why does this even matter? Can't I just place data at an unaligned address? Who is going to stop me?</p>
+</blockquote>
+
+<p>And that is a fair question. The answer is a bit boring:</p>
+
+<p><em>Your hardware or your boss, depending on the circumstances.</em></p>
+
+<p>Sorry, there is no secret &quot;soceiety of aligned types&quot; which will hunt you down for disrespecting their secret, acient ways.</p>
+
+<p>Truth be told, most CPUs don't like unaligned access - thats all.</p>
+
+<p>And the reason why they don't like it is equaly trivial - implementing unaligned access is slower and more costly than not bothering with the stuff.</p>
+
+<p>Most popular CPUs will just deal with your idiocy, and use additonal, <em>slow</em>, special hardware to load the unaligned value.</p>
+
+<p>Unaligned data is not common, so loading it slowly is not a big issue. The CPU manuafcturer can foccus die space and developement time working on stuff that is <em>usefull</em>.</p>
+
+<p>Other (often cheaper) CPUs will just see that you are stupid and refuse to collaborate with such an idiot, faulting instead. In the embeded world, wasting precious die space and power on suppoting something almost nonone uses would be insane. So, the developers of embeded CPUs just... don't support unaligned access and say &quot;<em>skill issue</em>&quot; if anyone compilains.</p>
+
+<p>So, since being not slow, and not crashing are pretty imporant things when we program, you could start to guess why compiles bother enforcing type aligement.</p>
+
+<h2 id='attack_of_the_higher_aligement'>Attack of the Higher Aligement</h2>
+
+<p>Ok, so we can't have fun and read unaligned data, because the boring CPU manufactures are too foccused on making CPUs that are &quot;fast&quot; and &quot;efficent&quot;.</p>
+
+<p>And if we play with unaligned data anyway, we will either crash or be very slow, right?</p>
+
+<p>Why is this a problem for a Rust to .NET compiler? The .NET runtime is not famous for crashing, and while it is not the fastest thing in the world, it certanly is not <em>slow</em>.</p>
+
+<p>Knowing those things, it seems logical to assume .NET already delas with this &quot;aligement&quot; stuff for us, and we should not have to do anything more.</p>
+
+<p>Most of the time, Rust and .NET agree on type aligement. <code>int</code> and <code>i32</code> both must be aligned to a 4 byte boundary, <code>ulong</code> and <code>u64</code> both align to 8 bytes, etc.</p>
+
+<p>This means that, untill a week-ish ago, I never even hand to consider where my types lay in memory. Sure, I had to consider <em>how</em> they are arranged, but I never had to force them to be placed in a partuclar spot.</p>
+
+<h1 id='the_return_of_the_rewrite'>The return of the Rewrite</h1>
+
+<p>Besides the &quot;boring&quot; stuff, like fixing bugs, I also had the immense pleasure of rewritting a piece of code I had already rewriten a couple months ago.</p>
+</div></div></body></html>

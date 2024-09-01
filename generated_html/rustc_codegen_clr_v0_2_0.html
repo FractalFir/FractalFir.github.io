@@ -1,0 +1,259 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=0.5"><title>Rust to .NET compiler - one year later, and my experiences during Rust GSoC 2024</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js/dist/highlightjs-line-numbers.min.js"></script>
+<script src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
+<script>hljs.addPlugin(new CopyButtonPlugin());hljs.highlightAll();hljs.initLineNumbersOnLoad();
+function cil() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint","line"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","ldarga","sizeof","mul","ldobj","div","blt","br",".rs",".s","calli"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: types.concat(ops).concat(short_types),
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['cil','common_intermediate_language'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+function mir() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["switchInt","unreachable","return","unwind","continue"];
+
+   var vars = ["bb0","bb1","bb2","bb3","bb4","_0","_1","_2"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: vars,
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['mir'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+
+hljs.registerLanguage('cil',cil);
+hljs.registerLanguage('mir',mir);
+</script></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+        </nav></div><div class = "article_header"><h1 class="title">Rust to .NET compiler - one year later, and my experiences during Rust GSoC 2024</h1><br><small><div class = "article_metadata">Published on 24 Aug 2024<br><i>6 - 10 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>The last year has been a bit wild, to say the least. As some of you may know, I have been working on modifying the Rust compiler, to allow it to compile Rust into .NET bytecode. One year ago, the project was nothing more than a silly idea, but, over time, it grew into something mostly functional. I have submited the project to Rust GSoC, and while working on enabling supports for cargo tests, I  fixed a lot of its shortcomings.</p>
+
+<p>GSoC allowed me to rapidly improve the project, and I have managed to greatly exceed the original scope of work. The project is not only capable of building basic unit tests, it can also succssfuly run the wast majoirty of Rust test suite.</p>
+
+<p>At the time of writing, it can properly compile and run 93.9 % of the Rust <code>core</code> test suite(more on that later).</p>
+
+<p>In this article, I would like to take a step back and reflect on the past y. I would like to talk about what went well, what has gone wrong, and the technical challenges of the project.</p>
+
+<h2 id='quick_introduction_to_rustc_codegen_clr'>Quick introduction to <code>rustc_codegen_clr</code></h2>
+
+<p>Before I talk about the project, I should probably explain what it is. It is a &quot;rust compiler backend&quot; - but what does that mean?</p>
+
+<p>You can imagine it as a compiler plugin, which replaces the very last step of compilation(code generation). Instead of using LLVM to generate native code, my project turns the internal Rust representation called MIR into .NET Common Intermediate Language. CIL is then stored inside .NET assemblies, which allows the .NET runtime to easily load, and execute the compiled Rust code.</p>
+
+<p>From the perspective of the Runtime, the compiled Rust looks identical to unsafe C#. So, the Rust code can easily call .NET functions and create .NET objects. In theory, there is nothing you can do in C# that can't be done in Rust too.</p>
+
+<p>I am also working on making calling Rust from C# easier. The project allows you to define .NET classes in pure Rust. In the future, the safety of your interop code will be fully checked by the Rust compiler.</p>
+
+<p>The end goal is to allow near-seamless interop between Rust and C# / F#. The users of your library may not even realize that it is written in Rust.</p>
+
+<h1 id='one_year_later'>One year later</h1>
+
+<p>Now that I quickly explained what the project is, I should probably get back on track and talk a little about my experiences.</p>
+
+<p>One of the coolest things about working on something long-term is seeing it outgrow its original design. In the beginning, I made quite a few decisions, which may seem very stupid in hindsight.</p>
+
+<h1 id='going_over_my_mistakes'>Going over my mistakes</h1>
+
+<p>This growth can be most clearly seen in the evolution of my representation of .NET types and bytecode.</p>
+
+<p>Believe it or not, I am currently on the 3rd version of those core data structures.</p>
+
+<h3 id='1st_iteration'>1st iteration</h3>
+
+<p>At the very beginning, I stored the .NET bytecode in a way that closely mapped to the way it is stored on disk.</p>
+
+<p>You see, the .NET runtime is a stack machine, in which instructions push and pop values onto the evaluation stack. So, to sum the variables <code>a</code> and <code>b</code>, I need to emit the following sequence of .NET instructions:</p>
+
+<pre><code class="language-cil"> .locals (
+ [0] int32 a,
+ [1] int32 b,
+ [2] int32 c
+)
+ldloc a // Push the value of `a` on the stack
+ldloc b // Push the value of `b` on the stack
+add // Add the two values on the stack `a` and `b`, and push the result on the stack
+stloc c // Pop the sum of `a` and `b` from the stack, and store it into `c`</code></pre>
+
+<p>When stored on disk, those instructions are encoded as bytes, and stored in a binary blob. So, it would seem reasonable to treat the bytecode as an array of individual instructions.</p>
+
+<p><em>However</em>, this representation is very error-prone. For example, what would happen if we accidentally forgot to load one of the variables?</p>
+
+<pre><code class="language-cil"> .locals (
+ [0] int32 a,
+ [1] int32 b,
+ [2] int32 c
+)
+ldloc a // Push value of `a` on the stack
+add // Attempts to pop 2 values of the stack, will cause a runtime exception during JIT compilation. 
+stloc c </code></pre>
+
+<p>In this simple case, searching for the issue is relatively easy. However, finding this bug in a more complex scenario is nigh impossible. Some methods can have thousands of CIL instructions, and searching for the issue among all of them is not an easy task. This issue was solved by the second version.</p>
+
+<h3 id='v2'>V2</h3>
+
+<p>Most CIL instructions have a fixed number of inputs and one output. We can use this fact to verify the CIL as it is constructed. If we represent it as a tree, then we can be sure that no operation can under or overflow the stack. The <code>add</code> instruction takes in 2 inputs, so the node of type <code>add</code> can store references to 2 and only 2 other nodes. Since we can't create a CIL node with 1 or 3 inputs, any <code>add</code> node we create must be valid.</p>
+
+<p>However, this approach has some other drawbacks. First of all, it is not very memory efficient. A lot of nodes, such as <code>ldloc.0</code>(load local variable number 0), are extremely common, but each copy of that node requires a separate bit of memory. Since I need to use 24 bytes to store each node, and this node can be found tens of thousands of times in each compiled binary, it quickly adds up.</p>
+
+<p>Moreover, my type references also needed to store the name of the type they refer to. So, a node like <code>ldobj valuetype [GreatAssembly] FabolusNamespace.SuperNiceType</code> had its copy of the string &quot;GreatAssembly&quot; and &quot;FabolusNamespace.SuperNiceType&quot;. Full-type paths in Rust tend to be rather long, so preserving them requires a lot of memory.</p>
+
+<p>There are other ways to hold references to types, but this one was the easiest. In hindsight, not using something more memory-efficient was almost certainly a mistake.</p>
+
+<h3 id='v3'>V3</h3>
+
+<p>The memory inefficiency may seem like a small problem at first, but it grew into a much larger one as time went on. While most programs I built were relatively small, and using a few hundred of megabytes of memory was not a big deal, it became a problem when building much larger codebases.</p>
+
+<p>The Rust compiler test suite, which I mentioned at the beginning, is one such large codebase. It contains a few thousand of tests, excericsing almost all features of the Rust language. As you may imagine, testing all the features of Rust requires quite a bit of code.</p>
+
+<p>Still, building the standard library and all of its tests only required about ~2 GB of RAM. Not great, not terrible.</p>
+
+<p>However, the Rust compiler test suite consists of a lot of smaller test programs. Each component(<code>core</code>, <code>alloc</code>, <code>std</code>, <code>test</code>) contains a set of tests and benchmarks.</p>
+
+<p>Besides that, the testing process also involves building hundreds of small Rust programs and checking their behavior.</p>
+
+<p>All of those tests run in parallel, so building them all can quickly exchange my 16 GB of RAM.</p>
+
+<p>I could, of course, limit the number of tests that are built at the same time. This would allow me to bypass the RAM issues, but I feel like this is not a real solution.</p>
+
+<p>A proper solution required me to completely redesign the data structures I used.</p>
+
+<p>My solution is heavily inspired by the way .NET assemblies are encoded on disk.</p>
+
+<p>A .NET assembly contains many segments, each an array of specific kinds of data. For example, each method stores the index of its signature(this allows signatures to be reused). Each signature contains a list of types. If that type is not-primitive (it refers to a class), then it contains the index of the type definition/reference it represents.</p>
+
+<p>My approach goes a bit further since it allows almost everything, including parts of the bytecode, to be shared. In a program like this:</p>
+
+<pre><code>// Increment a local
+ldloc.0
+ldc.i4.1
+stloc.0
+
+// Do something
+
+// Increment a local again
+ldloc.0
+ldc.i4.1
+stloc.0</code></pre>
+
+<p>There will only be only copy of the bytecode responsible for incrementing the local variable.</p>
+
+<p>While referring to data by indices has its costs(retrieving data from arrays is not free), the cost is far outweighed by the memory savings.</p>
+
+<p>Using indices also allowed me to shrink down some other data types. Since the total size of all the strings embedded in a .NET assembly cannot exceed 2^32, I know for a fact there can't exist more than 2^32 distinct strings. So, I can use 32-bit (4-byte) indices instead of 64-bit pointers(8 bytes).</p>
+
+<p>Knowing about all of those limitations, I can store my data much more efficiently.</p>
+
+<p>In the end, this slashed the size of my representation by a factor of 7. There is still <em>some</em> room for improvement, but I am pretty happy with the state of things as is.</p>
+
+<p>Knowing things I know now, I would have just started with a representation like this and never bothered with the simpler, but very flawed approaches.</p>
+
+<p>This leads me back to my main point. When working on a big project, for a long time, you easily see your improving skills.</p>
+
+<p>I can now look back at my terrible technical decisions and be glad I am no longer the same person.</p>
+
+<h2 id='fighting_the_sun_with_a_hoe'>Fighting the sun with a hoe</h2>
+
+<p>In my native language(Polish), there is a sayign, which roughly transaltes to &quot;<em>To attemmpt fighting / killing the sun using a hoe</em>&quot;. It means to attempt something that is almost certianly impossible, an attempt ridiculs in its futility.</p>
+
+<p>I feel like this is my biggest strength and a falw: I often attempt to take on the sun, sorely underequiped.</p>
+
+<p>On one hand, this whole project is a sign of my hubris and folishness. As you may guess, writing even a part of a compiler is not easy. It is also generaly not a task you attempt alone.</p>
+
+<p>And yet, it somehow works. Day by day, I slowly limp towards the finish line.</p>
+
+<p>Other times, my ridiculs endevours blow up in my face in very spectacular ways.</p>
+
+<h3 id='generics_and_generics_are_two_differnet_things'>generics and Generics are two differnet things</h3>
+
+<p>As some of you may recall, at the very beginging, I have attempted to trun at least some of Rust generics into .NET ones. This seemed like a reasoanble idea at first: Rust has generics, .NET has generics, surely translating between the two is going to be a walk in the park.</p>
+
+<p>Well, I severly underestimated the complexity of Rust generics.</p>
+
+<p>For some Rust types, there are clever workaorunds which allouw us to create equvalent .NET deifitions. There also exist some things which simply cannot be translated into .NET generic(eg. associated types).</p>
+
+<p>Here is the a seemingly trivial example:</p>
+
+<pre><code class="language-rust">struct PointerTo&lt;T&gt;{
+    ptr:*mut T
+}</code></pre>
+
+<p>your first intuiton may be to turn this Rust type into this C# type:</p>
+
+<pre><code class="language-csharp">struct PointerTo&lt;T&gt;{
+   T* ptr;
+}</code></pre>
+
+<p>It may look the same, but it is not a 1 to 1 replacement.</p>
+
+<p>Rust supports something called fat pointers. A fat pointer is encoded as a pointer + some metadata. For a slice(type quvalent to C# Span&lt;T&gt;), its length is stored alognside the pointer.</p>
+
+<p>So, a pointer to a slice, <code>*mut [u8]</code>, is acutaly 2 pointers  wide!</p>
+
+<pre><code class="language-rust">pritnln!(&quot;{}&quot;,std::mem::size_of::&lt;*mut u8&gt;()); // Prints 8 - the size of one pointer in bytes
+pritnln!(&quot;{}&quot;,std::mem::size_of::&lt;*mut [u8]&gt;()); // Prints 16 - the size of one pointer, + one pointer sized int(the length)</code></pre>
+
+<p>.NET does not support a fat pointers, so when we would try to use our C# version of <code>PointerTo</code>, we would not have anywhere to store the lenght of the slice. There are ways to work around that:</p>
+
+<pre><code class="language-C#">struct PointerTo&lt;PointerToT&gt;{
+   PointerToT ptr; // Can be wide oe thin.
+}</code></pre>
+
+<p>but they are a bit clusy and complex.</p>
+
+<p>.NET also does not support  constant generics. In Rust, we can write something like this:</p>
+
+<pre><code class="language-rust">struct ContainsN&lt;T,const N:usize&gt;{
+    items:[T; N], // A fixed size array of N elements
+}</code></pre>
+
+<p>There is simply no good way to directly translate this generic into .NET type definitons. Sure, we could try the same approach as before(and store the whole inner array as one generic), but it is not a neat translation.</p>
+
+<p>The final nail in thre coffin for translating Rust generics into .NET ones was type layout.</p>
+
+<p>You see, Rust is very picky about type layout. However, you can't specifiy the explict layout of a generic .NET type.</p>
+
+<p>There is a wery good reason why this is not allowed, but this means that turning Rust generics into .NET ones is impossible.</p>
+
+<p>In hindsight, I should have checked for this kind of issue beforehand. This whole endevour had not wasted too much of my time, but it is a pretty interesting issue notheless.</p>
+
+<h1 id='what_went_well'>What went well</h1>
+
+<p>Now that I talked a bit aobut the issues, I toight it might be worthwhile to go over things that went well.</p>
+</div></div></body></html>
