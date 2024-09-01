@@ -76,11 +76,11 @@ requiring 2–3 days of work each.
 # Conclusion
 
 In the end, I managed to not only complete all the tasks, I also took on an additional challenge. After I managed to run the Rust test suite, the next logical step was fixing all the bugs those tests detected.
-While this was not in the original scope, the progress I made was substantial. In the 4 weeks I worked on this additonal task, I mamaged to get my compiler backend to propely compile and run 95% of the Rust `core` and `std` test suites.
+While this was not in the original scope, the progress I made was substantial. In the 4 weeks I worked on this additional task, I managed to get my compiler backend to properly compile and run 95% of the Rust `core` and `std` test suites.
 
-I feel immensly grateful for all the help I recived form my mentor, Jack Huey, and the wider Rust commuinty. Without those other peopele, I would not be able to finish the original scope of the project, let alone expand it. 
+I feel immensely grateful for all the help I received from my mentor, Jack Huey, and the wider Rust community. Without those other people, I would not be able to finish the original scope of the project, let alone expand it. 
 
-GSoC 2024 has been a great opportuinty, which allowed me to grow both as a programer and a person.
+GSoC 2024 has been a great opportunity, which allowed me to grow both as a programmer and a person.
 
 </markdown> 
 <ignored>
