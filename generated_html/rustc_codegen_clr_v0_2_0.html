@@ -63,7 +63,7 @@ hljs.registerLanguage('mir',mir);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Rust to .NET compiler - my experiences during Rust GSoC 2024</h1><br><small><div class = "article_metadata">Published on 24 Aug 2024<br><i>2 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>Student: Michał Kostrubiec, aka Fractal Fir</p>
+        </nav></div><div class = "article_header"><h1 class="title">Rust to .NET compiler - my experiences during Rust GSoC 2024</h1><br><small><div class = "article_metadata">Published on 24 Aug 2024<br><i>3 - 6 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>Student: Michał Kostrubiec, aka Fractal Fir</p>
 
 <p>GitHub handle: @FractalFir</p>
 
@@ -144,4 +144,12 @@ hljs.registerLanguage('mir',mir);
 <p>I feel immensely grateful for all the help I received from my mentor, Jack Huey, and the wider Rust community. Without those other people, I would not be able to finish the original scope of the project, let alone expand it.</p>
 
 <p>GSoC 2024 has been a great opportunity, which allowed me to grow both as a programmer and a person.</p>
+
+<h1 id='further_work'>Further work</h1>
+
+<p>While the project is already in a mostly functional state, there are some steps that will need to be taken in order for it to be more accessible to the public. The Rust project has very strict coding guidelines, so upstreaming the backend and making it a permanent component of the Rust compiler will require many changes, to bring the code closer to the desired quality.</p>
+
+<p>This work is necessary for adding the .NET runtime as a Rust compiler target: according to the target policy, all official targets must build using an upstream backend. So, in order to make installation easier, the project will need to be upstreamed. Installation is not currently too difficult (it just requires cloning the repo, building the project, and setting up an environment variable), the process could be made more straightforward.</p>
+
+<p>Additionally, the project has been designed in such a way as to allow for targeting more runtimes, like JVM, or even completely different languages - like JavaScript. While the usefulness of some such targets (the JS one) remains questionable, there is interest in some of them (like the JVM backend). The project is very flexible, and should serve a solid foundation for anyone wanting to target those platforms.</p>
 </div></div></body></html>
