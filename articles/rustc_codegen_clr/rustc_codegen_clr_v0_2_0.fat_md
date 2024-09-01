@@ -1,25 +1,32 @@
 <metadata>
-title = "Rust to .NET compiler - one year later, and my experiences during Rust GSoC 2024"
+title = "Rust to .NET compiler - my experiences during Rust GSoC 2024"
 id = "rustc_codegen_clr_v0_2_0"
 category = "Rustc Codegen CLR"
 
 date = "24 Aug 2024"
 </metadata>
 <markdown>
-The last year has been a bit wild, to say the least. As some of you may know, I have been working on modifying the Rust compiler, to allow it to compile Rust into .NET bytecode. One year ago, the project was nothing more than a silly idea, but,
-over time, it grew into something mostly functional. I have submited the project to Rust GSoC, and while working on enabling supports for cargo tests, I  fixed a lot of its shortcomings.
+Student: Michał Kostrubiec, aka Fractal Fir
+GitHub handle:@FractalFir
+Project: Rust to .NET compiler - add support for compiling & running cargo tests
+Organization: the Rust Foundation
 
-GSoC allowed me to rapidly improve the project, and I have managed to greatly exceed the original scope of work. The project is not only capable of building basic unit tests, it can also succssfuly run the wast majoirty of Rust test suite.
+For the past year, I have been working on modifying the Rust compiler, to allow it to compile Rust into .NET bytecode. One year ago, the project was nothing more than a silly idea, but,
+over time, it grew into something mostly functional. 
 
-At the time of writing, it can properly compile and run 93.9 % of the Rust `core` test suite(more on that later).
+During this summer, I have submitted the project to Rust GSoC, and while working on enabling supports for cargo tests, I  fixed a lot of its shortcomings.
 
-In this article, I would like to take a step back and reflect on the past y. I would like to talk about what went well, what has gone wrong, and the technical challenges of the project.
+GSoC allowed me to rapidly improve the project, and I have managed to greatly exceed the original scope of work. The project is not only capable of building basic unit tests, it can also successful run the vast majority of Rust test suite.
+
+At the time of writing, it can properly compile and run 93.9 % of the Rust `core` test suite (more on that later).
+
+In this report, I would like to talk a little bit about my work on the project. 
 
 ## Quick introduction to `rustc_codegen_clr`
 
 Before I talk about the project, I should probably explain what it is. It is a "rust compiler backend" - but what does that mean? 
 
-You can imagine it as a compiler plugin, which replaces the very last step of compilation(code generation). 
+You can imagine it as a compiler plugin, which replaces the very last step of compilation (code generation). 
 Instead of using LLVM to generate native code, my project turns the internal Rust representation called MIR into .NET Common Intermediate Language. 
 CIL is then stored inside .NET assemblies, which allows the .NET runtime to easily load, and execute the compiled Rust code.
 
@@ -27,209 +34,39 @@ From the perspective of the Runtime, the compiled Rust looks identical to unsafe
 
 I am also working on making calling Rust from C# easier. The project allows you to define .NET classes in pure Rust. In the future, the safety of your interop code will be fully checked by the Rust compiler.
 
-The end goal is to allow near-seamless interop between Rust and C# / F#. The users of your library may not even realize that it is written in Rust. 
-
-# One year later
-
-Now that I quickly explained what the project is, I should probably get back on track and talk a little about my experiences. 
-
-One of the coolest things about working on something long-term is seeing it outgrow its original design. 
-In the beginning, I made quite a few decisions, which may seem very stupid in hindsight.
-
-# Going over my mistakes
-
-This growth can be most clearly seen in the evolution of my representation of .NET types and bytecode. 
-
-Believe it or not, I am currently on the 3rd version of those core data structures.
-
-### 1st iteration
-
-At the very beginning, I stored the .NET bytecode in a way that closely mapped to the way it is stored on disk.
-
-You see, the .NET runtime is a stack machine, in which instructions push and pop values onto the evaluation stack. So, to sum the variables `a` and `b`, I need to emit the following sequence of .NET instructions:
-```cil
- .locals (
- [0] int32 a,
- [1] int32 b,
- [2] int32 c
-)
-ldloc a // Push the value of `a` on the stack
-ldloc b // Push the value of `b` on the stack
-add // Add the two values on the stack `a` and `b`, and push the result on the stack
-stloc c // Pop the sum of `a` and `b` from the stack, and store it into `c`
-```
-When stored on disk, those instructions are encoded as bytes, and stored in a binary blob. 
-So, it would seem reasonable to treat the bytecode as an array of individual instructions. 
-
-*However*, this representation is very error-prone. For example, what would happen if we accidentally forgot to load one of the variables?
-
-```cil
- .locals (
- [0] int32 a,
- [1] int32 b,
- [2] int32 c
-)
-ldloc a // Push value of `a` on the stack
-add // Attempts to pop 2 values of the stack, will cause a runtime exception during JIT compilation. 
-stloc c 
-```
-In this simple case, searching for the issue is relatively easy. However, finding this bug in a more complex scenario is nigh impossible. Some methods can have thousands of CIL instructions, and searching for the issue among
-all of them is not an easy task. This issue was solved by the second version.
-
-### V2
-
-Most CIL instructions have a fixed number of inputs and one output. We can use this fact to verify the CIL as it is constructed. If we represent it as a tree, then we can be sure that no operation can under or overflow the stack.
-The `add` instruction takes in 2 inputs, so the node of type `add` can store references to 2 and only 2 other nodes. Since we can't create a CIL node with 1 or 3 inputs, any `add` node we create must be valid.
-
-However, this approach has some other drawbacks. First of all, it is not very memory efficient. A lot of nodes, such as `ldloc.0`(load local variable number 0), are extremely common, but each copy of that node requires a separate bit of memory.
-Since I need to use 24 bytes to store each node, and this node can be found tens of thousands of times in each compiled binary, it quickly adds up.
-
-Moreover, my type references also needed to store the name of the type they refer to. So, a node like `ldobj valuetype [GreatAssembly] FabolusNamespace.SuperNiceType` had its copy of the string "GreatAssembly" and "FabolusNamespace.SuperNiceType".
-Full-type paths in Rust tend to be rather long, so preserving them requires a lot of memory. 
-
-
-There are other ways to hold references to types, but this one was the easiest. In hindsight, not using something more memory-efficient was almost certainly a mistake. 
-
-### V3
-
-The memory inefficiency may seem like a small problem at first, but it grew into a much larger one as time went on. While most programs I built were relatively small, and using a few hundred of megabytes of memory was not a big deal,
-it became a problem when building much larger codebases. 
-
-
-The Rust compiler test suite, which I mentioned at the beginning, is one such large codebase. It contains a few thousand of tests, excericsing almost all features of the Rust language. As you may imagine, testing all the features of Rust requires 
-quite a bit of code.
-
-Still, building the standard library and all of its tests only required about ~2 GB of RAM. Not great, not terrible.
-
-However, the Rust compiler test suite consists of a lot of smaller test programs. Each component(`core`, `alloc`, `std`, `test`) contains a set of tests and benchmarks.
-
-Besides that, the testing process also involves building hundreds of small Rust programs and checking their behavior. 
-
-All of those tests run in parallel, so building them all can quickly exchange my 16 GB of RAM. 
-
-I could, of course, limit the number of tests that are built at the same time. This would allow me to bypass the RAM issues, but I feel like this is not a real solution.
-
-A proper solution required me to completely redesign the data structures I used. 
-
-My solution is heavily inspired by the way .NET assemblies are encoded on disk. 
-
-A .NET assembly contains many segments, each an array of specific kinds of data. For example, each method stores the index of its signature(this allows signatures to be reused). Each signature contains a list of types. If that type is not-primitive
-(it refers to a class), then it contains the index of the type definition/reference it represents. 
-
-My approach goes a bit further since it allows almost everything, including parts of the bytecode, to be shared. In a program like this:
-
-```
-// Increment a local
-ldloc.0
-ldc.i4.1
-stloc.0
-
-// Do something
-
-// Increment a local again
-ldloc.0
-ldc.i4.1
-stloc.0
-```
-There will only be only copy of the bytecode responsible for incrementing the local variable.
-
-While referring to data by indices has its costs(retrieving data from arrays is not free), the cost is far outweighed by the memory savings. 
-
-Using indices also allowed me to shrink down some other data types. Since the total size of all the strings embedded in a .NET assembly cannot exceed 2^32, I know for a fact there can't exist more than 2^32 distinct strings.
-So, I can use 32-bit (4-byte) indices instead of 64-bit pointers(8 bytes).
-
-Knowing about all of those limitations, I can store my data much more efficiently.
-
-In the end, this slashed the size of my representation by a factor of 7. There is still *some* room for improvement, but I am pretty happy with the state of things as is.
-
-Knowing things I know now, I would have just started with a representation like this and never bothered with the simpler, but very flawed approaches. 
-
-
-This leads me back to my main point. When working on a big project, for a long time, you easily see your improving skills.
-
-I can now look back at my terrible technical decisions and be glad I am no longer the same person. 
-
-## Fighting the sun with a hoe
-
-In my native language(Polish), there is a sayign, which roughly transaltes to "*To attemmpt fighting / killing the sun using a hoe*". 
-It means to attempt something that is almost certianly impossible, an attempt ridiculs in its futility. 
-
-I feel like this is my biggest strength and a falw: I often attempt to take on the sun, sorely underequiped.
-
-On one hand, this whole project is a sign of my hubris and folishness. As you may guess, writing even a part of a compiler is not easy. It is also generaly not a task you attempt alone.
-
-And yet, it somehow works. Day by day, I slowly limp towards the finish line. 
-
-Other times, my ridiculs endevours blow up in my face in very spectacular ways. 
-
-### generics and Generics are two differnet things
-
-As some of you may recall, at the very beginging, I have attempted to trun at least some of Rust generics into .NET ones. This seemed like a reasoanble idea at first: Rust has generics, .NET has generics, surely translating between the two
-is going to be a walk in the park. 
-
-Well, I severly underestimated the complexity of Rust generics. 
-
-For some Rust types, there are clever workaorunds which allouw us to create equvalent .NET deifitions. There also exist some things which simply cannot be translated into .NET generic(eg. associated types).
-
-Here is the a seemingly trivial example:
-```rust
-struct PointerTo<T>{
-    ptr:*mut T
-}
-```
-your first intuiton may be to turn this Rust type into this C# type:
-
-```csharp
-struct PointerTo<T>{
-   T* ptr;
-}
-```
-
-It may look the same, but it is not a 1 to 1 replacement. 
-
-Rust supports something called fat pointers. A fat pointer is encoded as a pointer + some metadata. For a slice(type quvalent to C# Span<T>), its length is stored alognside the pointer. 
-
-So, a pointer to a slice, `*mut [u8]`, is acutaly 2 pointers  wide!
-
-```rust
-pritnln!("{}",std::mem::size_of::<*mut u8>()); // Prints 8 - the size of one pointer in bytes
-pritnln!("{}",std::mem::size_of::<*mut [u8]>()); // Prints 16 - the size of one pointer, + one pointer sized int(the length)
-```
-
-.NET does not support a fat pointers, so when we would try to use our C# version of `PointerTo`, we would not have anywhere to store the lenght of the slice.
-There are ways to work around that:
-```C#
-struct PointerTo<PointerToT>{
-   PointerToT ptr; // Can be wide oe thin.
-}
-``` 
-
-but they are a bit clusy and complex. 
-
-.NET also does not support  constant generics. In Rust, we can write something like this:
-
-```rust
-struct ContainsN<T,const N:usize>{
-    items:[T; N], // A fixed size array of N elements
-}
-```
-
-There is simply no good way to directly translate this generic into .NET type definitons. Sure, we could try the same approach as before(and store the whole inner array as one generic), but it is not a neat translation.
-
-The final nail in thre coffin for translating Rust generics into .NET ones was type layout.
-
-You see, Rust is very picky about type layout. However, you can't specifiy the explict layout of a generic .NET type. 
-
-There is a wery good reason why this is not allowed, but this means that turning Rust generics into .NET ones is impossible.
-
-In hindsight, I should have checked for this kind of issue beforehand. This whole endevour had not wasted too much of my time, but it is a pretty interesting issue notheless.
-
-# What went well
-
-Now that I talked a bit aobut the issues, I toight it might be worthwhile to go over things that went well. 
-
-
-
+The end goal is to allow near-seamless interop between Rust and C# / F#. Ideally, the users of your Rust .NET library may not even realize that it is written in Rust. 
+
+# Going over project goals
+
+In my proposal, I have outlined a few goals. In this report, I would like to go over them.
+
+Main project tasks:
+
+1. Support for command line arguments:
+    This task turned out to be surprisingly difficult, since command line parsing in Rust is incredibly complex, and uses a wide range of bizarre tricks.
+    Shockingly, the key role here is not played by the compiler, but by the linker. Rust uses a GNU extension - the `.init` section, which contains function pointers called as the executable is loaded. Those functions receive a list of native arguments, and then set the appropriate static variable. 
+    Supporting this GNU extension required many changes to my custom linker.
+
+2. Adding support for the atomic intrinsics.
+ As predicted, most of those intrinsics map 1 to 1 to equivalent APIs, provided by the .NET class `System.Threading.Interlocked`.
+ They can thus be easily implemented in a cross-platform way.
+ However, 8 and 16 bit atomics are not supported until .NET 9, and had to be emulated using locks.
+
+3. Support for threads. 
+ Originally, I planned to implement this by making changes to the standard Rust library.
+ In the end, I went with a much simpler approach: I emulated the pthreads POSIX APIs within the .NER runtime. This allowed me to avoid changes to the Rust standard library, allowing me to focus just on the compiler.
+4. Support for dynamic trait objects. 
+ Implementing support for dynamic trait objects turned out to be very straightforward, and I have fully implemented them almost by accident. Rust dynamics heavily reuse code with slices (since they both are fat pointer types), so 99% of the work
+5. Support for catching panics. 
+ While I originally dreaded implementing support for panicking and unwinding, it turned out to be very straightforward. Rust panics mapped nicely to .NET exceptions, which allowed me to implement them with ease.
+6. Fixing string formatting. 
+ This point was far more involved, and required weeks of debuting. I have written a longer [article explaining the underlying bug and fixes it required](https://fractalfir.github.io/generated_html/rustc_codegen_clr_v0_1_3.html).
+7. Fixing panics - when I started working on GSoC 2024, panic-related functions do not compile properly. While fixing them took a long time, since the bugs which caused them to not work were numerous, they also were not too difficult to fix,
+requiring 2–3 days of work each.
+
+# My contributions - project repository:
+
+[rustc_codegen_clr](https://github.com/FractalFir/rustc_codegen_clr)
 
 </markdown> 
 <ignored>
