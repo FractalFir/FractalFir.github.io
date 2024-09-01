@@ -8,11 +8,13 @@ date = "24 Aug 2024"
 <markdown>
 Student: Michał Kostrubiec, aka Fractal Fir
 
-GitHub handle:@FractalFir
+GitHub handle: @FractalFir
 
 Project: Rust to .NET compiler - add support for compiling & running cargo tests
 
 Organization: the Rust Foundation
+
+GSoC proposals: https://summerofcode.withgoogle.com/programs/2024/projects/IIHP5ozV
 
 For the past year, I have been working on modifying the Rust compiler, to allow it to compile Rust into .NET bytecode. One year ago, the project was nothing more than a silly idea, but,
 over time, it grew into something mostly functional. 
