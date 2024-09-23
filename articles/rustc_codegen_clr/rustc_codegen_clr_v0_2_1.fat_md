@@ -445,16 +445,61 @@ This huge amount of exception handlers is not liked by the .NET JIT. I will admi
 Still, I feel like I know enough to speculate about the cause of the slowdowns I observed.
 
 
-Since `rustc_codegen_clr` is not all that good at optimizing code, it generates quite a lot of it. Each unneeded exception handler, unused variable - all that adds up. While the JIT can optimize most of that away,
-the complexity of those functions still has an impact. Internally, most JITs use certain heuristics to estimate if certain optimizations are worth it. So, a JIT may use metrics like the number of exception handlers, locals, and the size of bytecode,
-to try to guess how large the final compiled function is. Since I emit a lot of code(quite a bit of it useless), the JIT "thinks" my functions are bad optimization and inlining candidates. 
+`rustc_codegen_clr` is not yet all that good at optimizing code, so it generates a lot of CIL.
+Each unneeded exception handler, unused variable - all that adds up.
 
-When I removed all the exception handlers from an assembly, I drastically cut down the complexity of the generated code, which encouraged the JIT to optimize it more. 
-JITs try to be fast at generating code, so they weigh the benefit of optimization against the time it would take. If the CIL I generate is simpler, then the JIT can see that optimizing it will not take too long.
+While the .NET JIT is pretty good, and can optimize most of the inefficiencies away, the increased bytecode size still has an impact.
+Internally, most JIT's (including RyuJIT) use certain heuristics to estimate if certain optimizations are worth it. 
+So, a JIT may use metrics like the number of exception handlers, locals, and the size of bytecode,
+to try to guess how large the final compiled function is. 
 
-Of course, you should take this paragraph with a pinch of salt. While I am pretty confident in what I wrote, I am still an amateur when it comes to JITs. So, I might have misunderstood something and missed some finer detail. 
+Since I emit a lot of code (quite a bit of it useless), the JIT "thinks" my functions are bad optimization and inlining candidates. 
+
+The exact formula used to calculate the cost of operations like inlining is not all that relevant to this post (you can [find it here](https://github.com/dotnet/runtime/blob/02e95ebff119189ac2d65e4a641980ccb3ea1091/src/coreclr/jit/inlinepolicy.cpp#L4)),
+but I still wanted to highlight some things that seem to explain what I observed. 
+
+Looking at the default inlining policy, it seems like RyuJIT will not inline a function, if it exceeds a certain limit of basic blocks.
+```cpp
+// Code snipet from: https://github.com/dotnet/runtime/blob/02e95ebff119189ac2d65e4a641980ccb3ea1091/src/coreclr/jit/inlinepolicy.cpp#L577
+
+// CALLEE_IS_FORCE_INLINE overrides CALLEE_DOES_NOT_RETURN
+if (!m_IsForceInline && m_IsNoReturn && (basicBlockCount == 1))
+{
+  SetNever(InlineObservation::CALLEE_DOES_NOT_RETURN);
+}
+else if (!m_IsForceInline && (basicBlockCount > MAX_BASIC_BLOCKS))
+{
+  SetNever(InlineObservation::CALLEE_TOO_MANY_BASIC_BLOCKS);
+}
+```
+This limit seems to currently [be 5](https://github.com/dotnet/runtime/blob/02e95ebff119189ac2d65e4a641980ccb3ea1091/src/coreclr/jit/inlinepolicy.h#L154).
+
+Since I need to duplicate all used cleanup blocks for each handler (jumping between exception handlers is not allowed), most handlers contain multiple blocks. 
+
+Let us say we have 2 handlers, with 2 blocks each. That alone already adds up almost to the inline limit.
+
+When I removed all the exception handlers from an assembly, I removed a lot of those blocks, allowing the JIT to inline more functions.
+
+Overall, removing this dead code, and reducing complexity, encourages the JIT to perform more optimizations.
+
+
+You may wonder: why do JIT's use heuristics like this, and why do they only perform optimizations in certain cases?
+
+JIT's try to be fast at compiling code. You don't want to have to wait a couple of minutes for your .NET app to start. So, a JIT has a limited time budget. 
+It has to weigh the benefit of any give optimization against the time it would take. You don't want the JIT to spend a lot of time optimizing a complex function,
+if it can spend the same time optimizing 100 simpler ones. 
+
+In general, JIT's focus on code that is used often, and does not take a lot of time to optimize. 
+This way, they can give you some pretty decent performance, while also compiling CIL very quickly.
+
+If the CIL I generate is simpler, then the JIT can "see" that optimizing it will not take too long. 
+By better preparing a .NET assembly for JIT compilation, I can reduce the amount of needless work a JIT needs to do, allowing it to perform other, highly beneficial optimizations. 
+
+Of course, you should take this paragraph with a pinch of salt. While I am pretty confident in what I wrote, I am still an amateur when it comes to JIT's. So, I might have misunderstood something or missed some finer detail. 
+
 
 ## Removing empty handlers
+Now that I expalined why those optimzations are needed, I will show how I implemented them.
 
 To remove a useless cleanup block(or exception handlers) I first need a good way of detecting them. Originally, I went with a more complex solution:
 First, I would simplify each block separately, removing all the side-effect-free statements before a `rethrow`.
@@ -488,7 +533,12 @@ This approach had a lot of advantages - in cases where it was not able to fully 
 However, the added complexity made this optimization a bit error-prone. For the sake of simplicity, I have overlooked some of the non-obvious issues. Most of them were caused by some of the tech debt the project has.
 Fixing them requires some additional refactors, which are just not done yet. 
 
-Since any bug in this code would lead to non-obvious and hard-to-debug issues, I have decided to go with a much simpler, more conservative approach for now. 
+Since the code in cleanup blocks only runs during an uwnind(so not during normal excution), debuging it is a bit of a pain.
+
+Any issues in cleaup blocks will also be very hard to notice:removing a necessary cleanup block can just lead to a memory leak. 
+So I need to get all the optimzations operating on them to be perfect.
+
+In order to avoid those issues, I have decided to go with a much simpler, more conservative approach for now. 
 
 It is not as good at optimizing stuff away, but it can still improve things a fair bit.
 
@@ -512,7 +562,7 @@ public unsafe static void _ZN4core4iter8adapters3map8map_fold28_$u7b$$u7b$closur
   _ZN4iter13for_each_fold28_$u7b$$u7b$closure$u7d$$u7d$17hfc540be8426f74d2E(f_, rustVoid, tuple3vi.Item2);
 }
 ```
-Don't get me wrong - there are still a lot of optimizations to be done, but this is far better than what we had before.
+Don't get me wrong - there are still a lot of optimizations to be done(the whole function can be optimzed to one line, and easily inlined), but this is far better than what we had before.
 
 
 # Conclusion
