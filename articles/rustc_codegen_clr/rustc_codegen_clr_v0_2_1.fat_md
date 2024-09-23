@@ -47,7 +47,7 @@ While the terms panicking and unwinding are related, and sometimes used intercha
 Panicking is the name for the feature of the Rust language. 
 When you use the `panic!` macro, this is the feature you are using. Panicking is very similar to exceptions, and is used in Rust to signal an error in the program logic. 
 
-So, when you expect an operation could fail, you use the `Result` type. When an operation should not fail(a failure indicates a bug), you should use `panics!`.
+So, when you expect an operation could fail, you use the `Result` type. When an operation should not fail(a failure indicates a bug), you should use `panic!`s.
 
 ```rust
 // Reading and parsing a file can fail, so we return a `Result` to tell the consumers of our API that they should handle it. 
@@ -155,9 +155,9 @@ Let's say we have a program like this:
 fn test(x:u32){
 bb0:{
  let x = 7;
- // If an unwind happens during this function call, `numbers` will not be yet owned by us
- // Since we only have ownership of `numbers` once the we the vector, 
- //dropping it during an unwind is the responsibility of the callee.
+ // If an unwind happens during this function call, `numbers` will not be yet owned by us.
+ // Since we only have ownership of `numbers` once the we allocate the vector(using this function), 
+ // dropping it during an unwind is the responsibility of the callee.
  // So, we don't need a cleanup block.
  let numbers = vec![x] -> [return bn1, unwind continue];
 }
@@ -552,7 +552,7 @@ One of the greatest things about GSoC was receiving feedback and help from a lot
 
 Overall, GSoC has been a blast, and I met a lot of truly amazing people there. Each project felt like something impactful, and all my interactions with other Rust GSoC contributors were amazing. 
 
-Mething all of those people passionate about Rust gave me a lot of confidence in the future of the language.
+Meeting all of those people passionate about Rust gave me a lot of confidence in the future of the language.
 
 </markdown> 
 <ignored>

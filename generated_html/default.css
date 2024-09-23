@@ -1,4 +1,4 @@
-:root {  
+:root {
   --background: hsla(156, 0.25%, 7.6%, 1);
   --post_background: hsla(153, 2%, 14.5%, 1);
   --header_background: hsla(153, 0%, 12%, 1);
@@ -6,52 +6,58 @@
   --title_background: hsla(120, 9.5%, 20.5%, 1);
   --topic_background: hsla(153, 2.5%, 30%, 1);
   --shadow: hsla(203, 92%, 2.5%);
-  --nav_background:hsl(156,98%,35%);
+  --nav_background: hsl(156, 98%, 35%);
   --link: hsla(150, 80%, 85%, 1);
   --text: hsla(186, 4%, 98%, 1);
-   font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
-.hljs-ln-numbers{
-  scale: .75; 
-  color:  hsla(186, 4%, 98%, .5);
+
+.hljs-ln-numbers {
+  scale: .75;
+  color: hsla(186, 4%, 98%, .5);
 }
-blockquote{
-   margin: 1.5em 2.5px;
-   padding: 0.5em 8px;
-   border-left: 10px solid hsla(186, 4%, 53%, .5);
-   background: hsla(186, 4%, 29%, .5);
-   font-style:italic;
+
+blockquote {
+  margin: 1.5em 2.5px;
+  padding: 0.5em 8px;
+  border-left: 10px solid hsla(186, 4%, 53%, .5);
+  background: hsla(186, 4%, 29%, .5);
+  font-style: italic;
 }
-.hljs-ln-n{
+
+.hljs-ln-n {
   margin-left: -10px;
   margin-right: 5px;
 }
-h1{
-  background-color: var(--header_background);  
+
+h1 {
+  background-color: var(--header_background);
   border-radius: 5px;
   box-shadow: .5px .75px .75px var(--shadow);
 }
 
-h2{
-  background-color: var(--header2_background);  
+h2 {
+  background-color: var(--header2_background);
   border-radius: 5px;
-   box-shadow: .5px .75px .75px var(--shadow);
+  box-shadow: .5px .75px .75px var(--shadow);
 }
-.title{
-  font-size:210%;
+
+.title {
+  font-size: 210%;
   margin-left: 1.5%;
-  margin-right:1.5%;
+  margin-right: 1.5%;
   margin-top: -.5%;
-  margin-bottom:-1.75%;
+  margin-bottom: -1.75%;
   background-color: hsla(0, 0%, 0%, 0);
   box-shadow: 0px 0px 0px black;
 }
-.article_header{
+
+.article_header {
   box-sizing: border-box;
   padding: 0.25%;
   border-radius: 10px;
   margin: auto;
-  background-color:var(--title_background);
+  background-color: var(--title_background);
   max-width: 1000px;
   word-wrap: break-word;
   text-align: justify;
@@ -60,32 +66,37 @@ h2{
   margin-bottom: 1%;
   box-shadow: 2px .75px .5px var(--shadow);
 }
-.article_metadata{
+
+.article_metadata {
   margin-left: 2%;
 }
-code{
+
+code {
   font-family: monospace;
-  border-radius:7px;
-  color:orange;
+  border-radius: 7px;
+  color: #E8B86D;
 }
+
 body {
-    background-color:  var(--background);
- 
-    background-attachment: fixed; 
-    color: var(--text);
+  background-color: var(--background);
+
+  background-attachment: fixed;
+  color: var(--text);
 }
-a{
-  color:var(--link);
+
+a {
+  color: var(--link);
 }
-.article{
+
+.article {
   box-sizing: border-box;
   padding-left: .75%;
   padding-right: .75%;
   padding-top: .01%;
-  padding-bottom:1%;
+  padding-bottom: 1%;
   border-radius: 10px;
   margin: auto;
-  background-color:var(--post_background);
+  background-color: var(--post_background);
   max-width: 1000px;
   word-wrap: break-word;
   text-align: justify;
@@ -93,26 +104,34 @@ a{
   line-height: 1.7;
   box-shadow: 2px .75px .5px var(--shadow);
 }
-.topic_field{
-   background-color: var(--topic_background);
-   padding:0.5%;
-   border-radius:5px;
+
+.topic_field {
+  background-color: var(--topic_background);
+  padding: 0.5%;
+  border-radius: 5px;
 }
-.topnav{
-  position: fixed; 
-  top: 0; left: 0; z-index: 9999; width: 99.5%; height: 50px; 
+
+.topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  width: 99.5%;
+  height: 50px;
   margin: 1px;
   margin-top: 0px;
-  background-color:var(--nav_background);
+  background-color: var(--nav_background);
   text-align: center;
   border-radius: 5px;
   overflow: hidden;
 
 }
-.nav_container{
-   padding: 1.625rem;
-   margin-bottom:0.5%;
+
+.nav_container {
+  padding: 1.625rem;
+  margin-bottom: 0.5%;
 }
+
 .topnav a {
   float: left;
   color: #f2f2f2;
@@ -121,55 +140,66 @@ a{
   text-decoration: none;
   font-size: 17px;
 }
+
 .topnav a:hover {
-  filter:invert(10);
+  filter: invert(10);
   background-color: #222;
   color: white;
 }
-.paragraph{
+
+.paragraph {
   margin-top: 5%;
 }
-.github_link{
-  background-color: transparent;  
+
+.github_link {
+  background-color: transparent;
 }
-.reddit_link{
-  filter:grayscale(100%);
-  background-color: transparent;  
+
+.reddit_link {
+  filter: grayscale(100%);
+  background-color: transparent;
   align-content: right;
 }
-.linked_id_link{
-  filter:grayscale(100%) brightness(250%);
-  background-color: transparent;  
+
+.linked_id_link {
+  filter: grayscale(100%) brightness(250%);
+  background-color: transparent;
   border-radius: 0px;
 }
-.rss_link{
-  filter:grayscale(100%);
+
+.rss_link {
+  filter: grayscale(100%);
   border-radius: 0px;
-  background-color: transparent;  
+  background-color: transparent;
 }
-h1{
+
+h1 {
   margin-top: 5%;
-   margin-left: -0.6125%;
+  margin-left: -0.6125%;
 }
-img{
+
+img {
   size: auto;
   border-radius: 5px;
-  width:100%;
-  max-width:1000px;
-  max-height:500px;
+  width: 100%;
+  max-width: 1000px;
+  max-height: 500px;
   display: block;
   margin-left: auto;
   margin-right: auto;
   background-color: #3B3C36;
 }
+
 .hljs-copy-wrapper {
   position: relative;
   overflow: hidden;
 }
+
 .hljs-copy-wrapper:hover .hljs-copy-button,
 .hljs-copy-button:focus {
   transform: translateX(0);
 }
+
 .hljs-copy-button {
   position: absolute;
   transform: translateX(calc(100% + 1.125em));
@@ -177,7 +207,8 @@ img{
   right: 0.5em;
   width: 2rem;
   height: 2rem;
-  text-indent: -9999px; /* Hide the inner text */
+  text-indent: -9999px;
+  /* Hide the inner text */
   color: var(--hljs-theme-color);
   border-radius: 0.25rem;
   border: 1px solid;
@@ -186,6 +217,7 @@ img{
   transition: background-color 200ms ease, transform 200ms ease-out;
   overflow: hidden;
 }
+
 .hljs-copy-button:not([data-copied="true"])::before {
   content: "";
   top: 0;
@@ -201,19 +233,21 @@ img{
 }
 
 .hljs-copy-button:hover {
-  background-color: color-mix(
-    in srgb,
-    var(--hljs-theme-color),
-    transparent 90%
-  );
+  background-color: color-mix(in srgb,
+      var(--hljs-theme-color),
+      transparent 90%);
 }
+
 .hljs-copy-button:active {
   border-color: color-mix(in srgb, var(--hljs-theme-color), transparent 60%);
 }
+
 .hljs-copy-button[data-copied="true"] {
-  text-indent: 0px; /* Shows the inner text */
+  text-indent: 0px;
+  /* Shows the inner text */
   width: auto;
 }
+
 @media (prefers-reduced-motion) {
   .hljs-copy-button {
     transition: none;
