@@ -264,7 +264,22 @@ console.log(`Highlight time: ${{end - start}} ms`);
             <a href=\"{linked_in}\"><img src = \"../images/LI-In-Bug.png\" class = \"linked_id_link\" height = \"27.5\" alt = \"Link to my linkedin account.\"></a>
             <a href=\"{rss}\"><img src = \"https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg\" class = \"rss_link\" height = \"27.5\" alt = \"Link to my rss feed.\"></a>
         </nav></div>");
-        let body = format!("<body>{navigation}{article_html}</body>");
+        let giscus = "<script src=\"https://giscus.app/client.js\"
+        data-repo=\"FractalFir/FractalFir.github.io\"
+        data-repo-id=\"R_kgDOJ_iWYA\"
+        data-category=\"Announcements\"
+        data-category-id=\"DIC_kwDOJ_iWYM4CiwXV\"
+        data-mapping=\"pathname\"
+        data-strict=\"1\"
+        data-reactions-enabled=\"1\"
+        data-emit-metadata=\"0\"
+        data-input-position=\"top\"
+        data-theme=\"preferred_color_scheme\"
+        data-lang=\"en\"
+        data-loading=\"lazy\"
+        crossorigin=\"anonymous\"
+        async></script>";
+        let body = format!("<body>{navigation}{article_html}{giscus}</body>");
         let final_html = format!("<!DOCTYPE html><html lang =\"en\">{head}{body}</html>");
         final_html
     }
