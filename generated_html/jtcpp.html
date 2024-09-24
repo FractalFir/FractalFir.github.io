@@ -220,7 +220,7 @@ console.log(`Highlight time: ${end - start} ms`);
 <h2 id='performance'>Performance</h2>
 
 <p>Performance varies from 2.5-3x times original Java in compute heavy tasks, to 30x slower in GC-heavy tasks. Why such performance loss? <code>jtcpp</code> evaluates everything on an individual level. Classes,methods,ops are all analysed one by one, so <code>jtcpp</code> is not capable of some kind of reasoning about lifetimes of local variables passed as arguments to other functions. It does not know that a <code>Vector3</code> is used temporarily, and could be, for example, allocated on stack instead of on the heap. Java knows that and uses that info to the full potential.</p>
-</div></div><script src="https://giscus.app/client.js"
+</div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"
         data-category="Announcements"
@@ -234,4 +234,4 @@ console.log(`Highlight time: ${end - start} ms`);
         data-lang="en"
         data-loading="lazy"
         crossorigin="anonymous"
-        async></script></body></html>
+        async></script></div></body></html>

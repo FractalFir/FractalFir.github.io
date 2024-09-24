@@ -251,20 +251,10 @@ console.log(`Highlight time: ${{end - start}} ms`);
         } else {
             "".to_owned()
         };
-        let article_html =
-            format!("{article_top}<div class=\"article\">{article_html}{references}</div>");
-        let github = "https://www.github.com/FractalFir";
-        let reddit = "https://www.reddit.com/user/FractalFir";
-        let linked_in = "https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/";
-        let rss = "https://fractalfir.github.io/generated_html/rss.xml";
-        let navigation = format!("<div class = \"nav_container\"><nav class=\"topnav\">
-            <b><a class=\"active\" href=\"./home.html\">Home</a></b>
-            <a href=\"{github}\"><img src = \"../images/github-mark-white.svg\" class = \"github_link\" width = \"25\" height = \"25\" alt = \"Link to my github account.\"></a>
-            <a href=\"{reddit}\"><img src = \"../images/Reddit_Mark_OnWhite.svg\" class = \"reddit_link\" width = \"27.5\" height = \"27.5\" alt = \"Link to my reddit account.\"></a>
-            <a href=\"{linked_in}\"><img src = \"../images/LI-In-Bug.png\" class = \"linked_id_link\" height = \"27.5\" alt = \"Link to my linkedin account.\"></a>
-            <a href=\"{rss}\"><img src = \"https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg\" class = \"rss_link\" height = \"27.5\" alt = \"Link to my rss feed.\"></a>
-        </nav></div>");
-        let giscus = "<script src=\"https://giscus.app/client.js\"
+        let giscus = if self.id() == "home" {
+            ""
+        } else {
+            "<script src=\"https://giscus.app/client.js\"
         data-repo=\"FractalFir/FractalFir.github.io\"
         data-repo-id=\"R_kgDOJ_iWYA\"
         data-category=\"Announcements\"
@@ -278,8 +268,23 @@ console.log(`Highlight time: ${{end - start}} ms`);
         data-lang=\"en\"
         data-loading=\"lazy\"
         crossorigin=\"anonymous\"
-        async></script>";
-        let body = format!("<body>{navigation}{article_html}{giscus}</body>");
+        async></script>"
+        };
+        let article_html =
+            format!("{article_top}<div class=\"article\">{article_html}{giscus}{references}</div>");
+        let github = "https://www.github.com/FractalFir";
+        let reddit = "https://www.reddit.com/user/FractalFir";
+        let linked_in = "https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/";
+        let rss = "https://fractalfir.github.io/generated_html/rss.xml";
+        let navigation = format!("<div class = \"nav_container\"><nav class=\"topnav\">
+            <b><a class=\"active\" href=\"./home.html\">Home</a></b>
+            <a href=\"{github}\"><img src = \"../images/github-mark-white.svg\" class = \"github_link\" width = \"25\" height = \"25\" alt = \"Link to my github account.\"></a>
+            <a href=\"{reddit}\"><img src = \"../images/Reddit_Mark_OnWhite.svg\" class = \"reddit_link\" width = \"27.5\" height = \"27.5\" alt = \"Link to my reddit account.\"></a>
+            <a href=\"{linked_in}\"><img src = \"../images/LI-In-Bug.png\" class = \"linked_id_link\" height = \"27.5\" alt = \"Link to my linkedin account.\"></a>
+            <a href=\"{rss}\"><img src = \"https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg\" class = \"rss_link\" height = \"27.5\" alt = \"Link to my rss feed.\"></a>
+        </nav></div>");
+
+        let body = format!("<body>{navigation}{article_html}</body>");
         let final_html = format!("<!DOCTYPE html><html lang =\"en\">{head}{body}</html>");
         final_html
     }
