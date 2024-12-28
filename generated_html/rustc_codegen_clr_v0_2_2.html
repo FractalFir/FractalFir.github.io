@@ -1,0 +1,290 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rust panucs from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script async src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
+<script>window.addEventListener('load', () => {
+const start = Date.now();
+hljs.addPlugin(new CopyButtonPlugin());
+function cil() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint","line"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","ldarga","sizeof","mul","ldobj","div","blt","br",".rs",".s","calli"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: types.concat(ops).concat(short_types),
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['cil','common_intermediate_language'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+function mir() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["switchInt","unreachable","return","unwind","continue"];
+
+   var vars = ["bb0","bb1","bb2","bb3","bb4","_0","_1","_2"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: vars,
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['mir'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+
+hljs.registerLanguage('cil',cil);
+hljs.registerLanguage('mir',mir);
+hljs.highlightAll();
+
+const end = Date.now();
+console.log(`Highlight time: ${end - start} ms`);
+});</script></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+        </nav></div><div class = "article_header"><h1 class="title">Rust panucs from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</h1><br><small><div class = "article_metadata">Published on 16 Oct 2024<br><i>5 - 9 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>Panics in Rust, and converting arbitrary .NET exceptions into them.</p>
+
+<p>In my previous article, I have discussed panicking in Rust from the perspective of the Rust compiler. While that article focused on implementing unwinding(the compiler side of panicking) in .NET, this one will deal with panics from the perspective of the Rust standard library.</p>
+
+<p>Understanding how panics in Rust work is necessary to explain some more advanced features, like turning .NET exceptions into Rust panics.</p>
+
+<p>I will also talk a bit about Rust/.NET interop, and how a future, .NET specific version of <code>std</code> could interact with the .NET runtime.</p>
+
+<h1 id='starting_to_panic.'>Starting to panic.</h1>
+
+<p>Most people using Rust already know about the <code>panic!</code> macro, but few know what it expands to. What functions are called, and what do they do exactly?</p>
+
+<p>Let us look at this simple example:</p>
+
+<pre><code>fn main(){
+  panic!(“Oops!”);
+}</code></pre>
+
+<p>We can now use cargo-expand, or the <code>expand macros</code> option in the Rust playground, to see what the panic! macro expands to:</p>
+
+<pre><code>#![feature(prelude_import)]
+#[prelude_import]
+use std::prelude::rust_2021::*;
+#[macro_use]
+extern crate std;
+fn main() {
+    {
+        ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));
+    };
+}</code></pre>
+
+<p>This is quite a bit of code, just to panic. Why is all of this needed?</p>
+
+<p>Well, a lot of this code is explicitly specifying things that depend on the Rust version. Since the expansion of certain things can and does change between compiler and <code>std</code> versions, the expanded version needs to contain a lot of information that is normally implicitly guessed. It is normal to assume that a crate using the 2021 edition of Rust will use that edition of Rust in  all of its source files. With expanded macros, we don’t have any information about the original crate the source snippet comes from. So, we need to specify all of those things explicitly.</p>
+
+<p>Ok, let us first get the less relevant stuff out of the way.</p>
+
+<p>Everything up to <code>fn main</code> is an artefact of expanding all the macros.</p>
+
+<pre><code>#![feature(prelude_import)]
+#[prelude_import]
+use std::prelude::rust_2021::*;</code></pre>
+
+<p>The first 3 lines import the Rust prelude: a set of types, macros and constants which are available in every Rust program, without the need to import them.</p>
+
+<p>Normally, this is something automatically done by the Rust compiler. After expanding the macros, we import the prelude explicitly. This is not something that is fully stabilised(this feature could change), so we also need to explicitly enable manually importing prelude.</p>
+
+<p>Importing the prelude explicitly allows us to specify which edition(version) of the prelude we want to import, within the source file. Normally, this is something we would specify on a crate level, but since we want to expand all macros, the source file itself needs to contain this information.</p>
+
+<p>Why do we need to specify the edition to expand macros? Simple: the expanded versions of some common macros change between editions. The panic macro itself has changed a bit between editions: this is why std:panic::panic2015 exists.</p>
+
+<p>The next 2 lines just explicitly import the macros from std. Once again, this is normally done for us by the compiler, but since we want to look at the expanded versions of macros, this is done explicitly.</p>
+
+<pre><code>#[macro_use]
+extern crate std;</code></pre>
+
+<p>Ok, now that all of the less relevant stuff is out of the way, we can start talking about the parts that are responsible for panicking.</p>
+
+<p>All of them are inside a Rust block <code>{}</code>. This is because Rust macros are hygienic, and can’t introduce anything(new variables, functions) outside their internal scope. This newly introduced block is responsible for just that - ensuring the now expanded macros can’t mess up anything outside of their designated scope.</p>
+
+<p>Let us now look at the line responsible for creating the panic  message, and actually panicking.</p>
+
+<pre><code> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
+
+<p>Hang on a minute! Something looks very wrong here!</p>
+
+<p>You might have noticed that the <code>format_args!</code> macro is not expanded. Why? Is this a bug? Maybe we need to expand this macro again?</p>
+
+<pre><code> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
+
+<p>Nope! It still has not expanded. There is a good reason we can’t expand this macro: it is not a macro at all!</p>
+
+<h2 id='compiler_bultin_in_a_macros_clothing'>Compiler bultin in a macros clothing</h2>
+
+<p>Well, expanding format<em>args would be a bit difficult, since, despite looking like an ordinary macro, it is not exactly a macro. Currently, there is no way to implement all the features of format</em>args using just the standard macro syntax. So, format_args is a compiler builtin, which converts a format string, and a bunch of arguments, into a single data structure(core::fmt::Arguments), which contains the information necessary for the formatting to happen.</p>
+
+<p>Another thing that makes expanding this macro difficult is the stability of <code>core::fmt::Arguments</code>. This data structure is an implementation detail, and is not stable(is subject to change). So, after macro expansion, there would be no proper way to assemble this structure, since its constructor changes from time to time. No expansion of this macro would be “right” for all compiler versions, so it is better not to expand it at all.</p>
+
+<p>format_args also has a few other interesting properties, but I won’t bore you with the details. All you need to know is that this macro is special, and we can't really expand it.</p>
+
+<p>The Arguments structure is the passed to panic_fmt* which is where the panicking process beil The panic_fmt function is the thing responsible for panicking.</p>
+
+<p>Let us now look at the implementation of <code>panic_fmt</code>.</p>
+
+<h1 id='panic_fmt'>panic_fmt</h1>
+
+<pre><code>#[track_caller]
+pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; ! {
+    if cfg!(feature = &quot;panic_immediate_abort&quot;) {
+        super::intrinsics::abort()
+    }
+
+    // NOTE This function never crosses the FFI boundary; it's a Rust-to-Rust call
+    // that gets resolved to the `#[panic_handler]` function.
+    extern &quot;Rust&quot; {
+        #[lang = &quot;panic_impl&quot;]
+        fn panic_impl(pi: &amp;PanicInfo&lt;'_&gt;) -&gt; !;
+    }
+
+    let pi = PanicInfo::internal_constructor(Some(&amp;fmt), Location::caller(), true);
+
+    // SAFETY: `panic_impl` is defined in safe Rust code and thus is safe to call.
+    unsafe { panic_impl(&amp;pi) }
+}</code></pre>
+
+<p>`panic_fmt may look a bit complex at first, but in reality, it is embarrassingly simple.</p>
+
+<p>Let us first take a look at its signature.</p>
+
+<pre><code>pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; !</code></pre>
+
+<p>It, as I mentioned before, accepts formatting arguments, which contain our panic message.  This function returns a never type(<code>!</code>). I could write a whole article about the interesting properties of this type, but, for now, you need only to know that this means that <code>panic_fmt</code> can never return.</p>
+
+<p>This is something the compiler ensures, and something it can use to allow for some pretty neat syntax.</p>
+
+<p>You see, since you never can obtain a value of type never(since functions that return never never return), the compiler can coerce those it to any other type.</p>
+
+<pre><code>let name = match animal{
+  Animal::Dog =&gt; “dog”,
+  Animal::Cat =&gt; “cat”,
+  // We panic when this arm gets executed, so the    
+  // execution can't continue from this point.
+  // The compiler then coreces that never value 
+  // to a string type. This has no effect at runtime, but 
+  // it allows for the compiler to typecheck divergent paths 
+  // like this. 
+  _=&gt; panic!(“Unknown animal!”),
+}</code></pre>
+
+<p>The main purpose of the never type is just that - type checking divergent paths. It has other interesting properties, but treating it as a “this function never returns” marker should suffice.</p>
+
+<p>I will gloss over the “track_caller” attribute for now.</p>
+
+<pre><code>#[track_caller]</code></pre>
+
+<p>The next thing you might notice is the if statement, which checks the value of <code>cfg!(feature = &quot;panic_immediate_abort&quot;)</code>. This statement just checks if immediate abort was enabled at build time, and if so, it aborts instead of panicking.</p>
+
+<pre><code>    if cfg!(feature = &quot;panic_immediate_abort&quot;) {
+        super::intrinsics::abort()
+    }</code></pre>
+
+<p>If this feature is enabled, all functions that panic immediately stop the execution of the program, without printing any messages.</p>
+
+<p>Next, we see an extern block - What does it do? Well, it is a bit special. It has the <code>#[lang_item]</code> attribute, meaning it is a language item - a special predefined function, static or type, which requires some additional handling on the compiler side.</p>
+
+<pre><code>    // NOTE This function never crosses the FFI boundary; it's a Rust-to-Rust call
+    // that gets resolved to the `#[panic_handler]` function.
+    extern &quot;Rust&quot; {
+        #[lang = &quot;panic_impl&quot;]
+        fn panic_impl(pi: &amp;PanicInfo&lt;'_&gt;) -&gt; !;
+    }</code></pre>
+
+<p>In this case, the attribute tells the compiler to resolve this function to the platform-specific implementation of panicking. This can also be defined outside the standard library, allowing you to change the behaviour of panics. This is exceptionally useful in embedded scenarios, where you might want to trigger some special behaviour(eg. resting the microcontroller) when a panic occurs.</p>
+
+<p>So, the extern block just tells the compiler what the signature of the panic_impl function is, and how to find it.</p>
+
+<p>On the very next line, we construct a PanicInfo - a special structure describing the source of a panic, and the message it contains.</p>
+
+<pre><code>let pi = PanicInfo::internal_constructor(Some(&amp;fmt), Location::caller(), true);</code></pre>
+
+<p>Its constructor accepts two arguments: an optional panic message(in the form of fmt::Arguments), and a Location. The panic message is pretty self explanatory: this is what the panic! macro generated, and it allows us to describe the cause of the panic in detali.</p>
+
+<p>The Location::caller() is a bit harder to understand. This part is responsible for detecting where the panic originally occurred. But, how does it know that?</p>
+
+<p>This is where the <code>#[track_caller]</code> attribute comes in. It tells the compiler it needs to insert additional information, which allows us to efficiently retrieve information about the caller of a given function.</p>
+
+<p>Currently,<code> #[track_caller]</code> is implemented in a rather simple and straightforward way. The compiler just introduces a single hidden argument to functions annotated with this attribute.</p>
+
+<p>So, in reality, our function looks a bit more like this:</p>
+
+<pre><code>pub const fn panic_fmt(fmt: fmt::Arguments&lt;’_&gt;,caller:&amp;’staticLocation&gt; -&gt; !</code></pre>
+
+<p>When we want to check who called us, we just simply use this hidden argument. Neat.</p>
+
+<pre><code>PanicInfo::internal_constructor(Some(&amp;fmt), caller, true)</code></pre>
+
+<p>In reality, this is a tiny bit more complex. For example, if we call a function <code>a</code> annotated with track_caller inside another function <code>b</code> with the same attribute, the panic message will contain information about original function who called <code>b</code></p>
+
+<pre><code>#[track_caller]
+fn a(){
+ panic!(); // The panic message will contain the place
+ // in source code which originally called b(which then 
+ // called a). In this case, that would be 
+ // “fn c(): some file.rs 32:64” 
+}
+#[track_caller]
+fn b(){
+  // Since a has the `track_caller` attribute, the panic will be rported
+  a();
+}
+// No track caller on `c`, so panic location</code></pre>
+
+<p>Knowing all of this should give you a rough idea about what <code>#[track_caller]</code> is, and how to use it. For example, if you have a function that can only fail if the caller gave it the wrong arguments(eg. Passing -1 to a square root function, or passing a wrong key to a map), you can use this attribute to make the panic appear at the site of the caller.</p>
+
+<pre><code>#[track_caller]
+fn sqrt(i:i32)-&gt;i32{
+   assert!(i &gt;= 0, “Attempted to compute the square root of a negative number.”);
+    /* Implementation of square root*/
+}
+fn stupid(){
+  sqrt(-1); // The panic message will contain the source file, line and column of this invalid call to `sqrt`.
+}</code></pre>
+
+<p>There is a lot more complexity behind the scenes(eg. when dealing with function pointers), but all of it is hidden from the user. Overall, <code>#[track_caller]</code> is an important part of Rust, which gives you more control over how panics are reported. Things like <code>Option::unwrap</code> use this function to give better information about where a panic really comes from.<br /></p>
+
+<p>With all of this out of the way, we can finally look at the last line of <code>panic_fmt</code>, and then go even deeper, into the bowels of <code>panic_impl</code>.</p>
+</div><script src="https://giscus.app/client.js"
+        data-repo="FractalFir/FractalFir.github.io"
+        data-repo-id="R_kgDOJ_iWYA"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOJ_iWYM4CiwXV"
+        data-mapping="pathname"
+        data-strict="1"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async></script></div></body></html>

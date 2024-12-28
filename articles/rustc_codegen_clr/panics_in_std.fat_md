@@ -1,0 +1,236 @@
+<metadata>
+title = "Rust panucs from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics."
+id = "rustc_codegen_clr_v0_2_2"
+category = "hidden"
+
+date = "16 Oct 2024"
+</metadata>
+<markdown>
+Panics in Rust, and converting arbitrary .NET exceptions into them.
+
+
+In my previous article, I have discussed panicking in Rust from the perspective of the Rust compiler. While that article focused on implementing unwinding(the compiler side of panicking) in .NET, this one will deal with panics from the perspective of the Rust standard library. 
+
+Understanding how panics in Rust work is necessary to explain some more advanced features, like turning .NET exceptions into Rust panics.
+
+ I will also talk a bit about Rust/.NET interop, and how a future, .NET specific version of `std` could interact with the .NET runtime.
+
+# Starting to panic. 
+
+Most people using Rust already know about the `panic!` macro, but few know what it expands to. What functions are called, and what do they do exactly?
+
+Let us look at this simple example:
+
+```
+fn main(){
+  panic!(“Oops!”);
+}
+```
+
+We can now use cargo-expand, or the `expand macros` option in the Rust playground, to see what the panic! macro expands to:
+
+```
+#![feature(prelude_import)]
+#[prelude_import]
+use std::prelude::rust_2021::*;
+#[macro_use]
+extern crate std;
+fn main() {
+    {
+        ::core::panicking::panic_fmt(format_args!("Oops! something went wrong..."));
+    };
+}
+```
+This is quite a bit of code, just to panic. Why is all of this needed?
+
+Well, a lot of this code is explicitly specifying things that depend on the Rust version. Since the expansion of certain things can and does change between compiler and `std` versions, the expanded version needs to contain a lot of information that is normally implicitly guessed. It is normal to assume that a crate using the 2021 edition of Rust will use that edition of Rust in  all of its source files. With expanded macros, we don’t have any information about the original crate the source snippet comes from. So, we need to specify all of those things explicitly. 
+
+Ok, let us first get the less relevant stuff out of the way.
+
+Everything up to `fn main` is an artefact of expanding all the macros.
+
+```
+#![feature(prelude_import)]
+#[prelude_import]
+use std::prelude::rust_2021::*;
+```
+The first 3 lines import the Rust prelude: a set of types, macros and constants which are available in every Rust program, without the need to import them.
+
+Normally, this is something automatically done by the Rust compiler. After expanding the macros, we import the prelude explicitly. This is not something that is fully stabilised(this feature could change), so we also need to explicitly enable manually importing prelude.
+
+Importing the prelude explicitly allows us to specify which edition(version) of the prelude we want to import, within the source file. Normally, this is something we would specify on a crate level, but since we want to expand all macros, the source file itself needs to contain this information.
+
+Why do we need to specify the edition to expand macros? Simple: the expanded versions of some common macros change between editions. The panic macro itself has changed a bit between editions: this is why std:panic::panic2015 exists.
+
+The next 2 lines just explicitly import the macros from std. Once again, this is normally done for us by the compiler, but since we want to look at the expanded versions of macros, this is done explicitly.
+```
+#[macro_use]
+extern crate std;
+```
+
+Ok, now that all of the less relevant stuff is out of the way, we can start talking about the parts that are responsible for panicking.
+
+All of them are inside a Rust block `{}`. This is because Rust macros are hygienic, and can’t introduce anything(new variables, functions) outside their internal scope. This newly introduced block is responsible for just that - ensuring the now expanded macros can’t mess up anything outside of their designated scope. 
+
+
+Let us now look at the line responsible for creating the panic  message, and actually panicking. 
+
+```
+ ::core::panicking::panic_fmt(format_args!("Oops! something went wrong..."));
+```
+Hang on a minute! Something looks very wrong here!
+
+You might have noticed that the `format_args!` macro is not expanded. Why? Is this a bug? Maybe we need to expand this macro again?
+```
+ ::core::panicking::panic_fmt(format_args!("Oops! something went wrong..."));
+```
+Nope! It still has not expanded. There is a good reason we can’t expand this macro: it is not a macro at all!
+
+## Compiler bultin in a macros clothing
+
+Well, expanding format_args would be a bit difficult, since, despite looking like an ordinary macro, it is not exactly a macro. Currently, there is no way to implement all the features of format_args using just the standard macro syntax. So, format_args is a compiler builtin, which converts a format string, and a bunch of arguments, into a single data structure(core::fmt::Arguments), which contains the information necessary for the formatting to happen.
+
+
+Another thing that makes expanding this macro difficult is the stability of `core::fmt::Arguments`.
+ This data structure is an implementation detail, and is not stable(is subject to change). So, after macro expansion, there would be no proper way to assemble this structure, since its constructor changes from time to time. No expansion of this macro would be “right” for all compiler versions, so it is better not to expand it at all. 
+
+format_args also has a few other interesting properties, but I won’t bore you with the details. All you need to know is that this macro is special, and we can't really expand it.
+
+The Arguments structure is the passed to panic_fmt* which is where the panicking process beil
+The panic_fmt function is the thing responsible for panicking. 
+
+Let us now look at the implementation of `panic_fmt`.
+
+# panic_fmt
+```
+#[track_caller]
+pub const fn panic_fmt(fmt: fmt::Arguments<'_>) -> ! {
+    if cfg!(feature = "panic_immediate_abort") {
+        super::intrinsics::abort()
+    }
+
+    // NOTE This function never crosses the FFI boundary; it's a Rust-to-Rust call
+    // that gets resolved to the `#[panic_handler]` function.
+    extern "Rust" {
+        #[lang = "panic_impl"]
+        fn panic_impl(pi: &PanicInfo<'_>) -> !;
+    }
+
+    let pi = PanicInfo::internal_constructor(Some(&fmt), Location::caller(), true);
+
+    // SAFETY: `panic_impl` is defined in safe Rust code and thus is safe to call.
+    unsafe { panic_impl(&pi) }
+}
+```
+
+`panic_fmt may look a bit complex at first, but in reality, it is embarrassingly simple.
+
+Let us first take a look at its signature. 
+```
+pub const fn panic_fmt(fmt: fmt::Arguments<'_>) -> !
+```
+
+It, as I mentioned before, accepts formatting arguments, which contain our panic message.  This function returns a never type(`!`). I could write a whole article about the interesting properties of this type, but, for now, you need only to know that this means that `panic_fmt` can never return.
+
+This is something the compiler ensures, and something it can use to allow for some pretty neat syntax.
+
+You see, since you never can obtain a value of type never(since functions that return never never return), the compiler can coerce those it to any other type. 
+
+```
+let name = match animal{
+  Animal::Dog => “dog”,
+  Animal::Cat => “cat”,
+  // We panic when this arm gets executed, so the    
+  // execution can't continue from this point.
+  // The compiler then coreces that never value 
+  // to a string type. This has no effect at runtime, but 
+  // it allows for the compiler to typecheck divergent paths 
+  // like this. 
+  _=> panic!(“Unknown animal!”),
+}
+```
+
+The main purpose of the never type is just that - type checking divergent paths. It has other interesting properties, but treating it as a “this function never returns” marker should suffice.
+
+I will gloss over the “track_caller” attribute for now.
+```
+#[track_caller]
+```
+
+The next thing you might notice is the if statement, which checks the value of `cfg!(feature = "panic_immediate_abort")`. This statement just checks if immediate abort was enabled at build time, and if so, it aborts instead of panicking. 
+```
+    if cfg!(feature = "panic_immediate_abort") {
+        super::intrinsics::abort()
+    }
+```
+If this feature is enabled, all functions that panic immediately stop the execution of the program, without printing any messages. 
+
+Next, we see an extern block - What does it do? Well, it is a bit special. It has the `#[lang_item]` attribute, meaning it is a language item - a special predefined function, static or type, which requires some additional handling on the compiler side.
+```
+    // NOTE This function never crosses the FFI boundary; it's a Rust-to-Rust call
+    // that gets resolved to the `#[panic_handler]` function.
+    extern "Rust" {
+        #[lang = "panic_impl"]
+        fn panic_impl(pi: &PanicInfo<'_>) -> !;
+    }
+```
+
+In this case, the attribute tells the compiler to resolve this function to the platform-specific implementation of panicking. This can also be defined outside the standard library, allowing you to change the behaviour of panics. This is exceptionally useful in embedded scenarios, where you might want to trigger some special behaviour(eg. resting the microcontroller) when a panic occurs.
+
+So, the extern block just tells the compiler what the signature of the panic_impl function is, and how to find it.
+
+On the very next line, we construct a PanicInfo - a special structure describing the source of a panic, and the message it contains. 
+```
+let pi = PanicInfo::internal_constructor(Some(&fmt), Location::caller(), true);
+```
+
+Its constructor accepts two arguments: an optional panic message(in the form of fmt::Arguments), and a Location. The panic message is pretty self explanatory: this is what the panic! macro generated, and it allows us to describe the cause of the panic in detali.
+
+The Location::caller() is a bit harder to understand. This part is responsible for detecting where the panic originally occurred. But, how does it know that?
+
+This is where the `#[track_caller]` attribute comes in. It tells the compiler it needs to insert additional information, which allows us to efficiently retrieve information about the caller of a given function. 
+
+Currently,` #[track_caller]` is implemented in a rather simple and straightforward way. The compiler just introduces a single hidden argument to functions annotated with this attribute. 
+
+So, in reality, our function looks a bit more like this:
+```
+pub const fn panic_fmt(fmt: fmt::Arguments<’_>,caller:&’staticLocation> -> !
+```
+When we want to check who called us, we just simply use this hidden argument. Neat.
+```
+PanicInfo::internal_constructor(Some(&fmt), caller, true)
+```
+In reality, this is a tiny bit more complex. For example, if we call a function `a` annotated with track_caller inside another function `b` with the same attribute, the panic message will contain information about original function who called `b`
+```
+#[track_caller]
+fn a(){
+ panic!(); // The panic message will contain the place
+ // in source code which originally called b(which then 
+ // called a). In this case, that would be 
+ // “fn c(): some file.rs 32:64” 
+}
+#[track_caller]
+fn b(){
+  // Since a has the `track_caller` attribute, the panic will be rported
+  a();
+}
+// No track caller on `c`, so panic location
+```
+
+Knowing all of this should give you a rough idea about what `#[track_caller]` is, and how to use it. For example, if you have a function that can only fail if the caller gave it the wrong arguments(eg. Passing -1 to a square root function, or passing a wrong key to a map), you can use this attribute to make the panic appear at the site of the caller.
+```
+#[track_caller]
+fn sqrt(i:i32)->i32{
+   assert!(i >= 0, “Attempted to compute the square root of a negative number.”);
+    /* Implementation of square root*/
+}
+fn stupid(){
+  sqrt(-1); // The panic message will contain the source file, line and column of this invalid call to `sqrt`.
+}
+```
+There is a lot more complexity behind the scenes(eg. when dealing with function pointers), but all of it is hidden from the user. Overall, `#[track_caller]` is an important part of Rust, which gives you more control over how panics are reported. Things like `Option::unwrap` use this function to give better information about where a panic really comes from.  
+
+With all of this out of the way, we can finally look at the last line of `panic_fmt`, and then go even deeper, into the bowels of `panic_impl`.
+
+
+</markdown>
