@@ -7,12 +7,26 @@ date = "28 Dec 2024"
 <markdown>
 
 
-Reflection is something a lot of people wish the Rust language had. Sadly, it does not look like it is going to be added any time soon.
+Reflection is something a lot of people wish the Rust language had. It is not hard to stumble across somebody with an interesting use case for it.
 
-Still, silly things like “this feature does not exist yet” can’t stop us from talking about how it could or even must work. (Un)surprisingly, reflection interacts with the safety features of Rust in a somewhat counterintuitive way, which forces any proposed API to adhere to a set of rules, mainly around accessing fields of Rust types.
+Peopele want to use it for serialzation, [GCs](https://maplant.com/2024-12-13-Scheme-to-the-Spec-Part-I:-Concurrent-Cycle-Collection.html), better interop, even auto-differntiation. 
 
-This article will discuss some of those rules, explain why they exist, and present a few alternative solutions. I will mainly focus on field visibility(public vs private), and reflection failures.
+If you can think of a task, there is somebody out there wishing they could implement it using reflection.
+
+Sadly, it does not look like it is comming any time soon.
+
+Still, silly things like “this feature does not exist yet” can’t stop us from talking about how it could or even must work.
+
+Reflection interacts with the safety features of Rust in a somewhat counter-intuitive way. Those interactions force *any* reflection API to obey certain rules. 
+
+Those restrictions may seem obvious to peopele *designing* a reflection API, or to Rust experts, but they seem to be rarely metioned. 
+
+This article will try to expalin those rules in simple, digestable terms. I will not only show *how* things have to work, but I will also explain *why* those requirements exist.
+
+Additionaly, I will explore the knock-on effects of such restrictions - mainly revolving around accessing fields. You may be suprised just how much those affect the shape of potential reflection APIs.
+
 # Field access rules
+
 In a lot of languages, reflection is able to access all the fields of an object, no matter if they are private or not. Reflection just seems to be a bit special, and able to bend the rules here and there.
 
 There are, of course, some restrictions to this, but, in general, the rules around reflection tend to be less strict.
@@ -36,7 +50,7 @@ class Spy {
 	void SetSecret(Test test, float val) {
     	Field field = getField(test.getClass(), “_secret”);
     	field.setAccessible(true);
-    	field.set(object, val);
+    	field.set(test, val);
 	}
 }
 
@@ -58,7 +72,9 @@ Well, things can’t work this way in Rust, no matter what reflection API ends u
 
 # Proof by contradiction
 
-Shockingly, you don’t need all that much to show the problem at hand. I would say that it is kind of obvious when you think about it, and a decent chunk of Rust developers can already see the writing on the wall. 
+Since reflection is not something trvial to understand, you might expect the example showing problems with it to be complex too. 
+
+Thankfully, it can be demonstrated with some widely used Rust types, like `Box<i32>` - which means you don't need too much knoweladge to understand how things work.
 
 Let us suppose we have some way of accessing all fields using reflection, and we use that hypothetical API to write a function like this:
 ```rust 
@@ -75,18 +91,37 @@ In Rust, this is something that simply can’t be done - allowing reflection to 
 
 How? Let me show you.
 
-Using this simple, and seemingly innocent function, we write something like this:
+Using this seemingly innocent function, we write something like this:
 
 ```rust
+// A `Box<i32>` points to a heap-allocated intiger
 let boxed = Box::new(1_i32);
+// Walk trough internal fields of `Box`, to find its internal pointer
 let unique = get_first_field_mut(&mut boxed);
 let non_null = get_first_field_mut(unique);
 let raw_ptr:&mut *const i32 = get_first_field_mut(non_null);
+// After geting the internal pointer of `Box<i32>`, we replace it with an invalid one.
 *raw_ptr = 0xDEAD_BEEF_usize as *const i32;
+// The box now points to an invalid memory location, so trying to read its value is UB
+// and may cause our program to crash
+let val:i32 = *boxed;
 ```
-While what is happening here may seem complex, it is pretty straightforward. We just traverse the types making up a `Box<i32>` till we find its inner pointer, and then corrupt it to cause UB once the box is dropped or accessed.
 
-With this, I think you can clearly see why reflection in Rust must respect the field access rules.
+This may be a bit hard to follow, so stick with me. 
+
+As you may know, the `Box` type allows us to store data on the heap. Inside a box, we can find a pointer to this data. 
+
+Here, we use reflection to replace that pointer(eg. `0x7dff_3340`) with a garbage value(`0xDEAD_BEEF`). 
+
+Now, the box "thinks" its value is at some unrelated adress. When we try to get that value back, we will cause Undefined Behaviour. 
+
+Depending on what exactly is present at that memory location, our program might crash, or read some unrealted piece of data. 
+
+This effectvely breaks memory safety, so it must be, by defintion, impossible in safe Rust. 
+
+
+At this point, I think you can also see exactly *why* a safe reflection API can't allow this to happen.
+So, reflection in Rust **must respect** the field access rules.
 
 In other languages, breaking those rules is going to make your program hard to read.
 In Rust, those rules are strictly necessary for enforcing safety. Breaking them kind of breaks the whole language, which is less than ideal.
@@ -306,14 +341,18 @@ I feel a bit weird leaving this article without presenting a neat solution to th
 
 Rust’s focus on enforcing safety via its type system also forces reflection to be more strict, and perhaps a bit more cumbersome. 
 
-This whole article was mostly inspired by my numerous failed attempts at designing a decent reflection API for Rust. Time and time again, I feel like I kind of smashed into the same potential issues, despite using vastly different approaches.
+Truth be told, this article is kind of a result of my own work on reflection. I have tried quite a few differnet approaches to slay this beast of a feature, with... mixed results. 
 
- Sometimes, I feel like attempting to add reflection to Rust is kind of like trying to cover a table with too small of a tablecloth: you always end up sacrificing something. Some of my ideas were very powerful, decently user-friendly, but ultimately unsafe. Others were safe, but required writing more boilerplate, and did not cover all the use cases I had in mind. 
+Time and time again, I feel like I kind of smashed into the same potential issues, despite using vastly different approaches.
 
-Maybe my inability to make a draft API that I am happy with is simply caused by my lack of experience, and those problems I presented have some obvious solutions I have not considered. Maybe those issues are exaggerated by my perfectionism, and inability to settle for a good-enough solution. 
+Sometimes, I feel like attempting to add reflection to Rust is kind of like trying to cover a table with too small of a tablecloth: you always end up sacrificing something. Some of my ideas were very powerful, decently user-friendly, but ultimately unsafe. 
+Others were safe, but required writing more boilerplate, and did not cover all the use cases I, and countless other rustecians had in mind. 
 
-No matter the case, I still feel like they are at least interesting - and I probably should publish something about reflection, instead of letting the 11 draft articles I wrote rot in the cloud. 
+As the year 2024 is comming to and end, I came to a realization: I don't need to solve all of those problems. 
 
-Who knows, maybe I will manage to get one of my design drafts into a presentable state in 2025 :).
+I am a bit of a perfectionist, and got stuck in a pretty simple trap: I did not want to write anything about reflection till I figured eveverything out. However, letting my 10 draft articles bitrot in the cloud is not doing anybody any good. 
+
+
+TRust is a language that lives or dies by its communtiy: The best thing I can do is get more eyes on the problem. 
 
 </markdown>
