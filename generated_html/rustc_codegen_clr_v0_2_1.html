@@ -57,7 +57,16 @@ function mir() {
 
 hljs.registerLanguage('cil',cil);
 hljs.registerLanguage('mir',mir);
-hljs.highlightAll();
+
+const code_blocks = document.querySelectorAll('pre code');
+const highlight_promises = Array.from(code_blocks).map(el => {
+  return new Promise((resolve) => {
+    hljs.highlightElement(el);
+    resolve(el); 
+    });
+    });
+
+
 
 const end = Date.now();
 console.log(`Highlight time: ${end - start} ms`);

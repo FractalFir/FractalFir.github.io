@@ -57,7 +57,7 @@ class Spy {
 ```
 This is even easier in other languages, like python or lua; There, the notion of privacy is more of a courtesy than a rule.
 
-```pyhton
+```python
 setattr(test, “__secret”,val);
 ```
 ```lua

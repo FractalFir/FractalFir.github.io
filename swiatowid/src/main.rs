@@ -214,7 +214,16 @@ impl Article {
 <script>window.addEventListener('load', () => {{
 const start = Date.now();
 hljs.addPlugin(new CopyButtonPlugin());
-{hljs_cil}\nhljs.highlightAll();\n
+{hljs_cil}\n
+const code_blocks = document.querySelectorAll('pre code');
+const highlight_promises = Array.from(code_blocks).map(el => {{
+  return new Promise((resolve) => {{
+    hljs.highlightElement(el);
+    resolve(el); 
+    }});
+    }});
+
+\n
 const end = Date.now();
 console.log(`Highlight time: ${{end - start}} ms`);
 }});</script>");
