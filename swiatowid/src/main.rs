@@ -280,7 +280,7 @@ console.log(`Highlight time: ${{end - start}} ms`);
             <b><a class=\"active\" href=\"./home.html\">Home</a></b>
             <a href=\"{github}\"><img src = \"../images/github-mark-white.svg\" class = \"github_link\" width = \"25\" height = \"25\" alt = \"Link to my github account.\"></a>
             <a href=\"{reddit}\"><img src = \"../images/Reddit_Mark_OnWhite.svg\" class = \"reddit_link\" width = \"27.5\" height = \"27.5\" alt = \"Link to my reddit account.\"></a>
-            <a href=\"{linked_in}\"><img src = \"../images/LI-In-Bug.png\" class = \"linked_id_link\" height = \"27.5\" alt = \"Link to my linkedin account.\"></a>
+            <a href=\"{linked_in}\"><img src = \"../images/LI-In-Bug2.png\" class = \"linked_id_link\" height = \"27.5\" alt = \"Link to my linkedin account.\"></a>
             <a href=\"{rss}\"><img src = \"https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg\" class = \"rss_link\" height = \"27.5\" alt = \"Link to my rss feed.\"></a>
         </nav></div>");
 
