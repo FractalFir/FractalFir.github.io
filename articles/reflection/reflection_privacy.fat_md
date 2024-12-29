@@ -9,7 +9,7 @@ date = "28 Dec 2024"
 
 Reflection is something a lot of people wish the Rust language had. It is not hard to stumble across somebody with an interesting use case for it.
 
-People want to use it for serialization, [GCs](https://maplant.com/2024-12-13-Scheme-to-the-Spec-Part-I:-Concurrent-Cycle-Collection.html), better interop, and even auto-differentiation. 
+People want to use it for serialization, [GCs](https://maplant.com/2024-12-13-Scheme-to-the-Spec-Part-I:-Concurrent-Cycle-Collection.html), better interop, and so, so much more. 
 
 If you can think of a task, there is somebody out there wishing they could implement it using reflection.
 
