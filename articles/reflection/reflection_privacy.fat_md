@@ -7,9 +7,9 @@ date = "28 Dec 2024"
 <markdown>
 
 
-Reflection is something a lot of people wish the Rust language had. It is not hard to stumble across somebody with an interesting use case for it.
+Reflection is something a lot of people wish the Rust language had: It is not hard to stumble across somebody with an interesting use case for it.
 
-People want to use it for serialization, [GCs](https://maplant.com/2024-12-13-Scheme-to-the-Spec-Part-I:-Concurrent-Cycle-Collection.html), better interop, and so, so much more. 
+People want to use it for serialization, [GCs](https://maplant.com/2024-12-13-Scheme-to-the-Spec-Part-I:-Concurrent-Cycle-Collection.html), better interop, and so, so much more.
 
 If you can think of a task, there is somebody out there wishing they could implement it using reflection.
 
@@ -21,7 +21,7 @@ Reflection interacts with the safety features of Rust in a somewhat counter-intu
 
 Those restrictions may seem obvious to people *designing* a reflection API, or to Rust experts, but they seem to be rarely mentioned.
 
-This article will try to explain those rules in simple, digestible terms. I will not only show *how* things have to work, but I will also explain *why* those requirements exist.
+This article will try to explain those rules in simple, digestible terms. I will not only show *how* things have to work, but I will also explain *why* Those requirements exist.
 
 Additionally, I will explore the knock-on effects of such restrictions - mainly revolving around accessing fields. You may be surprised just how much those affect the shape of potential reflection APIs.
 
@@ -41,7 +41,7 @@ void SetSecret(Test test, float val) {
   typeof (Test).GetField("_secret", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(test, val);
 }
 ```
-In java:
+In Java:
 ```java
 class Test {
 	private float _secret;
@@ -49,19 +49,28 @@ class Test {
 class Spy {
 	void SetSecret(Test test, float val) {
     	Field field = getField(test.getClass(), “_secret”);
+		// Oh, this field is innacesible? 
     	field.setAccessible(true);
+		// Now it is accessible.
     	field.set(test, val);
 	}
 }
 
 ```
 This is even easier in other languages, like python or lua; There, the notion of privacy is more of a courtesy than a rule.
-
 ```python
-setattr(test, “__secret”,val);
+
+class TestClass:
+	__secret = "Spooky"
+# No privacy in snake-land...
+setattr(a, '_TestClass__secret',val)
+# this works too :)
+test._TestClass__secret = val
 ```
 ```lua
-test[“secret”] = val;
+test.secret = val;
+-- In Lua, everything is just a table.
+test["secret"] = val;
 ```
 
 Doing things this way is often seen as an anti-pattern, since it breaks encapsulation. Nevertheless, it is useful in certain scenarios; for example, when serializing and deserializing data. After all, requiring all serializable / deserializable fields to be public would probably bring more trouble than it is worth.
@@ -87,7 +96,7 @@ At a first glance, it does not seem all that scarry. It doesn’t do much, besid
 
 In other languages, accessing private fields is considered a necessary evil. Sure, if you get too... creative with it, your coworkers might want to make you past tense. Still, as long as you have a *very good reason* to use reflection like this, and use it sparingly, everything is going to be fine.
 
-In Rust, this is something that simply can’t be done - allowing reflection to access private fields is *fundamentally unsound*.
+In Rust, this is something that simply can’t be done - allowing reflection to access private fields is *fundamentally unsafe*.
 
 How? Let me show you.
 
@@ -96,7 +105,7 @@ Using this seemingly innocent function, we write something like this:
 ```rust
 // A `Box<i32>` points to a heap-allocated integer
 let boxed = Box::new(1_i32);
-// Walk trough internal types of `Box`, to find its internal pointer
+// Walk through internal types of `Box`, to find its internal pointer
 let unique = get_first_field_mut(&mut boxed);
 let non_null = get_first_field_mut(unique);
 let raw_ptr:&mut *const i32 = get_first_field_mut(non_null);
@@ -156,22 +165,52 @@ drop(a);
 ```
 This example also shows the second issue: it is not just pointers we need to worry about.
 
-Changing pretty much any private data can cause issues. We could, for example, corrupt an integer, representing a handle to an object created by a C library. This could, in turn, lead to soundness issues.
+Changing pretty much any private data can cause issues. Consider the length of a `Vec` - it is nothing more than a plain integer(`usize`).
+
 ```rust
-// A OpenGL Vertex Buffer Object is just a uint on the C side
-let mut vbo = /* get VBO from Open-Gl */;
-let handle = get_first_field_mut(&mut vbo);
-handle = 0xDEAD_BEEF_u32; // We change the OpenGL handle - bad things could happen now
-// Oops! We used a corrupted handle...
-vbo.bind();
+let mut two_strs = vec!["Hello","world!"];
+let len:&mut usize = get_vec_len_via_reflection(&mut two_strs);
+// Corrupt the vec len:
+*len = 1024;
+// Try printing the elements of the vec - this is UB and will most likely cause a crash
+for s in two_strs{
+	println!("s:{s}");
+}
 ```
-This hopefully shows that reflection with access to private fields could lead to issues. You might be tempted to ask: are those issues realistic?
 
-The simplest, but a bit boring answer to this question is that this does not matter. Even if something is “unlikely” to cause UB, it still must be unsafe in Rust. So, if accessing private fields via reflection could cause UB, then it is by definition, unsafe.
+By just changing a simple integer, we have caused a lot of damage.
 
-Let me ask you a simple question: what should happen when somebody uses reflection to try to serialize (eg. save to disk) an OpenGL buffer? If we don’t restrict reflection, then the serialization framework may just save the handle as a plain integer.
+This hopefully shows that reflection with access to private fields could lead to issues.
 
-Then, when we deserialize it, it is going to be invalid, and can cause serious trouble.
+You might be tempted to ask: are those issues realistic? Yeah, allowing reflection to access private fields *can* lead to unsafety, but will it do so in practice?
+
+The simplest, but a bit boring answer to this question is that this does not matter.
+
+Even if something is “unlikely” to cause UB, it still must be unsafe in Rust.
+
+So, if accessing private fields via reflection could cause UB, then it is by definition, unsafe.
+
+A safe reflection API simply can't allow for that to happen.
+
+
+This answer is, admittedly, a bit technical. I don't like just showing that something is unsafe *in theory*, and instead prefer giving more concrete examples.
+
+Many C libraries give out integers, representing opaque handles to objects. So, a handle OpenGL texture might just be a simple wrapper around an integer on the Rust side.
+```rust
+/// An OpenGL texture
+struct Texture(u32);
+```
+
+If somebody tries to serialize such a type(using reflection), bad things will happen: that handle is only valid within the current thread. So, somebody could *think* they are saving the underlying image data,
+but be in for a nasty surprise.
+```rust
+// Save the result of rendering a frame to the disk
+reflect_serialize(out_file, render_result);
+```
+
+The snippet above does not look wrong on the first glance, but it will cause crashes.
+
+This is something we definitely want to avoid.
 
 Rust is a language focused on security, and requiring people to know what can and can’t be safely serialized just does not mesh well with that.
 
@@ -218,7 +257,7 @@ If we assume any field which is not unsafe can be safely reflected on, then mayb
 
 At this point, you probably see why reflection in Rust must respect field access rules. I think most people would agree that allowing reflection to break them is a bad idea in general. So, I don’t think anybody is going to be too mad at this “restriction”.
 
-All proposals I have seen so far do things this way anyway, so this is not a big discovery. Still, I like to explain why something is a certain way before I explain the consequences of that behaviour. Now that this is out of the way, we can start talking about something far more interesting: the knock-on effects.
+Most proposals I have seen so far do things this way anyway, so this is not a big discovery. Still, I like to explain why something is a certain way before I explain the consequences of that behaviour. Now that this is out of the way, we can start talking about something far more interesting: the knock-on effects.
 
 Think for a second about what should happen when something goes wrong during reflection. You can’t safely deserialize a type like this:
 ```rust
@@ -267,7 +306,7 @@ note: this error was caused by a reflection-based function called here
 ```
 Sadly, no. Consider a much more complex example. Who is to say that the problematic function is called directly? The error could, for example, originate **deep** within a networking framework, which ensures a piece of data stays in sync across the network.
 
-Should the compiler emmit a backtrace in such a case?
+Should the compiler emit a backtrace in such a case?
 ```
 reflection_serializer::serialize<MyType>
 network_framework::SharedData<MyType>::send
@@ -275,7 +314,7 @@ network_framework::SharedData<MyType>::sync
 network_framework::SharedData<MyType>::new
 my_crate::my_code
 ```
-This feels a bit... subpar. The idea of compiler errors containg backtraces like this seems very cumbersome.  
+This feels a bit... subpar. The idea of compiler errors containing backtraces like this seems very cumbersome.  
 
 Most of this info is not all that relevant to the underlying problem.
 
@@ -285,24 +324,24 @@ error[E1234]: reflection bound not satisfied
   --> my_type.rs:32:64
    |
 32 | let score = SharedData::new(MyType::default());
-   | 						-^^^^- This call requires `MyType` to fulfill the reflection bound 
-   |  						|
-   |  						type MyType does not fullfill the `reflection_serializer::is_serializable` bound
+   |                     	-^^^^- This call requires `MyType` to fulfill the reflection bound
+   |                      	|
+   |                      	type MyType does not fulfil the `reflection_serializer::is_serializable` bound
    |
 
 ```
-Additionally, supporting those "reflection bounds" would prevent peopele from accidentaly rellying on a function that has some specific reflection requirements.
+Additionally, supporting those "reflection bounds" would prevent people from accidentally replying on a function that has some specific reflection requirements.
 
-For example, the person writing our hypothetical `network_framework` would have to conciusly acknowledge that their code only works with serializable types.
+For example, the person writing our hypothetical `network_framework` would have to consciously acknowledge that their code only works with serializable types.
 
 
 Also, who is to say that the problem is directly with the type we have created? Maybe we are using types from other crates, which in turn use other crates, and the problem is with the type all the way down?
 
-Now, our reflection error backtrace will grow even larger and even more confusing. We probably don't want to disply 10 layers of types just to show the problem at hand.
+Now, our reflection error backtrace will grow even larger and even more confusing. We probably don't want to display 10 layers of types just to show the problem at hand.
 
-Since reflection can “fail” (eg. not have access to all the data it needs), we need to handle that in a sane way. 
+Since reflection can “fail” (eg. not have access to all the data it needs), we need to handle that in a sane way.
 
-Beining explict about our bound seems like the most reasonable and user-friendly solution. If we could do something like this:
+Being explicit about our bound seems like the most reasonable and user-friendly solution. If we could do something like this:
 ```rust
 fn serialize<T:SerializableViaReflection>(t:&T, out:&mut impl Write) ->SerializationResult{ /**/}
 ```
@@ -312,11 +351,11 @@ Then, all the crates using such a reflection-based serialization framework could
 fn send<T:reflection_serializer::SerializableViaReflection>(t:T){ /**/}
 ```
 
-At this point, you probably see why we need *some* way to create custom bounds for reflection purposes. 
+At this point, you probably see why we need *some* way to create custom bounds for reflection purposes.
 
-We need those "reflection bounds" to be very flexible, since peopele want to use reflection for a variaty of purposes. We don't want to limit its use cases.
+We need those "reflection bounds" to be very flexible, since people want to use reflection for a variety of purposes. We don't want to limit its use cases.
 
-Our bounds also need to be *very*, *very* precise. We don't want to have any types which fullfill the bounds, but then cause refelction to error-out. 
+Our bounds also need to be *very*, *very* precise. We don't want to have any types which fulfil the bounds, but then cause reflection to error-out.
 
 That is a lot of requirements... What are our options?
 
@@ -359,7 +398,7 @@ struct IsThisThingSerializable{
 }
 ```
 Checking if this thing fulfils our complex reflection requirements is not trivial. This type can be serialized if all of its fields(including `recursive`) can be serialized.
-To determine if that field can be serialized, we need to check if... the original type in quiestion can be serialized.
+To determine if that field can be serialized, we need to check if... the original type in question can be serialized.
 
 A naive approach, written using recursion, would quickly get stuck in a loop.
 
@@ -368,28 +407,127 @@ Making this work reliably is not trivial. There could exist some kind of crate t
 
 Overall, it seems like this is, once again, something that makes implementing reflection in Rust all that more tricky.
 
+# Safe vs Unsafe reflection
+
+Going back to the safety of reflection at this point may seem a bit strange, but I want to leave you with something to consider before the article ends.
+
+Up till this point, I more or less assumed reflection must be safe. If acessing private fields can lead to issues, it may seem reasonable to simply forbid that. 
+This is what most of the reflection proposals I am aware of do. It is the clean, neat, albeit more limited solution.
+
+There is an alternate solution to this problem: making the problematic reflection APIs *unsafe*, but still providing them. 
+We could grant the deeper, more low-level access to peopele who need it, and offer safe, more restricted alternatives for everybody else.
+
+
+
+On one hand, exposing unsafe APIs with more low-level access is nothing new. This keyword exists for a reason: it allows us to do things the compiler can't prove are safe. 
+Using `unsafe` is not neccesairly "wrong" or "bad" - it just means that we are 100% resposible for ensuring our code is correct. 
+This feels like getting the best of both worlds: we get safety *and* powerfull reflection. What is there not to love about this?
+
+
+Well, things are not as simple as that. Allowing access to private fields leaks implementation detali, and could break versioning. Even when an API is unsafe, it probably should not break between versions. 
+Still, one might argue that adding any kind of reflection affects versioning at least a tiny bit. For example, adding a new field to a type like this:
+```rust
+#[non_exhaustive]
+pub struct Foo {
+    pub f1: i32,
+}
+```
+is not *currently* a breaking change. However, since it is going to be visible to relfection, it *could* become a breaking change.
+
+
+We also have to consider that, if the `unsafe` reflection API is much more powerful than the safe one, then it may become the prefered option. 
+Peopele might hear: "oh, doing *that* with safe reflection is a little tricky", and just go with the unsafe variant. The difficulty of unsafe code does not lay in what you *can* do, but rather in what you *can't* do.
+So, having unsafe reflection APIs could lead to peopele writing a lot of unsound code using them.
+
+
+Another important question is: should we allow safe reflection to get *information* about the private fields? 
+Sometimes, when we write some interop / unsafe code, we might want to double-check the layout of the data we are dealing with. 
+Such a check could save us a headache, and allow us to write code with more confidence. Still, it would expose the implementation detalis, which might change between crate versions.
+This could turn minor changes into breaking ones. Changes to private fields would become externaly observable, and somebody could depend on that. 
+
+I would argue that code breaking at compile time is better than a runtime error, but this is still something to consider. 
+
+
+
+I think the biggest question we have to answer is: how usefull is reflection without access to private fields? How will it affect code we write? 
+
+If we want a type to be serializable via reflection, we *have to* make all of its fields accessible outside our crate. 
+The defintion of that type becomes publicly visbile, and is no longer just an implementation detali. We can't controll how and where our data is changed.
+```rust
+struct MyType{
+	// We *intend* to allow the serialization framekwork to access those fields,
+	// but anybody can change them using reflection.
+	pub(reflect) a:i32,
+	pub(reflect) b:i32,
+	// Adding any new field - even one that *does not end up being serialized*
+	// is a breaking change
+	f: Option<SomeDebugInfo>,
+}
+```
+
+With `proc-macros`, we can access private fields in a safe manner(in the derive macro implementation). 
+We also get full controll over exactly what piece of code has access to those fields. That additonal level of controll can prevent a lot of issues.
+
+```rust
+#[derive(Serialize,Deserialize)]
+struct MyType{
+	// Accessible only to the serialization crate we use.
+	a:i32,
+	b:i32,
+	// Not a breaking change - not publicly accessible,
+	// and does not end up serialized.
+	#[do_not_serialize]
+	f: Option<SomeDebugInfo>,
+}
+```
+
+
+If reflection ends up being more restricted and less reliable than proc-macros, then we might not see all that many benefits to adding it to the language. 
+
+It could be faster(depeniding on the implemnentation), but I think most peopele wish reflection could do *more*, not *less*.
+
+
+This is, I belive, the biggest chanllenge for reflection in Rust: it needs to carefully dance around those potentiall pitfalls. 
+
+It needs to find some perfect spot, where it bends the rules *just enough* to fit most of the use cases, while not breaking anything.
+
+How can we achieave this delicate balance?
+
+
+
+To be frank... **I don't know**.
+
 # Uncharted seas
 
-I feel a bit weird leaving this article without presenting a neat solution to the problems I presented. However, I think this is the most important thing to take away here: we kind of are in uncharted waters. Reflection has been implemented in other languages before, but I don’t believe it ever was implemented in a language as unique as Rust.
+I feel a bit weird leaving this article without presenting a neat solution to the problems I discuss.
 
-Rust’s focus on enforcing safety via its type system also forces reflection to be more strict, and perhaps a bit more cumbersome.
+However, I think this is the most important thing to take away here: we kind of are in uncharted waters. Reflection has been implemented in other languages before, but... Rust is a bit unqiue. 
 
-Truth be told, this article is kind of a result of my own work on reflection. I have tried quite a few different approaches to slay this beast of a feature, with... mixed results.
+It is a language foccussed on security, first and foremost. Rust has a pretty uncommon approach to memory management - all of that changes how a reflection API works. 
+
+If memory safety is enforced via the type system, reflection also needs to adapt to that. How, exactly? That is hard to say with certanty. 
+
+
+
+Truth be told, this article is kind of a result of my own work on reflection. I have tried quite a few different ideas to slay this beast of a feature, with... mixed results.
 
 Time and time again, I feel like I kind of smashed into the same potential issues, despite using vastly different approaches.
 
+
 Sometimes, I feel like attempting to add reflection to Rust is kind of like trying to cover a table with too small of a tablecloth: you always end up sacrificing something. Some of my ideas were very powerful, decently user-friendly, but ultimately unsafe.
 Others were safe, but required writing more boilerplate, and did not cover all the use cases I, and countless other rustecians had in mind.
+
 
 As the year 2024 is coming to an end, I came to a realization: I don't need to solve all of those problems.
 
 I am a bit of a perfectionist, and got stuck in a pretty simple trap: I did not want to write anything about reflection till I figured everything out. However, letting my 10 draft articles bit-rot in the cloud is not doing anybody any good.
 
 
-Rust is a language that lives or dies by its community: The best thing I can do is get more eyes on the problem.
-
-
+*Rust is a language that lives or dies by its community: The best thing I can do is get more eyes on the problem.*
 
 </markdown>
+
+
+
 
 
