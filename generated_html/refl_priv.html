@@ -414,7 +414,7 @@ my_crate::my_code</code></pre>
 32 | let score = SharedData::new(MyType::default());
    |                     	-^^^^- This call requires `MyType` to fulfill the reflection bound
    |                      	|
-   |                      	type MyType does not fulfil the `reflection_serializer::is_serializable` bound
+   |                      	type MyType does not fulfill the `reflection_serializer::is_serializable` bound
    |</code></pre>
 
 <p>Additionally, without clear bounds, it is possible for somebody to write code without <em>knowing</em> about all the requirements of the functions they call.</p>
@@ -482,7 +482,7 @@ struct Interop{
 
 <p>All of those scenarios are widely different. With even more complex use cases(eg. blitting data), those requirements can get even more specific. Still, we need some way to support <em>all of them</em>.</p>
 
-<p>Our bounds also need to be <em>very</em>, <em>very</em> precise. We don't want to have any types which fulfil the bounds, but then cause reflection to error-out. That kind of defeats the whole point of having them in the first place.</p>
+<p>Our bounds also need to be <em>very</em>, <em>very</em> precise. We don't want to have any types which fulfill the bounds, but then cause reflection to error-out. That kind of defeats the whole point of having them in the first place.</p>
 
 <p>Ideally, they should also be at least <em>relatively</em> easy to write.</p>
 
@@ -625,7 +625,7 @@ struct MyType{
 
 <p><strong>Rust is a language that lives or dies by its community: The best thing I can do is get more eyes on the problem.</strong></p>
 
-<p><em>I'd like to thank all the peopele who helped me improve this article by providing some feedback before publication. Fixing the issues they pointed out helped me improve it significantly.</em></p>
+<p><em>I'd like to thank all the people who helped me improve this article by providing some feedback before publication. Fixing the issues they pointed out helped me improve it significantly.</em></p>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"

@@ -368,7 +368,7 @@ error[E1234]: reflection bound not satisfied
 32 | let score = SharedData::new(MyType::default());
    |                     	-^^^^- This call requires `MyType` to fulfill the reflection bound
    |                      	|
-   |                      	type MyType does not fulfil the `reflection_serializer::is_serializable` bound
+   |                      	type MyType does not fulfill the `reflection_serializer::is_serializable` bound
    |
 
 ```
@@ -441,7 +441,7 @@ struct SomeType{
 ```
 All of those scenarios are widely different. With even more complex use cases(eg. blitting data), those requirements can get even more specific. Still, we need some way to support *all of them*.
 
-Our bounds also need to be *very*, *very* precise. We don't want to have any types which fulfil the bounds, but then cause reflection to error-out. That kind of defeats the whole point of having them in the first place.
+Our bounds also need to be *very*, *very* precise. We don't want to have any types which fulfill the bounds, but then cause reflection to error-out. That kind of defeats the whole point of having them in the first place.
 
 Ideally, they should also be at least *relatively* easy to write.
 
@@ -617,7 +617,7 @@ I am a bit of a perfectionist, and got stuck in a pretty simple trap: I did not 
 
 
 
-*I'd like to thank all the peopele who helped me improve this article by providing some feedback before publication. Fixing the issues they pointed out helped me improve it significantly.*
+*I'd like to thank all the people who helped me improve this article by providing some feedback before publication. Fixing the issues they pointed out helped me improve it significantly.*
 </markdown>
 
 
