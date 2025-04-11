@@ -264,6 +264,6 @@ of the Rust panicking process. I am considering splitting that article in two: I
 
 Besides that, I have been working on a few odd things, including a tiny(2K LOC), but very accurate memory profiler for Rust. My schedule is quite tight, but I hope I will write something about this in the coming weeks.
 
-If you like this project([`rustc_codegen_clr`](https://github.com/FractalFir/rustc_codegen_clr)), and think somebody else might find my work interesting, feel free to share my posts on Bluesky and Linkedin.
+If you like this project([`rustc_codegen_clr`](https://github.com/FractalFir/rustc_codegen_clr)), and think somebody else might find my work interesting, feel free to share my posts on [Bluesky](https://bsky.app/profile/fractalfir.bsky.social/post/3lmkvtvtjas2u) and [Linkedin](https://www.linkedin.com/posts/micha%C5%82-kostrubiec-85a037269_corrosive-c-compiling-rust-to-c-to-target-activity-7316567775995473921-WFsL?utm_source=share&utm_medium=member_desktop&rcm=ACoAAEGttwYBp9Jq-yY40d-9Ar3X7NxZ4rcqM2Q).
 
 </markdown>
