@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>The Home Page!</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Spyalloc - an allocator that spies on you</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
 <script async src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <!-- and it's easy to individually load additional languages -->
 <script async src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
@@ -76,9 +76,25 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">The Home Page!</h1><br><small><div class = "article_metadata"><i>1 - 2 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='about_me'>About me</h1>
+        </nav></div><div class = "article_header"><h1 class="title">Spyalloc - an allocator that spies on you</h1><br><small><div class = "article_metadata">Published on 5 Apr 2025<br><i>1 - 2 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>Making memory-efficient programs is, unsurprisingly, not exactly easy.</p>
 
-<p>I am a relatively young and inexperienced programer from the wonderful country of Poland(Europe). The question that fascinates me the most about computers is <code>Could I?</code>, when I should propably ask myself <code>Should I?</code> a little bit more. This is reflected in my projects, which often find new and innovative way to solve problems none has. But programing is sometimes a little bit like art, it is not the destination that is important. What is often key is what we learn and discover along the way.</p>
+<p>As the complexity of your code grows, and the number of allocations in play increases, you slowly start to loose the forest for the trees. Managing memory is also a problem that varies with time. Allocating a dozen megabytes to parse config files at start-up is not that big of a deal. Allocating that same amount of memory later, when your memory usage is already high may be a much bigger problem.</p>
 
-<p>So, sit tight, and join me on my adventures, as we find whacky ways to do things, we propably would be better off not doing!</p>
-</div><h2>Categories, and articles in them.</h2><div class = "category_field"><h3>Compilers, Transpilers and such<h3><br><a href="jtcpp.html">Adding some C++ to your coffee - transpling Java to C++</a></div><div class = "category_field"><h3>Reflection in Rust<h3><br><a href="refl_priv.html">Rust, reflection and access rules</a></div><div class = "category_field"><h3>Rustc Codegen CLR<h3><br><a href="rustc_codegen_clr_v0_0_1.html">Compiling Rust for .NET, using only tea and stubbornness!</a><br><a href="rustc_codegen_clr_v0_0_3.html">Enumerating over Generics - rustc_codegen_clr v0.0.3</a><br><a href="rustc_codegen_clr_v0_0_3_2.html">Mixing C# and Rust - Interop</a><br><a href="rustc_codegen_clr_v0_0_3_3.html">Mischievous miscompilations</a><br><a href="rustc_codegen_clr_v0_1_0.html">My experience working on rustc_codegen_clr - half a year retrospective</a><br><a href="rustc_codegen_clr_v0_1_1.html">Stack unwinding, ARM and CIL trees</a><br><a href="rustc_codegen_clr_v0_1_2.html">Rust to .NET compiler - Progress update</a><br><a href="rustc_codegen_clr_v0_1_3.html">Statically Sized, dynamically sized, and other.</a><br><a href="rustc_codegen_clr_v0_2_0.html">Rust to .NET compiler - my experiences during Rust GSoC 2024</a><br><a href="rustc_codegen_clr_v0_2_1.html">Rust panics under the hood, and implementing them in .NET</a><br><a href="rustweek.html">Rust to C compiler - 95.9% test pass rate, odd platforms, and a Rust Week talk</a></div></div></body></html>
+<p>Recently, I developed a small Rust memory profiler, <code>spyalloc</code>. The main goal of spyalloc is to capture as much info as possible. For each allocation, re/deallocation, <code>spyalloc</code> saves <em>full backtraces</em>, timestamps and aligement / size info.</p>
+
+<p>With this in mind, you might <em>expect</em> it to requre <strong>a lot</strong> of space to save log data.</p>
+</div><script src="https://giscus.app/client.js"
+        data-repo="FractalFir/FractalFir.github.io"
+        data-repo-id="R_kgDOJ_iWYA"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOJ_iWYM4CiwXV"
+        data-mapping="pathname"
+        data-strict="1"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async></script></div></body></html>

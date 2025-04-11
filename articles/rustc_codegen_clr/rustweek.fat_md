@@ -1,0 +1,269 @@
+<metadata>
+title = "Rust to C compiler - 95.9% test pass rate, odd platforms, and a Rust Week talk"
+id = "rustweek"
+category = "Rustc Codegen CLR"
+
+date = "11 Apr 2025"
+</metadata>
+<markdown>
+This is an update on the progress I have made on my Rust to C compiler. I am experimenting a bit with a new article format: instead of an overarching theme, this is more of a collection of smaller bits and pieces, sewn together.
+
+# The big news
+
+I will first start with the biggest news: I am going to be giving [a talk about the project](https://rustweek.org/talks/michal/) during Rust Week(in Utrecht, Netherlands). 
+
+Creating this talk has been an interesting challenge: I tried to strike a good balance between being approachable for beginners, while still talking about a pretty advanced topic.
+
+So, if you are attending Rust Week, and are interested in what I have to say, you can come and hear it in person! If you see me during the conference, and want to talk, don’t be shy to say hi.
+
+Now that this is out of the way...
+
+# Passing more tests
+
+I have also been slowly working on fixing as many tests as possible, and I can already boast a 95.9 % core test pass rate. This is a nice bump from the 92% pass rate two months ago.
+
+There still are about 65 tests that need fixing, but they all seem to have pretty similar causes. So, fixing them should not be too difficult. 
+
+The .NET side of the project has also heavily benefited from the fixes I implemented: now, 96.3 % of Rust core tests run in .NET.
+
+# Bugfixes
+
+## 128 bit ints
+Most of the current improvements come from fixes to 128 bit intrinsics, checked arithmetics, and subslicing. 
+
+The C popcount intrinsic has 3 variants: `__builtin_popcount`(int), `__builtin_popcountl`(long) and `__builtin_popcountll`(**long long**).  
+
+It might seem logical to assume that the C intrinsic `__builtin_popcountll` works on 128 bit ints - it does not.
+
+It works on the `long long` type, which is not the same as `__int128_t`. At least on Linux, `long` and `long long` are both 64 bits in size. This is something I knew about, but I did not consider that 2 differently named intrinsics would end up just being one and the same thing.
+```c
+int pop_count64(long num) {
+   return __builtin_popcountl(num);
+}
+int pop_count128(__int128_t num) {
+   return __builtin_popcountll(num);
+}
+```
+```
+pop_count64:
+       xor     eax, eax
+       popcnt  rax, rdi
+       ret
+pop_count128:
+       xor     eax, eax
+       popcnt  rax, rdi
+       ret
+```
+ It turns out that my implementation of most of the bit counting intrinsics(count leading / trailing zeroes) have been silently truncating 128 bit ints to 64 bit ones, and only them performing the needed calculations. That obviously yields incorrect results.
+
+However, emulating those 128 bit intrinsics is not too difficult. The `popcount` intrinsic simply checks how many bits are set in an integer. So, I can add up the number of bits set in the lower and higher half of that integer, and get the correct result .
+```c
+static inline __uint128_t pop_count128(__uint128_t val) {
+   return __builtin_popcountl((uint64_t)val) +  __builtin_popcountl((uint64_t)(val>>64));
+}
+
+```
+I have also finally fully implemented the very last checked arithmetic operations. Checking for overflows during 128 bit int multiplication is hard. For quite some time. I have been trying to come up with some clever ideas for fast overflow checks. Sadly none of them ended up working out for 128 bit multiplication.
+
+After much deliberation, I decided to simply settle for the easy, but inefficient check. Basically, as long as `(a * b) / b == a`, and b is not zero, overflow did not occur. 
+```c
+bool u128_mul_ovf_check(__uint128_t A0 ,__uint128_t A1 ){
+bb0:
+	if((A1) != (0)) goto bb1;
+	return false;
+bb1:
+	return (((A0) * (A1)) / (A1)) == (A1);
+}
+```
+
+This is nothing groundbreaking, but they - at least it works, and it gets a few more tests to pass.
+
+## Subslicing 
+The subslicing bug was quite embarrassing: I forgot a sizeof, and was offsetting the slice’s data pointer by bytes instead of elements. It is not hard to see why this is wrong. 
+
+With how simple this bug is, you might wonder how on earth it has managed to stay undetected for so long. Well, the code was only broken for subslicing from the end of the slice, and not its beginning. To my knowledge, that sub slicing mode is mainly used in pattern matching. 
+```rust
+let ok = slice[2..5];
+let still_ok = slice[5..];
+// broken
+if let [start, reminder] = slice{
+	panic!();
+};
+```
+So, subslicing was only broken for this specific pattern, and always worked fine for byte/string slices(bytes and UTF8 code *units* are a 1 byte in size). This allowed it to sneak past my own tests, and only showed up when running the whole Rust compiler test suite. 
+
+## Fallback intrinsics
+
+It turns out I did not have to implement *some* intrinsics manually - the Rust compiler already supports emulating them. For certain intrinsics, this is a god send - since they are a pain to implement by hand.
+
+ For example, [carrying_mul_add](https://doc.rust-lang.org/nightly/core/intrinsics/fn.carrying_mul_add.html) requires you to perform multiplication on an integer 2x larger than the input one. This is fine up to 64 bits, but… what integer is larger than 128 bits? LLVM supports 256 bit ints, but C(and .NET) does not. 
+ 
+```
+define void @carrying_mul_add(ptr dead_on_unwind noalias nocapture noundef writable writeonly sret([32 x i8]) align 16 dereferenceable(32) initializes((0, 32)) %_0, i128 noundef %a, i128 noundef %b, i128 noundef %c, i128 noundef %d) unnamed_addr #0 !dbg !7 {
+  %0 = zext i128 %a to i256, !dbg !25
+  %1 = zext i128 %b to i256, !dbg !25
+  %2 = zext i128 %c to i256, !dbg !25
+  %3 = zext i128 %d to i256, !dbg !25
+  %4 = mul nuw i256 %1, %0, !dbg !25
+  %5 = add nuw i256 %4, %2, !dbg !25
+  %6 = add nuw i256 %5, %3, !dbg !25
+  %7 = trunc i256 %6 to i128, !dbg !25
+  %8 = lshr i256 %6, 128, !dbg !25
+  %9 = trunc nuw i256 %8 to i128, !dbg !25
+  store i128 %7, ptr %_0, align 16, !dbg !25
+  %10 = getelementptr inbounds nuw i8, ptr %_0, i64 16, !dbg !25
+  store i128 %9, ptr %10, align 16, !dbg !25
+  ret void, !dbg !26
+}
+```
+
+So, the ability to *just* use a built-in emulated version of this intrinsic is amazing: this means I don’t need to fiddle around and find my own solution to this problem.
+
+This is also very interesting for another reason: since `carrying_mul_add` performs 256 bit multiplication and addition using 128 bit integers, it means it is capable of performing 128 bit operations using 64 bit ints. 
+
+I am currently looking into understanding that fallback implementation a little bit better, in order to base my own emulation of 128 bit ints on that.
+
+While a lot of modern C compilers and platforms support 128 bit ints without a major hassle, I want to support as many platforms as possible.
+
+
+# Supporting more C compilers.  
+
+Besides that, I have been working on improving C compiler compatibility. You might have seen Rust code [running on a Game boy](), [compiled to movs](https://www.reddit.com/r/rust/comments/1ji6cmk/media_a_rust_program_compiled_to_only_move/), or the April Fool's special of Rust running on [Temple OS](https://www.reddit.com/r/rust/comments/1jp9227/media_rust_compiled_to_holly_c_running_on_templeos/).
+
+The more obscure C compilers I support(to any degree) the higher the chance Rust code will run with proprietary C compilers I have no direct access to. 
+
+This has been a bigger problem for the project as of late. Turns out, a lot of platforms are not supported for a good reason(lack of docs + lack of access). Not supporting those platforms is a bit of a hindrance for the project. 
+
+To give an example: there have been discussions about writing [some new parts of Git in Rust](https://lwn.net/Articles/998115/). 
+
+Sadly, doing that would mean degrading / dropping Git support for the proprietary platform NonStop - since it does not support Rust(or LLVM or even GCC), at all. 
+
+Originally, I was a bit optimistic about situations like this: if my project compiled Rust to C, it could eliminate this problem altogether.
+
+In *theory* Rust would be able to run anywhere C can. There are some big asterisks to this(I am still unsure if I can work around certain issues on *all platforms*), but hey - this might be the best shot at supporting Rust there, save for companies stepping in and adding LLVM support, which I feel is… unlikely.
+
+
+Recently, I wanted to check if "Supporting Rust by compling it to C" is a viable strategy in a case like this. 
+
+
+However, I immediately hit a stone wall. I could find no legal way of obtaining a compiler for this platform without buying a server, which is definitely **way, way outside my budget**.
+
+So, I don't belive Rust is going to run on a platform like this any time soon. 
+
+
+## Plan for now
+
+For now, the plan is to get as close to standard-compliant C99(or maybe even ANSI C) as possible, and only use standard POSIX APIs(I need some threading support to properly initialise thread-locals).  
+
+That means I have my own fallbacks for certain intrinsics, and I am slowly but surely working on expanding that list. I have had some success running *very, very simple* Rust programs on ANSI C compilers, so there is definitely some hope. 
+
+Fingers crossed, that’ll mean that adding support for currently unviable platforms is easy enough when a need for that arises. 
+
+# Tiny perf improvements
+
+I have also worked on a wide variety of performance improvements. The smallest changes were related to integer literals. I realized that, for integers smaller than 2^32, their hex form is always bigger if not as big as their decimal form, due to the `0x` prefix. Eg. 255 is a byte shorter than 0xFF, and so is 65536(0xFFFF).
+Only for 2^32 things start to even out. This may seem like a negligible change. However, I generate *a lot* of C code. In some more extreme cases(transpling the entire Rust compiler to C), I have generated up to 1GB of C source files. At that point, shaving even a fraction of a percent of the total file size has an impact. 
+
+My way of embedding debug info(using the `#line` directive) also got a bit smarter - the source file name will not repeat, and is only included when that changes.
+
+So this:
+```c
+#line 1 great.rs
+L0 = A0 + A0;
+#line 2 great.rs
+L1 = L0 * 5.5;
+#line 1 amazing.rs
+L2 = L1 * L1 * L1;
+#line 4 great.rs
+L3 = L2 - A0
+```
+Is written like this, instead:
+```c
+#line 1 great.rs
+L0 = A0 + A0;
+#line 2 
+L1 = L0 * 5.5;
+#line 1 amazing.rs
+L2 = L1 * L1 * L1;
+#line 4 great.rs
+L3 = L2 - A0
+```
+It may seem like a tiny change, but it reduces file sizes by a lot(when using debug info). 
+
+# Refactors 
+
+`rustc_codegen_clr` has seen some big, internal refactors. I have managed to split some parts of it into separate crates, which speeds up incremental builds. That makes development a bit easier.
+
+I am also progressing along with my move to a more memory-efficient interned IR. Along the way, I am also slowly removing some jank from the old IR.
+
+The main issue is that there exist some rather exotic r/lvalues which don’t map too well to C. They are quite hard to show without going into some more obscure features of Rust, like dynamically sized types. You can safely skip this section. 
+
+Consider this piece of Rust code:
+```rust
+/// Custom DST.
+struct MyStr{
+	sized:u8,
+	s:str
+}
+impl MyStr{
+	fn inner_str(&self)->&str{
+    		&self.s
+	}
+}
+```
+This line `&self.s` may seem *simple* but it is not. Since `MyStr` is a dynamically sized type, so the pointer to it is “fat” - it contains metadata.
+
+Let us think about what kind of C code this function will produce.
+
+```c
+FatPtr_str inner_str(FatPtr_MyStr self){
+	// What goes here?
+}
+``` 
+Here, we need to do 2 things:
+Offset the “data” pointer of our `self` fat pointer by `1`(the size of the fixed-size fields)
+Create a new slice from that data pointer, and some metadata.
+This is quite easy to do in modern C. 
+```c
+struct FatPtr_str inner_str(struct FatPtr_MyStr self){
+   return (struct FatPtr_str){self.data + 1, self.meta};
+}
+```
+However, compound literals were not part of the language until C99, and a lot of old/obscure compilers don’t support that.
+
+Instead, we need to do something like this:
+```c
+struct FatPtr_str inner_str(struct FatPtr_MyStr self){
+   struct FatPtr_str tmp;
+   tmp.data = self.data;
+   tmp.meta =  self.meta;
+   return tmp;
+}
+```
+This is an ANSI-C compliant way of doing things. **However** you might notice that 1 line of Rust(and MIR) now corresponds to multiple lines of C. That is a pain to manage on the IR level. The old IR had an odd way of dealing with this: it essentially allowed you to create an inner scope, with a temporary local, and some “sub-statements”. 
+
+This is quite messy, and frankly an idiotic way of dealing with this problem. Well, at least I now know that I will not be making this exact mistake again. The new way of doing things is a bit more complex in the setup phase, but it makes the whole IR much more simple. 
+
+There are other cases where this “temporary scope” was useful, but now, only 1 of the most annoying cases like this remains. Once I get that solved, I’ll be able to entirely get rid of this abomination of a feature. 
+
+This will allow me to fully move to the new IR, which is going to be very neat.  
+
+# Conclusion 
+
+I have made a fair bit of progress during the last few months. There definitely are some diminishing results to bug fixing: the less bugs there are, the more time I need to track them all down. Still, there is something new to learn about both C and Rust every day. I have been working on [`rustc_codegen_clr`](https://github.com/FractalFir/rustc_codegen_clr) for 1.5 years now - that feels a bit... odd. A lot has happened in that time: both in my personal life, and in the wider world. 
+
+Truth be told, that sometimes feels like it was a lifetime ago.
+
+In this strange, new world, there is a bit of comfort in the monotony of work - each day, I inch towards a grander goal. 
+I learned a lot along the way, but with each passing moment, I see there is so much more to know. It is calming.
+
+But I digress - you have come here to hear about Rust, and compilers.
+
+I have some interesting things coming: I am working on finishing the part 2 of "Rust panics under the hood" - a step by step explanation
+of the Rust panicking process. I am considering splitting that article in two: It is already 10 minutes long, and I have only just finished explaining how panic messages are created.
+
+Besides that, I have been working on a few odd things, including a tiny(2K LOC), but very accurate memory profiler for Rust. My schedule is quite tight, but I hope I will write something about this in the coming weeks.
+
+If you like this project([`rustc_codegen_clr`](https://github.com/FractalFir/rustc_codegen_clr)), and think somebody else might find my work interesting, feel free to share my posts on Bluesky and Linkedin.
+
+</markdown>

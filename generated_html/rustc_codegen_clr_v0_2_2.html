@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rust panucs from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rust panics from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
 <script async src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <!-- and it's easy to individually load additional languages -->
 <script async src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
@@ -76,7 +76,7 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Rust panucs from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</h1><br><small><div class = "article_metadata">Published on 16 Oct 2024<br><i>5 - 9 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>Panics in Rust, and converting arbitrary .NET exceptions into them.</p>
+        </nav></div><div class = "article_header"><h1 class="title">Rust panics from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</h1><br><small><div class = "article_metadata">Published on 16 Oct 2024<br><i>5 - 9 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>Panics in Rust, and converting arbitrary .NET exceptions into them.</p>
 
 <p>In my previous article, I have discussed panicking in Rust from the perspective of the Rust compiler. While that article focused on implementing unwinding(the compiler side of panicking) in .NET, this one will deal with panics from the perspective of the Rust standard library.</p>
 

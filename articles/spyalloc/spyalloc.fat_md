@@ -1,0 +1,18 @@
+<metadata>
+title = "Spyalloc - an allocator that spies on you"
+id = "spyalloc"
+category = "hidden"
+date = "5 Apr 2025"
+</metadata>
+<markdown>
+Making memory-efficient programs is, unsurprisingly, not exactly easy. 
+
+As the complexity of your code grows, and the number of allocations in play increases, you slowly start to loose the forest for the trees.
+Managing memory is also a problem that varies with time. Allocating a dozen megabytes to parse config files at start-up is not that big of a deal. 
+Allocating that same amount of memory later, when your memory usage is already high may be a much bigger problem.
+
+Recently, I developed a small Rust memory profiler, `spyalloc`. The main goal of spyalloc is to capture as much info as possible. For each allocation, re/deallocation, `spyalloc`
+saves *full backtraces*, timestamps and aligement / size info.
+
+With this in mind, you might *expect* it to requre **a lot** of space to save log data. 
+</markdown>

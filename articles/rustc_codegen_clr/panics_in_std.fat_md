@@ -1,5 +1,5 @@
 <metadata>
-title = "Rust panucs from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics."
+title = "Rust panics from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics."
 id = "rustc_codegen_clr_v0_2_2"
 category = "hidden"
 

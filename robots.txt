@@ -21,8 +21,10 @@ User-agent: ImagesiftBot
 User-agent: Meta-ExternalAgent
 User-agent: Meta-ExternalFetcher
 User-agent: OAI-SearchBot
+User-agent: PanguBot
 User-agent: PerplexityBot
 User-agent: PetalBot
+User-agent: Kangaroo Bot
 User-agent: Scrapy
 User-agent: Timpibot
 User-agent: VelenPublicWebCrawler
