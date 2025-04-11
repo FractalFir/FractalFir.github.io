@@ -1,6 +1,6 @@
 <metadata>
 title = "Rust to C compiler - 95.9% test pass rate, odd platforms, and a Rust Week talk"
-id = "rustweek"
+id = "cg_clr_odd_platforms"
 category = "Rustc Codegen CLR"
 
 date = "11 Apr 2025"
