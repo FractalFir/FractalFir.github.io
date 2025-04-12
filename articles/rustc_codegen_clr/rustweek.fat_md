@@ -6,7 +6,9 @@ category = "Rustc Codegen CLR"
 date = "11 Apr 2025"
 </metadata>
 <markdown>
-This is an update on the progress I have made on my Rust to C compiler. I am experimenting a bit with a new article format: instead of an overarching theme, this is more of a collection of smaller bits and pieces, sewn together.
+This is an update on the progress I have made on my [Rust to C compiler](https://github.com/FractalFir/rustc_codegen_clr). 
+
+I am experimenting a bit with a new article format: instead of an overarching theme, this is more of a collection of smaller bits and pieces, sewn together.
 
 # The big news
 
@@ -31,11 +33,11 @@ The .NET side of the project has also heavily benefited from the fixes I impleme
 ## 128 bit ints
 Most of the current improvements come from fixes to 128 bit intrinsics, checked arithmetics, and subslicing. 
 
-The C popcount intrinsic has 3 variants: `__builtin_popcount`(int), `__builtin_popcountl`(long) and `__builtin_popcountll`(**long long**).  
+The C popcount intrinsic has 3 variants: `__builtin_popcount`(unsigned int), `__builtin_popcountl`(unsigned long) and `__builtin_popcountll`(unsigned **long long**).  
 
 It might seem logical to assume that the C intrinsic `__builtin_popcountll` works on 128 bit ints - it does not.
 
-It works on the `long long` type, which is not the same as `__int128_t`. At least on Linux, `long` and `long long` are both 64 bits in size. This is something I knew about, but I did not consider that 2 differently named intrinsics would end up just being one and the same thing.
+It works on the `unsigned long long` type, which is not the same as `__int128_t`. At least on x86_64 Linux(with the GCC compiler), `unsigned long` and `unsigned long long` are both 64 bits in size. This is something I knew about, but I did not consider that 2 differently named intrinsics would end up just being one and the same thing.
 ```c
 int pop_count64(long num) {
    return __builtin_popcountl(num);
@@ -72,7 +74,8 @@ bb0:
 	if((A1) != (0)) goto bb1;
 	return false;
 bb1:
-	return (((A0) * (A1)) / (A1)) == (A1);
+	// Not UB: b != 0, unsigned overflow is well-defined.
+	return (((A0) * (A1)) / (A1)) == (A1); 
 }
 ```
 
@@ -266,4 +269,5 @@ Besides that, I have been working on a few odd things, including a tiny(2K LOC),
 
 If you like this project([`rustc_codegen_clr`](https://github.com/FractalFir/rustc_codegen_clr)), and think somebody else might find my work interesting, feel free to share my posts on [Bluesky](https://bsky.app/profile/fractalfir.bsky.social/post/3lmkvtvtjas2u) and [Linkedin](https://www.linkedin.com/posts/micha%C5%82-kostrubiec-85a037269_corrosive-c-compiling-rust-to-c-to-target-activity-7316567775995473921-WFsL?utm_source=share&utm_medium=member_desktop&rcm=ACoAAEGttwYBp9Jq-yY40d-9Ar3X7NxZ4rcqM2Q).
 
+*If you want to know more about the project(and it's .NET roots), I have more articles about it you can find on the home page, under the `rustc codegen clr` category.
 </markdown>
