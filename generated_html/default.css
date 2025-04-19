@@ -11,6 +11,9 @@
   --text: hsla(186, 4%, 98%, 1);
   font-family: Arial, Helvetica, sans-serif;
 }
+.bluesky_link{
+  background: transparent;
+}
 .hljs-ln-numbers {
   scale: .75;
   color: hsla(186, 4%, 98%, .5);

@@ -76,6 +76,7 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+            <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
         </nav></div><div class = "article_header"><h1 class="title">Rust panics under the hood, and implementing them in .NET</h1><br><small><div class = "article_metadata">Published on 22 Sep 2024<br><i>14 - 24 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I am currently working on a Rust to .NET compiler, <code>rustc_codegen_clr</code>. To get it to work, I need to implement many Rust features using .NET APIs. One of such features is panicking and unwinding.</p>
 
 <p>This article is the first one in a series about Rust panics, unwinding, and my implementation of them in .NET.</p>
