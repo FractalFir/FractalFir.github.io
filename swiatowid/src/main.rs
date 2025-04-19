@@ -312,10 +312,16 @@ fn collect_articles_from_dir(path: &Path) -> std::io::Result<Vec<Article>> {
                 .extension()
                 .is_some_and(|extension| extension == "fat_md")
         {
-            println!("Parsing article {:?}...", file.path());
+            let path = file.path();
+            let mut start = std::time::Instant::now();
             let file = std::fs::File::open(file.path())?;
-
             let article = Article::from_file(file)?;
+            println!(
+                "Parsing article {:?}\ttook \t{} ms. Word count:{}",
+                path,
+                start.elapsed().as_millis(),
+                article.markdown.words
+            );
             articles.push(article);
         }
         //println!("{}", file.unwrap().path().display());

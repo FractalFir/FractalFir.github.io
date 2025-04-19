@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rust panics from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Implementation of Rust panics in the standard library </title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
 <script async src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <!-- and it's easy to individually load additional languages -->
 <script async src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
@@ -76,29 +76,59 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Rust panics from the perspective of `std`, and converting arbitrary .NET exceptions into Rust panics.</h1><br><small><div class = "article_metadata">Published on 16 Oct 2024<br><i>5 - 9 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>Panics in Rust, and converting arbitrary .NET exceptions into them.</p>
+        </nav></div><div class = "article_header"><h1 class="title">Implementation of Rust panics in the standard library </h1><br><small><div class = "article_metadata">Published on 19 Apr 2025<br><i>22 - 36 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>In <a href='https://FractalFir.github.io/generated_html/rustc_codegen_clr_v0_2_1.html'>my previous article</a>, I have discussed panicking in Rust from the perspective of the Rust compiler.</p>
 
-<p>In my previous article, I have discussed panicking in Rust from the perspective of the Rust compiler. While that article focused on implementing unwinding(the compiler side of panicking) in .NET, this one will deal with panics from the perspective of the Rust standard library.</p>
+<p>I mostly talked about implementing unwinding(the compiler side of panicking) in my Rust to .NET compiler.</p>
 
-<p>Understanding how panics in Rust work is necessary to explain some more advanced features, like turning .NET exceptions into Rust panics.</p>
+<p>This article will deal with panics from the perspective of the Rust standard library.</p>
 
-<p>I will also talk a bit about Rust/.NET interop, and how a future, .NET specific version of <code>std</code> could interact with the .NET runtime.</p>
+<p>I will go over the <em>entire</em> implementation of panics, step by step, explaining it along the way.</p>
+
+<p>So, fasten your seatbelts - we are in for a <strong>ride</strong>!</p>
 
 <h1 id='starting_to_panic.'>Starting to panic.</h1>
 
-<p>Most people using Rust already know about the <code>panic!</code> macro, but few know what it expands to. What functions are called, and what do they do exactly?</p>
+<p>First of all, what is a panic? Well, a Rust panic is more or less equivalent to a C++ exception.</p>
+
+<p>The main difference is that, by convention, panics are <em>usually</em> used to indicate errors that you can't recover from.</p>
+
+<pre><code class="language-rust">if 2 + 2 != 4{
+   panic!(&quot;Math is not mathing :(!&quot;);
+}</code></pre>
+
+<p>For errors that you can recover from(eg. a parsing error, or a network error), you should use a <code>Result</code> instead.</p>
+
+<pre><code class="language-rust">fn fallible(arg:Param)-&gt;Result&lt;Data, Error&gt;</code></pre>
+
+<p> To raise a panic, you use the aptly named <code>panic!</code> macro.</p>
+
+<p>Most people familiar with Rust already know that. But, have you ever wondered how it works under the hood?</p>
+
+<p>Obviously, it is not magic or powered by unicorns: it is doing <em>something</em>.</p>
+
+<p>It certainly calls some functions - but what kind of functions? It is time to discover that.</p>
 
 <p>Let us look at this simple example:</p>
 
-<pre><code>fn main(){
-  panic!(“Oops!”);
+<pre><code class="language-rust">fn main(){
+  panic!(&quot;Oops! something went wrong...&quot;);
 }</code></pre>
 
-<p>We can now use cargo-expand, or the <code>expand macros</code> option in the Rust playground, to see what the panic! macro expands to:</p>
+<p>In order to see the guts of this macro, we can <em>expand</em> it.<br /></p>
 
-<pre><code>#![feature(prelude_import)]
+<h2 id='macro_expansion'>Macro expansion</h2>
+
+<p>Expanding macros in Rust is super easy, barely an inconvenience.</p>
+
+<p>All we need to do is use cargo-expand, or the expand tool in <a href='https://play.rust-lang.org/?version=stable&amp;mode=debug&amp;edition=2024&amp;gist=c7f190b24e99d592a8f7d73c2390e460'>the Rust playground</a>.  link.</p>
+
+<pre><code class="language-bash">cargo expand</code></pre>
+
+<p>And, viola! We have spilled the guts of the <code>panic</code> macro!</p>
+
+<pre><code class="language-rust">#![feature(prelude_import)]
 #[prelude_import]
-use std::prelude::rust_2021::*;
+use std::prelude::rust_2024::*;
 #[macro_use]
 extern crate std;
 fn main() {
@@ -107,181 +137,1136 @@ fn main() {
     };
 }</code></pre>
 
-<p>This is quite a bit of code, just to panic. Why is all of this needed?</p>
+<ol type="."></ol>
 
-<p>Well, a lot of this code is explicitly specifying things that depend on the Rust version. Since the expansion of certain things can and does change between compiler and <code>std</code> versions, the expanded version needs to contain a lot of information that is normally implicitly guessed. It is normal to assume that a crate using the 2021 edition of Rust will use that edition of Rust in  all of its source files. With expanded macros, we don’t have any information about the original crate the source snippet comes from. So, we need to specify all of those things explicitly.</p>
+<p>That is quite chunk of code, don't you think?</p>
 
-<p>Ok, let us first get the less relevant stuff out of the way.</p>
+<p>All of this - just to panic?</p>
 
-<p>Everything up to <code>fn main</code> is an artefact of expanding all the macros.</p>
+<p>Well, most of this is just a side-effect of macro expansion.</p>
 
-<pre><code>#![feature(prelude_import)]
+<h2 id='prelude'>Prelude</h2>
+
+<p>Let us first get the less relevant things out of the way.</p>
+
+<pre><code class="language-rust">#![feature(prelude_import)]
 #[prelude_import]
-use std::prelude::rust_2021::*;</code></pre>
+use std::prelude::rust_2024::*;</code></pre>
 
-<p>The first 3 lines import the Rust prelude: a set of types, macros and constants which are available in every Rust program, without the need to import them.</p>
+<p>The first 3 lines import the Rust prelude. What is the Rust prelude?</p>
 
-<p>Normally, this is something automatically done by the Rust compiler. After expanding the macros, we import the prelude explicitly. This is not something that is fully stabilised(this feature could change), so we also need to explicitly enable manually importing prelude.</p>
+<p>The prelude is a set of macros, types and functions that are included in every Rust file.</p>
 
-<p>Importing the prelude explicitly allows us to specify which edition(version) of the prelude we want to import, within the source file. Normally, this is something we would specify on a crate level, but since we want to expand all macros, the source file itself needs to contain this information.</p>
+<p>This is why you can use the Rust <code>String</code> or <code>Vec</code> type without explicitly importing them - they are a part of the prelude.</p>
 
-<p>Why do we need to specify the edition to expand macros? Simple: the expanded versions of some common macros change between editions. The panic macro itself has changed a bit between editions: this is why std:panic::panic2015 exists.</p>
+<p>Normally, the Rust compiler will import the prelude for us, <em>before</em> the macro expansion happens.</p>
 
-<p>The next 2 lines just explicitly import the macros from std. Once again, this is normally done for us by the compiler, but since we want to look at the expanded versions of macros, this is done explicitly.</p>
+<p>Since we are looking at our code <em>after</em> macro expansion, the prelude is now explicitly imported.</p>
 
-<pre><code>#[macro_use]
+<pre><code class="language-rust">use std::prelude::rust_2024::*;</code></pre>
+
+<p>You might have noticed that we are not just importing prelude - we are importing the 2024 version of it. Why?</p>
+
+<p>Well, Rust has a mechanism called &quot;editions&quot;. Each Rust crate specifies an edition, and any breaking change requires introducing a new one.</p>
+
+<p>This way, code created in 2015 will still compile, even with the newest compiler. That code signals it is using the 2015 edition of Rust, so the breaking changes introduced in later editions of Rust don't affect it.</p>
+
+<p>Different editions have different preludes, with a slightly different set of functions. So, our code using the 2024 version of Rust will import the 2024 prelude.</p>
+
+<p>Interestingly, the <code>panic</code> macro itself has changed between editions. This is why something like <code>std:panic::panic2015</code> exists.</p>
+
+<p>However, we are interested in the 2024 version of panicking.</p>
+
+<pre><code class="language-rust">#[macro_use]
 extern crate std;</code></pre>
 
-<p>Ok, now that all of the less relevant stuff is out of the way, we can start talking about the parts that are responsible for panicking.</p>
+<p>The next 2 lines just explicitly import all the macros from <code>std</code>.</p>
 
-<p>All of them are inside a Rust block <code>{}</code>. This is because Rust macros are hygienic, and can’t introduce anything(new variables, functions) outside their internal scope. This newly introduced block is responsible for just that - ensuring the now expanded macros can’t mess up anything outside of their designated scope.</p>
+<p>Once again, this is normally done for us by the compiler. Since we want to look at the expanded versions of macros, this step is now explicit.</p>
 
-<p>Let us now look at the line responsible for creating the panic  message, and actually panicking.</p>
+<p>Now that all of this is out of the way, we can take a look at our <code>main</code> function.</p>
 
-<pre><code> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
+<pre><code class="language-rust">fn main() {
+    {
+        ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));
+    };
+}</code></pre>
+
+<p>All of the code from the expanded macro is inside a Rust block <code>{}</code>.</p>
+
+<p>This is because Rust macros are hygienic, and can’t introduce anything(new variables, functions) outside their internal scope.</p>
+
+<p>This newly introduced block is responsible for just that: it is the scope of the expanded macro.</p>
+
+<p>Let us now look at the guts of the <code>panic</code> macro.</p>
+
+<p>Here, we can see a call to <code>panic_fmt</code>, and...</p>
+
+<pre><code class="language-rust"> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
 
 <p>Hang on a minute! Something looks very wrong here!</p>
 
-<p>You might have noticed that the <code>format_args!</code> macro is not expanded. Why? Is this a bug? Maybe we need to expand this macro again?</p>
+<p>You might have noticed that the <code>format_args!</code> macro is... not expanded?</p>
 
-<pre><code> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
+<p>Is this a bug? I could have sworn I clicked &quot;expand&quot; macros...</p>
 
-<p>Nope! It still has not expanded. There is a good reason we can’t expand this macro: it is not a macro at all!</p>
+<p>Maybe we need to try again?</p>
+
+<pre><code class="language-rust"> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
+
+<p>Nope! It still has not expanded.</p>
+
+<p>There is a good reason we can’t expand this macro: it is not a macro at all!</p>
 
 <h2 id='compiler_bultin_in_a_macros_clothing'>Compiler bultin in a macros clothing</h2>
 
-<p>Well, expanding format<em>args would be a bit difficult, since, despite looking like an ordinary macro, it is not exactly a macro. Currently, there is no way to implement all the features of format</em>args using just the standard macro syntax. So, format_args is a compiler builtin, which converts a format string, and a bunch of arguments, into a single data structure(core::fmt::Arguments), which contains the information necessary for the formatting to happen.</p>
+<p><code>format_args</code> is actually... a compiler built-in. It <em>looks</em> like an ordinary macro, <em>behaves</em> like an ordinary macro, but it is not one.</p>
 
-<p>Another thing that makes expanding this macro difficult is the stability of <code>core::fmt::Arguments</code>. This data structure is an implementation detail, and is not stable(is subject to change). So, after macro expansion, there would be no proper way to assemble this structure, since its constructor changes from time to time. No expansion of this macro would be “right” for all compiler versions, so it is better not to expand it at all.</p>
+<p>Currently, there is no way to implement all the features of <code>format_args!</code> using just the standard macro syntax.</p>
 
-<p>format_args also has a few other interesting properties, but I won’t bore you with the details. All you need to know is that this macro is special, and we can't really expand it.</p>
+<p>So, the Rust language cheats a tiny bit, and implements <code>format_args!</code> directly within the <a href='https://github.com/rust-lang/rust/blob/a7c39b68616668a45f0afd62849a1da7c8ad2516/compiler/rustc_builtin_macros/src/format.rs#L24'>compiler source</a>.</p>
 
-<p>The Arguments structure is the passed to panic_fmt* which is where the panicking process beil The panic_fmt function is the thing responsible for panicking.</p>
+<p>It is neat to know that <code>format_args</code> is a compiler builtin, but what does it <em>do</em>?</p>
 
-<p>Let us now look at the implementation of <code>panic_fmt</code>.</p>
+<p>Well, format_args! takes in a format string, and set of arguments, with formatting options specified.</p>
 
-<h1 id='panic_fmt'>panic_fmt</h1>
+<pre><code>format_args!(&quot;a:{a}, dec:{}, hex:{:x}, bin:{:b}&quot;, hex_num, bin = 6)</code></pre>
 
-<pre><code>#[track_caller]
+<p>Later, it packs them all into a single data structure(<code>core::fmt::Arguments</code>).</p>
+
+<p>This structure contains the information necessary for the formatting to happen.</p>
+
+<p>Now that I explained <code>format_args</code>, we can start getting into the meat of the panicking machinery.</p>
+
+<h1 id='formatting_the_panic_message_with_panic_fmt'>Formatting the panic message with <code>panic_fmt</code></h1>
+
+<p>The <code>panic_fmt</code> function is responsible for beginning the panicking process.</p>
+
+<pre><code class="language-rust"> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
+
+<p>We know that this function is passed <code>core::fmt::Arguments</code>(a data structure representing the panic message), and somehow starts a panic - but how? Let's take a glance at <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/core/src/panicking.rs#L55'>it's implementation</a>.</p>
+
+<pre><code class="language-rust">#[track_caller]
 pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; ! {
     if cfg!(feature = &quot;panic_immediate_abort&quot;) {
         super::intrinsics::abort()
     }
-
     // NOTE This function never crosses the FFI boundary; it's a Rust-to-Rust call
     // that gets resolved to the `#[panic_handler]` function.
     extern &quot;Rust&quot; {
         #[lang = &quot;panic_impl&quot;]
         fn panic_impl(pi: &amp;PanicInfo&lt;'_&gt;) -&gt; !;
     }
-
     let pi = PanicInfo::internal_constructor(Some(&amp;fmt), Location::caller(), true);
-
     // SAFETY: `panic_impl` is defined in safe Rust code and thus is safe to call.
     unsafe { panic_impl(&amp;pi) }
 }</code></pre>
 
-<p>`panic_fmt may look a bit complex at first, but in reality, it is embarrassingly simple.</p>
+<p><code>panic_fmt</code> may look a bit complex at first, but it is easy to understand, if you look at it part by part.</p>
 
-<p>Let us first take a look at its signature.</p>
+<p>It's signature seems like a good place to start.</p>
 
-<pre><code>pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; !</code></pre>
+<pre><code class="language-rust">pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; !</code></pre>
 
-<p>It, as I mentioned before, accepts formatting arguments, which contain our panic message.  This function returns a never type(<code>!</code>). I could write a whole article about the interesting properties of this type, but, for now, you need only to know that this means that <code>panic_fmt</code> can never return.</p>
+<p>As I mentioned before, <code>panic_fmt</code> accepts formatting arguments, which contain our panic message.</p>
+
+<p>That seems pretty self-explanatory. It is also marked with <code>const</code>, since it can be called in a <code>const</code> context.</p>
+
+<pre><code class="language-rust">const ASSERT:() = if size_of::&lt;usize&gt;() != 8{
+    // Returns a compile-time error if usize is not 64 bits in size.
+    panic!(&quot;Only 64 bit systems supported!&quot;);
+}else{};</code></pre>
+
+<p>This allows it to be used for things like static assertions, and a whole lot more.</p>
+
+<p>Another interesting thing about <code>panic_fmt</code> is it's return type - '!'</p>
+
+<p>The <a href='https://doc.rust-lang.org/std/primitive.never.html'>never type</a> has a lot of really neat properties.</p>
+
+<p>The main thing you need to know is that this means that <code>panic_fmt</code> can never return.</p>
 
 <p>This is something the compiler ensures, and something it can use to allow for some pretty neat syntax.</p>
 
-<p>You see, since you never can obtain a value of type never(since functions that return never never return), the compiler can coerce those it to any other type.</p>
+<p>You see, since you never can obtain a value of type <code>never</code>(since functions that return <code>never</code> never return), the compiler can coerce those it to any other type.</p>
 
-<pre><code>let name = match animal{
-  Animal::Dog =&gt; “dog”,
-  Animal::Cat =&gt; “cat”,
+<pre><code class="language-rust">let name = match animal{
+  Animal::Dog =&gt; &quot;dog&quot;,
+  Animal::Cat =&gt; &quot;cat&quot;,
   // We panic when this arm gets executed, so the    
   // execution can't continue from this point.
   // The compiler then coreces that never value 
   // to a string type. This has no effect at runtime, but 
   // it allows for the compiler to typecheck divergent paths 
   // like this. 
-  _=&gt; panic!(“Unknown animal!”),
+  _=&gt; panic!(&quot;Unknown animal!&quot;),
 }</code></pre>
 
-<p>The main purpose of the never type is just that - type checking divergent paths. It has other interesting properties, but treating it as a “this function never returns” marker should suffice.</p>
+<p>The main purpose of the never type is just that - type checking divergent paths.</p>
 
-<p>I will gloss over the “track_caller” attribute for now.</p>
+<p>It has other interesting properties, but treating it as a &quot;this function never returns&quot; marker should suffice.</p>
 
-<pre><code>#[track_caller]</code></pre>
+<p>I will gloss over the &quot;track_caller&quot; attribute for now.</p>
 
-<p>The next thing you might notice is the if statement, which checks the value of <code>cfg!(feature = &quot;panic_immediate_abort&quot;)</code>. This statement just checks if immediate abort was enabled at build time, and if so, it aborts instead of panicking.</p>
+<pre><code class="language-rust">#[track_caller]</code></pre>
 
-<pre><code>    if cfg!(feature = &quot;panic_immediate_abort&quot;) {
-        super::intrinsics::abort()
-    }</code></pre>
+<p>The next thing you might notice is the if statement, which checks the value of <code>cfg!(feature = &quot;panic_immediate_abort&quot;)</code>. This is just Rust syntax for checking if a feature was enabled at build time.</p>
 
-<p>If this feature is enabled, all functions that panic immediately stop the execution of the program, without printing any messages.</p>
+<pre><code class="language-rust">if cfg!(feature = &quot;panic_immediate_abort&quot;) {
+    super::intrinsics::abort()
+}</code></pre>
 
-<p>Next, we see an extern block - What does it do? Well, it is a bit special. It has the <code>#[lang_item]</code> attribute, meaning it is a language item - a special predefined function, static or type, which requires some additional handling on the compiler side.</p>
+<p>If this feature is enabled, all functions that panic immediately stop the execution of the program, without printing any messages. Calling <code>abort</code> will do just that - terminate the execution of the program.<br /></p>
 
-<pre><code>    // NOTE This function never crosses the FFI boundary; it's a Rust-to-Rust call
-    // that gets resolved to the `#[panic_handler]` function.
-    extern &quot;Rust&quot; {
-        #[lang = &quot;panic_impl&quot;]
-        fn panic_impl(pi: &amp;PanicInfo&lt;'_&gt;) -&gt; !;
-    }</code></pre>
+<p>Next, we see an <code>extern</code> block - What does it do? Well, it is a bit special. It has the <code>#[lang_item]</code> attribute, meaning it is a language item.</p>
 
-<p>In this case, the attribute tells the compiler to resolve this function to the platform-specific implementation of panicking. This can also be defined outside the standard library, allowing you to change the behaviour of panics. This is exceptionally useful in embedded scenarios, where you might want to trigger some special behaviour(eg. resting the microcontroller) when a panic occurs.</p>
+<pre><code class="language-rust">// NOTE This function never crosses the FFI boundary; it's a Rust-to-Rust call
+// that gets resolved to the `#[panic_handler]` function.
+extern &quot;Rust&quot; {
+    #[lang = &quot;panic_impl&quot;]
+    fn panic_impl(pi: &amp;PanicInfo&lt;'_&gt;) -&gt; !;
+}</code></pre>
 
-<p>So, the extern block just tells the compiler what the signature of the panic_impl function is, and how to find it.</p>
+<p>Language items are functions / types / statics, which require special handling on the compiler side.</p>
 
-<p>On the very next line, we construct a PanicInfo - a special structure describing the source of a panic, and the message it contains.</p>
+<p>In this case, the attribute tells the compiler to resolve this function to the <a href='https://doc.rust-lang.org/nomicon/panic-handler.html'>panic handler</a>.</p>
 
-<pre><code>let pi = PanicInfo::internal_constructor(Some(&amp;fmt), Location::caller(), true);</code></pre>
+<p>By default, this will be the function <code>begin_panic_handler</code> in <code>std</code>.</p>
 
-<p>Its constructor accepts two arguments: an optional panic message(in the form of fmt::Arguments), and a Location. The panic message is pretty self explanatory: this is what the panic! macro generated, and it allows us to describe the cause of the panic in detali.</p>
+<p>However, panic handlers can also be defined outside the Rust standard library.</p>
 
-<p>The Location::caller() is a bit harder to understand. This part is responsible for detecting where the panic originally occurred. But, how does it know that?</p>
+<p>This is exceptionally useful in embedded scenarios, where you might want to do something special(eg. rest the microcontroller) when a panic occurs.</p>
 
-<p>This is where the <code>#[track_caller]</code> attribute comes in. It tells the compiler it needs to insert additional information, which allows us to efficiently retrieve information about the caller of a given function.</p>
+<pre><code class="language-rust">#[panic_handler]
+pub fn my_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! {
+	writeln(UART, &quot;panic:{info}&quot;);
+	cpu::reset();
+}</code></pre>
 
-<p>Currently,<code> #[track_caller]</code> is implemented in a rather simple and straightforward way. The compiler just introduces a single hidden argument to functions annotated with this attribute.</p>
+<p>So, this extern block just tells the compiler what the signature of the <code>panic_impl</code> function is.</p>
+
+<p>On the very next line, we construct a <a href='https://doc.rust-lang.org/beta/core/panic/struct.PanicInfo.html'>`PanicInfo`</a> - a data structure describing the source of a panic, and the message it contains.</p>
+
+<pre><code class="language-rust">let pi = PanicInfo::internal_constructor(Some(&amp;fmt), Location::caller(), true);</code></pre>
+
+<p>Its constructor accepts two arguments: an optional panic message(in the form of <code>core::fmt::Arguments</code>), and a <a href='https://doc.rust-lang.org/beta/core/panic/struct.Location.html'>`Location`</a>. The panic message is pretty self explanatory: this is what the <code>panic!</code> macro generated, and it allows us to describe the cause of the panic in detail.</p>
+
+<p>The <code>Location::caller()</code> is a bit harder to understand. This part is responsible for detecting where the panic <strong>originally</strong> occurred.</p>
+
+<p>Imagine a piece of code like this:</p>
+
+<pre><code class="language-rust">fn main(){
+    let a:Option&lt;i32&gt; = None;
+    a.unwrap();
+}</code></pre>
+
+<p>even tough the panicking process starts in <code>panic_fmt</code>(called by <code>unwrap</code>), the error is reported as coming from <code>main.rs</code>.</p>
+
+<pre><code>thread 'main' panicked at src/main.rs:3:3:
+called `Option::unwrap()` on a `None` value</code></pre>
+
+<p>How? How does the <code>unwrap</code> function know who called it?</p>
+
+<p>This is where the <code>#[track_caller]</code> attribute comes in. This attribute tells the compiler to keep track of the caller of this function. We can then use <code>Location::caller</code> to retrieve the information about this caller.</p>
+
+<p>Currently,<code> #[track_caller]</code> is implemented in a rather simple and straightforward way: the compiler just introduces a single, hidden argument, to  all functions annotated with this attribute.</p>
 
 <p>So, in reality, our function looks a bit more like this:</p>
 
-<pre><code>pub const fn panic_fmt(fmt: fmt::Arguments&lt;’_&gt;,caller:&amp;’staticLocation&gt; -&gt; !</code></pre>
+<pre><code class="language-rust">pub const fn panic_fmt(fmt: fmt::Arguments&lt;’_&gt;,caller:&amp;’static Location) -&gt; !</code></pre>
 
 <p>When we want to check who called us, we just simply use this hidden argument. Neat.</p>
 
-<pre><code>PanicInfo::internal_constructor(Some(&amp;fmt), caller, true)</code></pre>
+<pre><code class="language-rust">PanicInfo::internal_constructor(Some(&amp;fmt), caller, true)</code></pre>
 
-<p>In reality, this is a tiny bit more complex. For example, if we call a function <code>a</code> annotated with track_caller inside another function <code>b</code> with the same attribute, the panic message will contain information about original function who called <code>b</code></p>
+<p>Additionally, <code>track_caller</code> is transitive. If multiple functions are marked with <code>track_caller</code>, we will retrieve the &quot;original&quot; caller.</p>
 
-<pre><code>#[track_caller]
-fn a(){
- panic!(); // The panic message will contain the place
- // in source code which originally called b(which then 
- // called a). In this case, that would be 
- // “fn c(): some file.rs 32:64” 
+<pre><code class="language-rust">#[track_caller]
+fn a() {
+    panic!(); // The panic message will contain the place
+              // in source code which originally called b(which then
+              // called a). In this case, that would be
+              // &quot;fn c(): some file.rs 32:64&quot;
 }
 #[track_caller]
-fn b(){
-  // Since a has the `track_caller` attribute, the panic will be rported
-  a();
+fn b() {
+    // Since a has the `track_caller` attribute too, it will report the same caller that `b` reports.
+    a();
 }
-// No track caller on `c`, so panic location</code></pre>
+fn c() {
+    b(); // Panics in `b` &amp; `a` will be reported as coming from here.
+}</code></pre>
 
-<p>Knowing all of this should give you a rough idea about what <code>#[track_caller]</code> is, and how to use it. For example, if you have a function that can only fail if the caller gave it the wrong arguments(eg. Passing -1 to a square root function, or passing a wrong key to a map), you can use this attribute to make the panic appear at the site of the caller.</p>
+<p>Knowing all of this should give you a rough idea about what <code>#[track_caller]</code> is, and how to use it.</p>
+
+<p>For example, if you have a function that can only fail if the caller gave it the wrong arguments(eg. Passing <code>-1</code> to a square root function, or passing a wrong key to a map), you can use this attribute to make the panic appear at the site of the caller.</p>
 
 <pre><code>#[track_caller]
 fn sqrt(i:i32)-&gt;i32{
-   assert!(i &gt;= 0, “Attempted to compute the square root of a negative number.”);
+   assert!(i &gt;= 0, &quot;Attempted to compute the square root of a negative number.&quot;);
     /* Implementation of square root*/
 }
 fn stupid(){
   sqrt(-1); // The panic message will contain the source file, line and column of this invalid call to `sqrt`.
 }</code></pre>
 
-<p>There is a lot more complexity behind the scenes(eg. when dealing with function pointers), but all of it is hidden from the user. Overall, <code>#[track_caller]</code> is an important part of Rust, which gives you more control over how panics are reported. Things like <code>Option::unwrap</code> use this function to give better information about where a panic really comes from.<br /></p>
+<p>There is a lot more complexity behind the scenes(eg. when dealing with function pointers), but all of it is hidden from the user.</p>
+
+<p>Overall, <code>#[track_caller]</code> is an important part of Rust, which gives you more control over how panics are reported.</p>
+
+<p>Things like <code>Option::unwrap</code> use this function to give better information about where a panic really comes from.<br /></p>
 
 <p>With all of this out of the way, we can finally look at the last line of <code>panic_fmt</code>, and then go even deeper, into the bowels of <code>panic_impl</code>.</p>
+
+<pre><code class="language-rust">// SAFETY: `panic_impl` is defined in safe Rust code and thus is safe to call.
+unsafe { panic_impl(&amp;pi) }</code></pre>
+
+<h1 id='panic_impl'>panic_impl</h1>
+
+<p>As I mentioned before, <code>panic_impl</code> is a language item, and is resolved in a bit of a funky way.</p>
+
+<p>In <code>std</code>, this will get resolved to the function <code>begin_panic_handler</code>, in <a href='github.com/rust-lang/rust/blob/afa859f8121bf2985362a2c8414dc71a825ccf2d/library/std/src/panicking.rs#L630'>std/src/panicking.rs</a>.</p>
+
+<pre><code class="language-rust">#[panic_handler]
+pub fn begin_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! {
+    let loc = info.location().unwrap(); // The current implementation always returns Some
+    let msg = info.message();
+    crate::sys::backtrace::__rust_end_short_backtrace(move || {
+        if let Some(s) = msg.as_str() {
+            rust_panic_with_hook(
+                &amp;mut StaticStrPayload(s),
+                loc,
+                info.can_unwind(),
+                info.force_no_backtrace(),
+            );
+        } else {
+            rust_panic_with_hook(
+                &amp;mut FormatStringPayload { inner: &amp;msg, string: None },
+                loc,
+                info.can_unwind(),
+                info.force_no_backtrace(),
+            );
+        }
+    })
+}</code></pre>
+
+<p>The first 2 lines just extract some information from <code>PanicInfo</code>. They retrive the panic location, and the panic message.</p>
+
+<pre><code class="language-rust">    let loc = info.location().unwrap(); // The current implementation always returns Some
+    let msg = info.message();</code></pre>
+
+<p>The next line is a bit interesting. We call a very odd function <code>__rust_end_short_backtrace</code> with a <em>closure</em>. Why?</p>
+
+<p><code>__rust_end_short_backtrace</code> and it's brother <code>__rust_begin_short_backtrace</code> are used to display better backtraces.</p>
+
+<p>You probably don't care all that much about anything that happens before <code>main</code> when diagnosing a panic. Who cares what the standard library did to initialize your program, if the error happens waaay after that?</p>
+
+<p>This part of the backtrace will almost always stay the same, so it is just clutter.</p>
+
+<pre><code>  27:     0x557f0d3c91c4 - std::sys::backtrace::__rust_begin_short_backtrace::h51d47f9917bfc9c9
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/std/src/sys/backtrace.rs:152:18
+  28:     0x557f0d3cccca - std::thread::Builder::spawn_unchecked_::{{closure}}::{{closure}}::h111315bb86404840
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/std/src/thread/mod.rs:559:17
+  29:     0x557f0d3cccca - &lt;core::panic::unwind_safe::AssertUnwindSafe&lt;F&gt; as core::ops::function::FnOnce&lt;()&gt;&gt;::call_once::h998ce8172649aff7
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/core/src/panic/unwind_safe.rs:272:9
+  30:     0x557f0d3cccca - std::panicking::try::do_call::hf04bd389dff187f3
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/std/src/panicking.rs:589:40
+  31:     0x557f0d3cccca - std::panicking::try::h6f702a4728de202d
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/std/src/panicking.rs:552:19
+  32:     0x557f0d3cccca - std::panic::catch_unwind::h60677702e4e21dfd
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/std/src/panic.rs:359:14
+  33:     0x557f0d3cccca - std::thread::Builder::spawn_unchecked_::{{closure}}::h3bfcc3f4d1f835f6
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/std/src/thread/mod.rs:557:30
+  34:     0x557f0d3cccca - core::ops::function::FnOnce::call_once{{vtable.shim}}::hdbd61a047ce6fc0f
+                               at /rustc/9ffde4b089fe8e43d5891eb517001df27a8443ff/library/core/src/ops/function.rs:250:5
+  35:     0x7fe5cbfcb477 - std::sys::pal::unix::thread::Thread::new::thread_start::hfae4f2cea0a780e5
+  36:     0x7fe5c5e4eba8 - start_thread
+  37:     0x7fe5c5ed2b8c - __GI___clone3</code></pre>
+
+<p>Ideally, we'd like to display the &quot;interesting&quot; parts of the backtrace by default, and only show it in its entirety when need.</p>
+
+<p><code>__rust_end_short_backtrace</code> and  <code>__rust_begin_short_backtrace</code> mark the begining and end of this &quot;short backtrace&quot;.</p>
+
+<p>By calling <code>__rust_end_short_backtrace</code>, we are marking anything after this call as not important to display.</p>
+
+<p>So, unless we request otherwise(<code>RUST_BACKTRACE=full</code>), our program will not display the platform-specific guts of the panicking machinery.</p>
+
+<p>Let us now look at the closure we passed to <code>__rust_end_short_backtrace</code>.</p>
+
+<pre><code class="language-rust">if let Some(s) = msg.as_str() {
+    rust_panic_with_hook(
+        &amp;mut StaticStrPayload(s),
+        loc,
+        info.can_unwind(),
+        info.force_no_backtrace(),
+    );
+} else {
+    rust_panic_with_hook(
+        &amp;mut FormatStringPayload { inner: &amp;msg, string: None },
+        loc,
+        info.can_unwind(),
+        info.force_no_backtrace(),
+    );
+}</code></pre>
+
+<p>The two arms of this if expression don't differ too much - the main difference is in what kind of &quot;payload&quot; they pass.</p>
+
+<h2 id='panic_payload'>Panic payload</h2>
+
+<p>Consider this panic:</p>
+
+<pre><code class="language-rust">panic!(&quot;Woopise doopsie!&quot;);</code></pre>
+
+<p>The message it contains never changes, and does not need any formatting. We can simply store a pointer to the static data containing our message, and be on our merry way. This panic, on the other hand:</p>
+
+<pre><code class="language-rust">panic!(&quot;{n} is not even!&quot;);</code></pre>
+
+<p>requires formatting, and an allocation. <code>msg.as_str()</code> checks if a given instance of <code>core::fmt::Arguments</code> is just a static string.</p>
+
+<p>If we know it is a static string, we can avoid all the formatting and the allocation, and just pack a pointer to the const data in our panic message.</p>
+
+<p>Now that I explained the difference between those branches, let's take a look at all the arguments we pass to <code>panic_with_hook</code>:</p>
+
+<pre><code class="language-rust">rust_panic_with_hook(
+    &amp;mut StaticStrPayload(s),
+    loc,
+    info.can_unwind(),
+    info.force_no_backtrace(),
+);    </code></pre>
+
+<p>Besides the payload, and the panic location, we pass 2 more arguments, extracted from <code>PanicInfo</code>.</p>
+
+<h1 id='can_unwind'>can_unwind</h1>
+
+<p><code>can_unwind</code> is the most interesting of those arguments. As you might recall, &quot;unwinding&quot; is the mechanism by which panics can be thrown and caught. When an unwind occurs, our program will traverse it's call stack, dropping data along the way. It will stop when it finds the intrisnic <code>catch_unwind</code> - this allows us to recover from <em>some</em> panics.</p>
+
+<p>This is quite useful - for example, Rust test harness uses this mechanism to report when a test panics.</p>
+
+<p>However, not all panics <em>can</em>(or should) unwind. For example, you can't unwind across the &quot;C&quot; function ABI:</p>
+
+<pre><code class="language-rust">extern &quot;C&quot; fn test(){
+    panic!(); // This will abort, instead of panicking.
+}</code></pre>
+
+<p>When you attempt to unwind across a <code>C</code> function, the program will call the function <code>panic_cannot_unwind</code>.</p>
+
+<p>This function will then panic with the <code>panic in a function that cannot unwind</code> message.</p>
+
+<pre><code class="language-text">thread 'main' panicked at src/main.rs:2:5:
+explicit panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'main' panicked at library/core/src/panicking.rs:218:5:
+panic in a function that cannot unwind</code></pre>
+
+<p>If <code>panic_cannot_unwind</code> is called, we already know that we will not be able to unwind.</p>
+
+<p>So, the <code>can_unwind</code> field of <code>PanicInfo</code> will be set to false, and and the program will terminate instead of attempting to unwind.</p>
+
+<pre><code class="language-rust">fn panic_cannot_unwind() -&gt; ! {
+    panic_nounwind(&quot;panic in a function that cannot unwind&quot;)
+}</code></pre>
+
+<h1 id='force_no_backtrace'><code>force_no_backtrace</code></h1>
+
+<p>If this argument is set, the panic backtrace will never be printed - even if you set <code>RUST_BACKTRACE=full</code>.</p>
+
+<p>Why? What uses does this have?</p>
+
+<p>Well, we can look at <a href='https://github.com/rust-lang/rust/issues/114954'>this issue</a> to figure out why.</p>
+
+<p>Turns out, <code>force_no_backtrace</code> is mostly needed because of an odd corner case. Consider a snippet of code like this:</p>
+
+<pre><code class="language-rust">struct Foo;
+impl Drop for Foo {
+    fn drop(&amp;mut self) {
+        panic!(&quot;drop&quot;);
+    }
+}
+fn main() {
+    let f = Foo;
+    panic!(&quot;main&quot;);
+}</code></pre>
+
+<p>When we trigger the original panic, the unwinding process will start, and attempt to drop the variable <code>f</code>.</p>
+
+<p>That will then trigger yet another panic. In such a case <code>force_no_backtrace</code> will be set, to avoid printing the backtrace twice.</p>
+
+<h1 id='rust_panic_with_hook'><code>rust_panic_with_hook</code></h1>
+
+<p>Now that I discussed all arguments of <code>rust_panic_with_hook</code>, let us look <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L795'>at the function in question</a>. It is quite big, so I'll explain it piece by piece.</p>
+
+<pre><code class="language-rust">#[optimize(size)]
+fn rust_panic_with_hook(
+    payload: &amp;mut dyn PanicPayload,
+    location: &amp;Location&lt;'_&gt;,
+    can_unwind: bool,
+    force_no_backtrace: bool,
+) -&gt; ! {</code></pre>
+
+<p>The first interesting thing about this function is the <code>#[optimize(size)]</code> attribute. Rust programs <em>rarely</em> panic, so optimizing this function for performance makes little sense.</p>
+
+<p>We can instead optimize it to reduce it's <em>size</em>. You probably will not notice the minuscule difference in performance of panics this will cause.</p>
+
+<p>However, the reduction in <em>size</em> of the panicking machinery has a lot of benefits.</p>
+
+<p>Remember, this function is used in pretty much all Rust code: reducing it's size will reduce the size of all Rust programs.</p>
+
+<p><code>rust_panic_with_hook</code> starts doing it's magic by performing a call to <code>panic_count::increase</code>:</p>
+
+<pre><code class="language-rust">let must_abort = panic_count::increase(true);</code></pre>
+
+<p>Let us stop here for a moment, and look a bit closer at <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L426'>`panic_count::increase`</a>. It is responsible for a lot of interesting things.</p>
+
+<h2 id='panic_count::increase'><code>panic_count::increase</code></h2>
+
+<pre><code class="language-rust">pub fn increase(run_panic_hook: bool) -&gt; Option&lt;MustAbort&gt; {
+    let global_count = GLOBAL_PANIC_COUNT.fetch_add(1, Ordering::Relaxed);
+    if global_count &amp; ALWAYS_ABORT_FLAG != 0 {
+        // Do *not* access thread-local state, we might be after a `fork`.
+        return Some(MustAbort::AlwaysAbort);
+    }
+
+    LOCAL_PANIC_COUNT.with(|c| {
+        let (count, in_panic_hook) = c.get();
+        if in_panic_hook {
+            return Some(MustAbort::PanicInHook);
+        }
+        c.set((count + 1, run_panic_hook));
+        None
+    })
+}</code></pre>
+
+<p>First of all, it increments the global panic count, and checks if the <code>ALWAYS_ABORT_FLAG</code> is set. If this flag is set, it returns the value <code>AlwaysAbort</code>, signalling that the program should <strong>immediately</strong> terminate. This may seem quite strange - when would this be needed?</p>
+
+<p><code>ALWAYS_ABORT_FLAG</code> has a very interesting purpose, related to the <code>fork</code> function. You see, on many platforms, allocating memory after a call to <code>fork</code> is undefined behaviour. This means that, after we use <code>fork</code> to spawn a child thread, that thread <strong>can't</strong> allocate memory. Period.</p>
+
+<p>Since printing backtraces <em>requires</em> allocation, we can't do any of that.</p>
+
+<p>But, <em>why</em> is calling <code>malloc</code> after <code>fork</code> in the child thread UB?</p>
+
+<h3 id='fork_ing_malloc'><code>fork</code>ing <code>malloc</code></h3>
+
+<p>The <code>fork</code> function duplicates the <strong>calling process</strong>, along with it's memory space.</p>
+
+<p>Seems fine, until you consider things like <code>Mutex</code>es. Suppose we have a thread <code>A</code> and a thread <code>B</code>. When thread <code>A</code> is holding a lock, thread <code>B</code> forks.</p>
+
+<pre><code>// thread A
+let guard = mutex.lock();
+// thread B
+fork();</code></pre>
+
+<p>Now, a new process <code>C</code> holds the exact copy of the memory space shared by <code>A</code> and <code>B</code>.</p>
+
+<p>In the process, the locked mutex was also copied. But, <code>A</code> and <code>C</code> do not share a memory space. So, while <code>B</code> can &quot;see&quot; that <code>A</code> has released the lock, the <em>copy</em> of the lock <code>C</code> has will never be released.</p>
+
+<p>This means process <code>C</code> will spend an eternity, waiting for a lock nobody is holding anymore.</p>
+
+<p>Now imagine what could happen if our implementation of <code>malloc</code> is using any locks.</p>
+
+<p>This is just one example of the way <code>fork</code> can mess things up.</p>
+
+<p>If the panicking machinery allocates any memory at all, we would have a problem.</p>
+
+<p>To prevent this sort of issues in Rust, the child thread will call the function <code>painc_count::set_always_abort</code>. This sets <code>ALWAYS_ABORT_FLAG</code>, ensuring <code>panic</code>-king will not allocate any memory.</p>
+
+<h3 id='local_panic_count'>Local panic count</h3>
+
+<p>After checking <code>ALWAYS_ABORT_FLAG</code> is not set, we can now safely take a look at our thread-local state(thread locals can allocate).</p>
+
+<pre><code class="language-rust">LOCAL_PANIC_COUNT.with(|c| {
+    let (count, in_panic_hook) = c.get();
+    if in_panic_hook {
+        return Some(MustAbort::PanicInHook);
+    }
+    c.set((count + 1, run_panic_hook));
+    None
+})</code></pre>
+
+<p>First, we check if the field <code>in_panic_hook</code> of <code>LOCAL_PANIC_COUNT</code> is set. If it is set, that means a panic has occurred in the panic hook, and we should terminate the process.</p>
+
+<p>If this flag is not set, we will increment the local panic counter, and optionally set <code>in_panic_hook</code>.</p>
+
+<p>You may wonder: what is the purpose of the panic counter?</p>
+
+<p>It used for a couple of things: for example, for checking if a thread is currently panicking.</p>
+
+<pre><code class="language-rust">#[inline]
+pub fn panicking() -&gt; bool {
+    !panic_count::count_is_zero()
+}</code></pre>
+
+<p>We can't implement such a check using just a flag: panics can nest.</p>
+
+<p>If we just used a simple flag, and a double-panic occurred, that flag would get cleared <em>early</em>.</p>
+
+<p>Using a panic counter guarantees we will handle nested panics correctly.</p>
+
+<p>Anyway: if neither <code>ALWAYS_ABORT_FLAG</code> nor <code>in_panic_hook</code> is set, that means everything is in order. There is no need to terminate the process, so <code>panic_count::increase</code> will return <code>None</code>.</p>
+
+<h2 id='back_on_track'>Back on track</h2>
+
+<p>Explaining this one line of <code>rust_panic_with_hook</code> took quite some time, huh?</p>
+
+<pre><code class="language-rust">let must_abort = panic_count::increase(true);</code></pre>
+
+<p>Well, nobody said that the panicking process is simple. Thankfully, the rest of this function is a bit easier to understand. Consider the next few lines:</p>
+
+<pre><code class="language-rust">// Check if we need to abort immediately.
+if let Some(must_abort) = must_abort {
+    match must_abort {
+        panic_count::MustAbort::PanicInHook =&gt; {
+            // Don't try to format the message in this case, perhaps that is causing the
+            // recursive panics. However if the message is just a string, no user-defined
+            // code is involved in printing it, so that is risk-free.
+            let message: &amp;str = payload.as_str().unwrap_or_default();
+            rtprintpanic!(
+                &quot;panicked at {location}:\n{message}\nthread panicked while processing panic. aborting.\n&quot;
+            );
+        }
+        panic_count::MustAbort::AlwaysAbort =&gt; {
+            // Unfortunately, this does not print a backtrace, because creating
+            // a `Backtrace` will allocate, which we must avoid here.
+            rtprintpanic!(&quot;aborting due to panic at {location}:\n{payload}\n&quot;);
+        }
+    }
+    crate::sys::abort_internal();
+}</code></pre>
+
+<p>They are kind of self explanatory, once you learned what <code>panic_count::increase</code> does. We check if it returned <code>Some</code>(indicating we need to abort), and print different messages depending on the cause of the abort.</p>
+
+<pre><code class="language-rust">rtprintpanic!(
+    &quot;panicked at {location}:\n{message}\nthread panicked while processing panic. aborting.\n&quot;
+);</code></pre>
+
+<p>If we have panicked in the panic hook, we probably should not call that hook again, or even attempt formatting the panic message. Think about it: if <code>rust_panic_with_hook</code> panicked before(because the hook panicked), it is likely to panic again. That could lead us to a loop of panics. This loop would overflow the stack, and lead to very confusing error messages. Since such a case is unlikely to be recoverable, we ought to abort instead.</p>
+
+<pre><code class="language-rust">rtprintpanic!(&quot;aborting due to panic at {location}:\n{payload}\n&quot;);</code></pre>
+
+<p>If we have panicked after a call to <code>fork</code>, we can't print any backtraces, since that allocates memory. We still <em>can</em> print the cause of the panic, by having the formatting machinery write directly to <code>stderr</code>. This is exactly what the <code>rtprintpanic</code> macro does.</p>
+
+<pre><code class="language-rust">if let Some(mut out) = crate::sys::stdio::panic_output() {
+    let _ = crate::io::Write::write_fmt(&amp;mut out, format_args!($($t)*));
+}</code></pre>
+
+<p>No matter the case of the termination, we use the function <code>abort_internal</code> to stop the execution of the program.</p>
+
+<pre><code class="language-rust">crate::sys::abort_internal();</code></pre>
+
+<p>However, if <code>panic_count::increase</code> returns <code>None</code>, we don't need to terminate. In such a case, we will simply pass right trough to the rest of the panicking machinery.</p>
+
+<h2 id='panic_hooks'>Panic hooks</h2>
+
+<p>We have now incremented the panic counter, and check that we don't need to terminate.</p>
+
+<p>Now, we will now retrieve the <em>panic hook</em>. What is <a href='std::panic - Rust::set_hook'>a panic hook</a>? Glad you asked.</p>
+
+<pre><code class="language-rust">let hook = HOOK.read().unwrap_or_else(PoisonError::into_inner);</code></pre>
+
+<p>A panic hook is, at it's core, nothing more than a callback, invoked during each panic. Changing this hook allows us to control what a panic will print.</p>
+
+<p>We can, for example, write information about the panic to a log file:</p>
+
+<pre><code class="language-rust">std::panic::set_hook(Box::new(|info| {
+    eprintln!(&quot;panic:{info}&quot;);
+    writeln!(log_file, &quot;panicked at {date:?}:{info}&quot;, date = Instant::now(););
+}));</code></pre>
+
+<p>We can also filter out some more interesting errors:</p>
+
+<pre><code class="language-rust">std::panic::set_hook(Box::new(|info| {
+    eprintln!(&quot;panic:{info}&quot;);
+    let Some(location) = info.location();
+    if location.file_name().contains(&quot;important_crate&quot;){
+    	 writeln!(log_file, &quot;panicked at {date:?} in `important_crate`:{info}&quot;, date = Instant::now(););
+    }
+}));</code></pre>
+
+<p>Really, the only limit to what a panic hook can do is your imagination.</p>
+
+<p>After garbing the hook, <code>rust_panic_with_hook</code> will then call it <em>if it is set</em>. Otherwise, it will just call the default one.</p>
+
+<pre><code class="language-rust">match *hook {
+    Hook::Default if panic_output().is_none() =&gt; {}
+    Hook::Default =&gt; {
+        info.set_payload(payload.get());
+        default_hook(&amp;info);
+    }
+    Hook::Custom(ref hook) =&gt; {
+        info.set_payload(payload.get());
+        hook(&amp;info);
+    }
+};</code></pre>
+
+<p>As an added optimization, if it is known that printing on a target(eg. WASM) does nothing, we can skip calling the default hook altogether.</p>
+
+<p>After the hook finishes executing, we will perform some cleanup, preparing to drop down to platform-specific implementation of panicking.</p>
+
+<p>First, we will call <code>panic_count::finished_panic_hook</code> to:</p>
+
+<ol type="1">
+<li>Decrease the local and global panic counters</li>
+
+<li>Clear the in_hook flag, indicating that the panic hook has finished running.</li>
+</ol>
+
+<pre><code class="language-rust">panic_count::finished_panic_hook();</code></pre>
+
+<p>Before we drop down to the unwinding code, we need to check if we even <em>can</em> unwind. Remember, certain kinds of panics are not recoverable.</p>
+
+<pre><code class="language-rust">if !can_unwind {
+    // If a thread panics while running destructors or tries to unwind
+    // through a nounwind function (e.g. extern &quot;C&quot;) then we cannot continue
+    // unwinding and have to abort immediately.
+    rtprintpanic!(&quot;thread caused non-unwinding panic. aborting.\n&quot;);
+    crate::sys::abort_internal();
+}</code></pre>
+
+<p>If we can't unwind(recover from this panic), we will have to terminate the execution of this thread.</p>
+
+<p>At this point, all of the code responsible for reporting panics has finished execution. We ensured that we can safely panic, called the panic hook(which prints the panic message and backtrace). Now, it is the time to finally trigger the panic, and jump to code responsible for unwinding the stack.</p>
+
+<pre><code class="language-rust">rust_panic(payload)</code></pre>
+
+<h1 id='rust_panic'>rust_panic</h1>
+
+<p>I have lied a tiny bit. There is one more function we need to discuss. <code>rust_panic</code> is just a thin wrapper around <code>__rust_start_panic</code>. Why is it needed?</p>
+
+<pre><code class="language-rust">#[inline(never)]
+fn rust_panic(msg: &amp;mut dyn PanicPayload) -&gt; ! {
+    let code = unsafe { __rust_start_panic(msg) };
+    rtabort!(&quot;failed to initiate panic, error {code}&quot;)
+}</code></pre>
+
+<p><em>Well</em>, the unwinding process can still fail for a variety of reasons. For example, stack corruption. If you somehow manage to overwrite the return pointer in a function, we no longer know <em>who</em> called your function. Without that knowledge, we can't unwind. In such a case, we will print an error message instead, and abort execution.</p>
+
+<p>Somewhat confusingly, there are 2 different implementations of <code>__rust_start_panic</code>.</p>
+
+<p>If our code is compiled with <code>-Cpanic=abort</code>, <code>__rust_start_panic</code> will abort execution.</p>
+
+<pre><code class="language-rust">pub unsafe fn __rust_start_panic(_payload: &amp;mut dyn PanicPayload) -&gt; u32 {
+    unsafe {
+        abort();
+    }
+}</code></pre>
+
+<p>If we compile with unwinding support, <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/panic_unwind/src/lib.rs#L99'>`__rust_start_panic`</a> is just a thin wrapper around the platform-specific implementation of panics.</p>
+
+<pre><code class="language-rust">pub unsafe fn __rust_start_panic(payload: &amp;mut dyn PanicPayload) -&gt; u32 {
+    unsafe {
+        let payload = Box::from_raw(payload.take_box());
+        imp::panic(payload)
+    }
+}</code></pre>
+
+<p>First, it will convert the panic payload to a box, using the <code>take_box</code> function. You may wonder: why are we using this function? Boxing a value is super easy: could we not just use <code>Box::new</code>?</p>
+
+<pre><code class="language-rust">let payload = Box::new(payload);</code></pre>
+
+<p>Well, <code>take_box</code> is a bit special. If the panic payload <em>is already boxed</em> it will take a pointer to that box. Otherwise, it will box our value up. This allows us to save a needless allocation in a lot of cases.</p>
+
+<p>That boxed payload will then be passed to <code>imp::panic</code>. Implementation of that function is platform-specific. On Windows, it uses SEH(Structured Exception Handling). On <em>most</em> other platforms, it uses a library called libunwind.</p>
+
+<p>In this article, I will talk about panicking on <code>GCC Linux</code> - so I'll be looking at the implementation using <code>libunwind</code>.</p>
+
+<h1 id='libunwind'>libunwind</h1>
+
+<p>The <code>libunwind</code>-based implementation of panicking starts by assembling an <code>Exception</code> structure.</p>
+
+<pre><code class="language-rust">pub(crate) unsafe fn panic(data: Box&lt;dyn Any + Send&gt;) -&gt; u32 {
+    let exception = Box::new(Exception {
+        _uwe: uw::_Unwind_Exception {
+            exception_class: RUST_EXCEPTION_CLASS,
+            exception_cleanup: Some(exception_cleanup),
+            private: [core::ptr::null(); uw::unwinder_private_data_size],
+        },
+        canary: &amp;CANARY,
+        cause: data,
+    });</code></pre>
+
+<p>There is a lot going on <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/panic_unwind/src/gcc.rs#L61'>here</a> - so, let me break this down, step by step. First of all, the <code>_Unwind_Exception</code> type.</p>
+
+<h2 id='unwind_exception'><em>Unwind</em>Exception</h2>
+
+<p>The layout of this type is mandated by <code>libunwind</code>, and contains a few interesting pieces of data.</p>
+
+<p>First of all, it begins with an <em>exeception class</em>. This is a 64 bit identifier, specifying the type of this exception. In the case of C++ exceptions, this will be &quot;XXXXC++\0&quot;, where the &quot;XXXX&quot; part of this string is replaced with vendor-specific data.</p>
+
+<p>The Rust exception class is a little throwback to the origin of the language:</p>
+
+<pre><code class="language-rust">const RUST_EXCEPTION_CLASS: uw::_Unwind_Exception_Class = u64::from_ne_bytes(*b&quot;MOZ\0RUST&quot;);</code></pre>
+
+<p>This value allows us to distinguish C++ exceptions and Rust panics from each other. If the <code>exception_class</code> is <code>MOZ\0RUST</code>, we know that an unwind was caused by a Rust panic.</p>
+
+<p>The next field, <code>exception_cleanup</code>, is a pointer to a cleanup function.</p>
+
+<pre><code class="language-rust">exception_cleanup: Some(exception_cleanup),</code></pre>
+
+<p>This function is a part of the <code>libunwind</code> API, and <em>can</em> be used to dispose of an exception object.</p>
+
+<p>However, catching Rust panics in outside <code>catch_unwind</code> (eg. in foreign code, like <code>C++</code>) code is not supported.</p>
+
+<p>This is when <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/panic_unwind/src/gcc.rs#L74'>`exception_cleanup`</a> comes in.</p>
+
+<pre><code class="language-rust">extern &quot;C&quot; fn exception_cleanup(
+    _unwind_code: uw::_Unwind_Reason_Code,
+    exception: *mut uw::_Unwind_Exception,
+) {
+    unsafe {
+        let _: Box&lt;Exception&gt; = Box::from_raw(exception as *mut Exception);
+        super::__rust_drop_panic();
+    }
+}</code></pre>
+
+<p>This function will first convert the payload pointer back to a box, and then immediately drop that box, disposing of the panic object. After that, <code>exception_cleanup</code> will call <code>__rust_drop_panic</code>.</p>
+
+<pre><code class="language-rust">extern &quot;C&quot; fn __rust_drop_panic() -&gt; ! {
+    rtabort!(&quot;Rust panics must be rethrown&quot;);
+}</code></pre>
+
+<p>This will print the error message &quot;Rust panics must be rethrown&quot;. Since Rust code will never call <code>exception_cleanup</code> by itself, we know that this panic was caught in foregin code.</p>
+
+<pre><code class="language-cpp">#include &lt;exception&gt;
+#include &lt;iostream&gt;
+int rust_fn();
+int square(int num) {
+    try{
+        rust_fn();
+    }
+    catch (std::exception e){
+        std::cout&lt;&lt;&quot;Ignoring Rust panics like a boss!&quot;&lt;&lt;std::endl;
+    }
+}</code></pre>
+
+<p>If we don't re-throw this exception, it's <code>exception_cleanup</code> function will be called(to dispose of the exception object). We will then see the message &quot;Rust panics must be rethrown&quot;, and know exactly what is wrong.</p>
+
+<p>Finally, we can take a look at the last field of <code>_Unwind_Exception</code>.</p>
+
+<p>What does this field does? Well, it is none of your business!</p>
+
+<pre><code class="language-rust">private: [core::ptr::null(); uw::unwinder_private_data_size],</code></pre>
+
+<p>Seriously, we don't care about this field at all. <code>libunwind</code> uses it to store some of it's internal state.</p>
+
+<p>We zero-initialize them here, but never touch them again.</p>
+
+<p>Now that I explained all the fields of <code>_Unwind_Exception</code>, let us take a look at the type wrapping it: the creatively named <code>Exception</code>.</p>
+
+<h2 id='exception'>Exception</h2>
+
+<p>The <code>Exception</code> type has a fixed, C-style layout. As I already mentioned, it's first field is <code>_Unwind_Exception</code> - that type contains all the data <code>libunwind</code> needs to work.</p>
+
+<p>After that lies Rust-specific data, used by the Rust panicking machinery.</p>
+
+<pre><code class="language-rust">canary: &amp;CANARY,
+cause: data,</code></pre>
+
+<p>I will gloss over the <code>canary</code> field for now. It serves quite an important purpose, but it is hard to explain without context.</p>
+
+<p>In the <code>cause</code> field, we store the panic payload. This is what <code>catch_unwind</code> will return, once it catches our panic.</p>
+
+<p>Ok, now we have created our exception object. What is next?</p>
+
+<pre><code class="language-rust">let exception_param = Box::into_raw(exception) as *mut uw::_Unwind_Exception;
+return unsafe { uw::_Unwind_RaiseException(exception_param) as u32 };</code></pre>
+
+<p>We take a pointer to that <code>exception</code>, and pass it to <code>_Unwind_RaiseException</code>. If unwinding succeeds, we will never return to this function. If it fails, <code>_Unwind_RaiseException</code> will return an error code, which <code>imp::panic</code> will return for <code>__rust_start_panic</code> to handle.</p>
+
+<p>In most cases(save for things like stack corruption), <code>_Unwind_RaiseException</code> will succeed.<br /></p>
+
+<p>So, what happens now?</p>
+
+<p>...</p>
+
+<h1 id='unwinding_the_stack'>Unwinding the stack</h1>
+
+<p>Now, the <code>libunwind</code> library will start it's treacherous walk up the call stack, dropping(running destructors of) data along the way.</p>
+
+<p>It's journey will continue, until it either encounters the <code>catch_unwind</code> intrinsic, or something that prevents the unwind from happening(eg. a function with an ABI not supporting unwinding).</p>
+
+<p>I describe the whole process in more detail <a href='https://fractalfir.github.io//generated_html/rustc_codegen_clr_v0_2_1.html'>in my article</a> about the compiler-side implementation of unwinding.</p>
+
+<p>The details of the process are quite complex, but, at it's basic level, it is fairly easy to understand.</p>
+
+<p>Just like a C++ exception travels up the call stack, so does a Rust panic.</p>
+
+<p>Both of them will call the destructors of data, and both of them will eventually find a &quot;catch&quot;.</p>
+
+<h1 id='handling_panics,_and_catch_unwind'>Handling panics, and <code>catch_unwind</code></h1>
+
+<p>Somewhat confusingly, the name <code>catch_unwind</code> refers to 2 different functions.</p>
+
+<p>The function <code>std::panic::catch_unwind</code> is a convenient wrapper around the whole unwinding machinery.</p>
+
+<pre><code class="language-rust">let result = panic::catch_unwind(|| {
+    println!(&quot;hello!&quot;);
+});
+assert!(result.is_ok());</code></pre>
+
+<p>It calls a closure, returning <code>Ok</code> if that closure does not panic, or <code>Err(payload)</code> if it does.</p>
+
+<p>The core intrinsic <code>catch_unwind</code> is a whole lot more complex. It takes 2 function pointers, and a data pointer. It returns an integer value, indicating if a panic has occurred.</p>
+
+<pre><code class="language-rust">pub unsafe fn catch_unwind(
+    _try_fn: fn(*mut u8),
+    _data: *mut u8,
+    _catch_fn: fn(*mut u8, *mut u8),
+) -&gt; i32</code></pre>
+
+<p>While the entire <code>catch</code>-ing machinery in Rust is built on top of this intrinsic, but, it is not too relevant for now. I'll start by talking about <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panic.rs#L358'>`std::panic::catch_unwind`</a>.</p>
+
+<h2 id='std::panic::catch_unwind'><code>std::panic::catch_unwind</code></h2>
+
+<p>You might be getting deja-vu. Like a lot of functions mentioned before, <code>catch_unwind</code> is just a thin wrapper around another function: <code>std::panicking::try</code>.</p>
+
+<pre><code class="language-rust">pub fn catch_unwind&lt;F: FnOnce() -&gt; R + UnwindSafe, R&gt;(f: F) -&gt; Result&lt;R&gt; {
+    unsafe { panicking::r#try(f) }
+}</code></pre>
+
+<p>Let me first explain it's odd name: in the newer versions of Rust, <code>try</code> became a keyword. You can escape Rust keywords using the <code>r#</code> prefix:</p>
+
+<pre><code class="language-rust">fn r#use(){}
+fn r#mod(){}</code></pre>
+
+<p>That allows you to use keywords as function names. So, this is why this function is written as <code>r#try</code> in code.</p>
+
+<p>Now, <em>why</em> is this wrapper needed?</p>
+
+<h2 id='std::panicking::try'>std::panicking::try</h2>
+
+<p>Well, there exist 2 distinct versions of the <code>try</code> function.</p>
+
+<pre><code class="language-rust">#[cfg(feature = &quot;panic_immediate_abort&quot;)]
+pub unsafe fn r#try&lt;R, F: FnOnce() -&gt; R&gt;(f: F) -&gt; Result&lt;R, Box&lt;dyn Any + Send&gt;&gt; {
+    Ok(f())
+}</code></pre>
+
+<p><a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L502'>This one</a> might look kind of weird, until you take a second to understand it a bit better.</p>
+
+<p>It does not actually perform any <code>catch</code>-ing, and simply calls the passed closure directly. And, it always returns <code>Ok</code>... this does not make any sense.</p>
+
+<p>Until you notice this line:</p>
+
+<pre><code class="language-rust">#[cfg(feature = &quot;panic_immediate_abort&quot;)]</code></pre>
+
+<p>Yep - this is a specialized version of the <code>try</code> function, which is used when you disable all the unwinding machinery. If your program can't ever unwind, catching unwinds makes little sense. So, we simply... don't do that. As easy as that.</p>
+
+<p>The other variant of this function is used when unwinds <em>are</em> enabled. For performance reasons, it contains <em>a lot</em> of very, very weird code. I'll try my best to explain what the hell is going on.</p>
+
+<pre><code class="language-rust">pub unsafe fn r#try&lt;R, F: FnOnce() -&gt; R&gt;(f: F) -&gt; Result&lt;R, Box&lt;dyn Any + Send&gt;&gt;
+    union Data&lt;F, R&gt; {
+        f: ManuallyDrop&lt;F&gt;,
+        r: ManuallyDrop&lt;R&gt;,
+        p: ManuallyDrop&lt;Box&lt;dyn Any + Send&gt;&gt;,
+    }</code></pre>
+
+<p><a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L508'>This function</a> starts by declaring an union of 3 different types: <code>F</code>(the closure to call), <code>R</code>(the return value of that closure), and <code>Box&lt;dyn Any + Send&gt;</code>, which will contain the panic payload.</p>
+
+<p>All of them are wrapped in <code>ManuallyDrop</code> - a type that inhibits the normal Rust dropping behaviour. This is needed, because later on, this function will do a lot of really odd things.</p>
+
+<p>Next, we will pack our closure into this data structure, and get a pointer to that.</p>
+
+<pre><code class="language-rust">let mut data = Data { f: ManuallyDrop::new(f) };
+
+let data_ptr = (&amp;raw mut data) as *mut u8;</code></pre>
+
+<p>The next few lines are written in a quite confusing way. I'll show you the original code here, and then rewrite them a bit to easier show what is going on.</p>
+
+<pre><code class="language-rust">unsafe {
+    return if intrinsics::catch_unwind(do_call::&lt;F, R&gt;, data_ptr, do_catch::&lt;F, R&gt;) == 0 {
+        Ok(ManuallyDrop::into_inner(data.r))
+    } else {
+        Err(ManuallyDrop::into_inner(data.p))
+    };
+}</code></pre>
+
+<p>The most important step here is the call to the <code>catch_unwind</code> <strong>intrinsic</strong> I mentioned before. Let us recap how that intrinsic works.</p>
+
+<ol type="1">
+<li>First, it calls it's first argument(a function pointer) with a provided <em>data pointer</em>.</li>
+
+<li>If that call fails(it catches an unwind), it will call it's 3rd argument with the provided <em>data pointer</em>, and a pointer to the exception object.</li>
+
+<li>It will return <code>0</code> if no unwind was caught, or a non-zero value if an unwind <em>was caught</em>.</li>
+</ol>
+
+<p>Let us now look at the refactored version of the code I showed above.</p>
+
+<pre><code class="language-rust ">let has_panicked = intrinsics::catch_unwind(do_call::&lt;F, R&gt;, data_ptr, do_catch::&lt;F, R&gt;);
+if has_panicked == 0 {
+    // has_panicked is false, extract the result from the data
+   return Ok(ManuallyDrop::into_inner(data.r))
+} else {
+    // has_panicked is true, extract the panic from the data
+    return Err(ManuallyDrop::into_inner(data.p))
+};</code></pre>
+
+<p>You can quite clearly see what is going on: the <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L583'>`do_call` function</a> will call our closure(provide via the data pointer). If that call succeeds, it will then store the result of that call in the data pointer.</p>
+
+<pre><code class="language-rust">fn do_call&lt;F: FnOnce() -&gt; R, R&gt;(data: *mut u8) {
+    // SAFETY: this is the responsibility of the caller, see above.
+    unsafe {
+        let data = data as *mut Data&lt;F, R&gt;;
+        let data = &amp;mut (*data);
+        let f = ManuallyDrop::take(&amp;mut data.f);
+        data.r = ManuallyDrop::new(f());
+    }
+}</code></pre>
+
+<p>If an unwind occurs, the intrinsic will call <code>do_catch</code>. That function will retrieve the panic payload, and store it in the data pointer.</p>
+
+<p>Later, we simply check the return value of <code>catch_unwind</code> to see if an unwind occurred, and behave accordingly.</p>
+
+<pre><code class="language-rust">if has_panicked == 0 {
+    // has_panicked is false, extract the result from the data
+    return Ok(ManuallyDrop::into_inner(data.r))
+} else {
+    // has_panicked is true, extract the panic from the data
+    return Err(ManuallyDrop::into_inner(data.p))
+};</code></pre>
+
+<p>We extract either the result of our closure, or the panic payload.</p>
+
+<p>We then return that, packed in a <code>Result</code>. That <code>Result</code> will then be passed back to the user code. It is the value returned by the <code>std::panic::catch_unwind</code> <strong>function</strong>.</p>
+
+<p>You might now understand most of the process of raising and catching panics, but there is one detail I committed.</p>
+
+<p>How does the function <code>do_catch</code> work?</p>
+
+<h1 id='do_catch'><code>do_catch</code></h1>
+
+<p>I quickly glossed over this function. I said that it &quot;<em>retrieves the panic payload, and stores it in the data pointer</em>&quot; - but <em>how</em>?.</p>
+
+<pre><code class="language-rust">intrinsics::catch_unwind(do_call::&lt;F, R&gt;, data_ptr, do_catch::&lt;F, R&gt;)</code></pre>
+
+<p>Let us now look at <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L606'>it's implementation</a>!</p>
+
+<pre><code class="language-rust">unsafe {
+    let data = data as *mut Data&lt;F, R&gt;;
+    let data = &amp;mut (*data);
+    let obj = cleanup(payload);
+    data.p = ManuallyDrop::new(obj);
+}</code></pre>
+
+<p>It is quite similar to <code>do_call</code> - with a few differences. First of all, it sets the <code>p</code>(payload) value in the data pointer - but it also calls a very interesting function: <code>cleanup</code>.</p>
+
+<pre><code class="language-rust">let obj = cleanup(payload);</code></pre>
+
+<p><code>cleanup</code> <em>is</em> responsible for extracting the payload from a platform-specific exception object, but it also does a whole bunch more.<br /></p>
+
+<pre><code class="language-rust">unsafe fn cleanup(payload: *mut u8) -&gt; Box&lt;dyn Any + Send + 'static&gt; {
+    let obj = unsafe { Box::from_raw(__rust_panic_cleanup(payload)) };
+    panic_count::decrease();
+    obj
+}</code></pre>
+
+<p>To extract the payload, it calls a function named <code>__rust_panic_cleanup</code> - more on that later.</p>
+
+<p>It also decrements the panic counter, since the panic has been caught.</p>
+
+<p>Now, let us go back to <code>__rust_panic_cleanup</code>. It is yet another case of a &quot;magic&quot; symbol that gets resolved to something else entirely.</p>
+
+<p>What can you do. In reality, this will call the <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/panic_unwind/src/gcc.rs#L85'>`cleanup` function</a> within the platform-specific panic runtime.</p>
+
+<h1 id='cleanup_&_libunwind'>cleanup &amp; libunwind</h1>
+
+<p>We once again drop down to code interacting with <code>libunwind</code>. This is what is responsible for panics on <em>GCC Linux</em>, and a bunch of other platforms. On Windows, this code will look a bit different.</p>
+
+<p>Recall the <code>_Unwind_Exception</code> object we assembled when throwing a panic. Here, we get back that object.</p>
+
+<pre><code class="language-rust">let exception = ptr as *mut uw::_Unwind_Exception;
+if (*exception).exception_class != RUST_EXCEPTION_CLASS {
+    uw::_Unwind_DeleteException(exception);
+    super::__rust_foreign_exception();
+}</code></pre>
+
+<p>The very first thing we do is check the <code>exception_class</code> field of the exception. This is used to check if an exception is coming from Rust(<code>MOZ\0RUS</code>), or something like C++(<code>XXXXC++\0</code>).</p>
+
+<p>If this is not a Rust panic, we dispose of that panic, and call <code>__rust_foreign_exception</code>.</p>
+
+<p>That function will print an error message, and abort the execution of the program.</p>
+
+<p>Next, once we know this is a Rust exception, we will cast the pointer to the <code>Exception</code> type. This type contains the <code>libunwind</code> exception, and some Rust specific data.</p>
+
+<pre><code class="language-rust">let exception = exception.cast::&lt;Exception&gt;();</code></pre>
+
+<p>After we get the pointer to the <code>Exception</code> type, we will access one of it's field: the canary. You may recall that I skipped explaining the purpose of that field. Now, I will go into that in detail.</p>
+
+<pre><code class="language-rust">let canary = (&amp;raw const (*exception).canary).read();
+if !ptr::eq(canary, &amp;CANARY) {
+   super::__rust_foreign_exception();
+}</code></pre>
+
+<p>The <code>canary</code> field, like it's feathered namesake, protects us against a rare, but vicious danger.</p>
+
+<p>Consider the following. Somebody wrote a very useful library, <code>libgreat</code>, in C++. That library deepends on <code>libawsome</code>, which just so happens to be written in Rust.</p>
+
+<p><code>libawsome</code> is compiled with Rust <code>1.66</code>. Now, we call <code>libgreat</code> from a Rust program, compiled with rustc <code>1.78</code>.</p>
+
+<p>Due to an oversight, <code>libawsome</code> panics. <code>libgreat</code> does not catch that panic - after all, Rust panic's can't be caught in C++. So, it allows the panic to ride on trough, right to a <code>catch_unwind</code> inside our Rust program.</p>
+
+<p>The program checks the exception class, and sees <code>MOZ\0RUS</code>. Great, this panic was thrown from Rust, so we can catch it, right?</p>
+
+<pre><code class="language-rust">if (*exception).exception_class != RUST_EXCEPTION_CLASS{}
+// Let's catch this bad boy!</code></pre>
+
+<p>Well, not so fast. Recall, our two pieces of Rust code were compiled with <em>different compilers</em>.</p>
+
+<p>This was not an issue before - neither <code>libawsome</code> nor our Rust program were using the Rust ABI, and they did not interact directly.</p>
+
+<p>Who says that trait objects(used by the payload) haven't changed between Rust versions? Maybe their layout is slightly different?</p>
+
+<p>And now, our panicking machinery will call a function with the <em>wrong version</em> of the Rust ABI to retrieve the panic payload.</p>
+
+<p>That would mean instant UB! Even tough the exception class matches, one version of Rust can't catch a panic from a different one!</p>
+
+<p>This is where the canary field comes into play.</p>
+
+<pre><code class="language-rust">static CANARY: u8 = 0;</code></pre>
+
+<p>This field is <em>private</em> to the standard library, and each <em>copy</em> of the standard library will have it's own canary - at a different address.</p>
+
+<p>If we detect a panic with a different canary(different address), that means we are not catching &quot;our&quot; panic.</p>
+
+<p>So, we print an error message, and stop the program.</p>
+
+<pre><code class="language-rust">if !ptr::eq(canary, &amp;CANARY) {
+   super::__rust_foreign_exception();
+}</code></pre>
+
+<p>You may wonder: would having some kind of version number not be better? Well, the canary approach is much more robust, and can always detect when a panic is coming from a different copy of <code>std</code>. Even if both copies are compiled with the same compiler.</p>
+
+<p>Fun fact: catching a panic from a different <code>std</code> can still cause issues, <em>even if</em> it is compiled with the same compiler.</p>
+
+<p>Explaining exactly how that can cause problems is a bit outside the scope of this article, tough.</p>
+
+<p>However unlikely such an occurrence may be, the Rust library still guards against it. I fell like that demonstrates the philosophy of Rust quite well.</p>
+
+<p>As the very last step, <code>cleanup</code> will turn the <code>Exception</code> pointer to a <code>Box</code>, extract the payload, and free that box.</p>
+
+<pre><code class="language-rust">let exception = Box::from_raw(exception as *mut Exception);
+exception.cause</code></pre>
+
+<p>And with this, I have described the entire Rust panicking machinery. From the original macro, trough the guts of <code>std</code>, till the bowels of <code>catch_unwind</code>.</p>
+
+<p>I am finally...</p>
+
+<h1 id='done.'>DONE.</h1>
+
+<p>I have been working on this article since October 2024. At first, I kind of underestimated <em>just how much things to talk about</em> there is in the rust panic runtime.</p>
+
+<p>I certainly did not expect this article to be nearly as big as it got.</p>
+
+<p>You know what is funny? The article originally did not end here.</p>
+
+<p><em>Originally</em>, this was just a prologue to an article about converting .NET exceptions to Rust panics.</p>
+
+<p>That was the entire reason I <em>started</em> writing this. To talk about how my <a href='https://github.com/FractalFir/rustc_codegen_clr'>Rust to .NET compiler</a> handles panics and exceptions.</p>
+
+<p>That will also come... at some point.</p>
+
+<p>For now, I hope you enjoyed the journey trough the guts of <code>std</code>, and I wish you a good day :).</p>
+
+<p><em>I have triple-checked most of the things I talk about here, but there are bound to be mistakes that slipped trough. If you spot them, please let me know.</em></p>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"

@@ -130,8 +130,8 @@ pop_count128:
 
 <p>However, emulating those 128 bit intrinsics is not too difficult. The <code>popcount</code> intrinsic simply checks how many bits are set in an integer. So, I can add up the number of bits set in the lower and higher half of that integer, and get the correct result .</p>
 
-<pre><code class="language-c">static inline __uint128_t pop_count128(__uint128_t val) {
-   return __builtin_popcountl((uint64_t)val) +  __builtin_popcountl((uint64_t)(val&gt;&gt;64));
+<pre><code class="language-c">static inline uint32_t pop_count128(__uint128_t val) {
+   return __builtin_popcountll((uint64_t)val) +  __builtin_popcountll((uint64_t)(val&gt;&gt;64));
 }</code></pre>
 
 <p>I have also finally fully implemented the very last checked arithmetic operations. Checking for overflows during 128 bit int multiplication is hard. For quite some time. I have been trying to come up with some clever ideas for fast overflow checks. Sadly none of them ended up working out for 128 bit multiplication.</p>

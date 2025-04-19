@@ -60,8 +60,8 @@ pop_count128:
 
 However, emulating those 128 bit intrinsics is not too difficult. The `popcount` intrinsic simply checks how many bits are set in an integer. So, I can add up the number of bits set in the lower and higher half of that integer, and get the correct result .
 ```c
-static inline __uint128_t pop_count128(__uint128_t val) {
-   return __builtin_popcountl((uint64_t)val) +  __builtin_popcountl((uint64_t)(val>>64));
+static inline uint32_t pop_count128(__uint128_t val) {
+   return __builtin_popcountll((uint64_t)val) +  __builtin_popcountll((uint64_t)(val>>64));
 }
 
 ```
