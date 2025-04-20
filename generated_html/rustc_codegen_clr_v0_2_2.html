@@ -174,7 +174,7 @@ use std::prelude::rust_2024::*;</code></pre>
 
 <p>Different editions have different preludes, with a slightly different set of functions. So, our code using the 2024 version of Rust will import the 2024 prelude.</p>
 
-<p>Interestingly, the <code>panic</code> macro itself has changed between editions. This is why something like <code>std:panic::panic2015</code> exists.</p>
+<p>Interestingly, the <code>panic</code> macro itself has changed between editions. This is why something like <code>std::panic::panic2015</code> exists.</p>
 
 <p>However, we are interested in the 2024 version of panicking.</p>
 
@@ -245,7 +245,7 @@ extern crate std;</code></pre>
 
 <pre><code class="language-rust"> ::core::panicking::panic_fmt(format_args!(&quot;Oops! something went wrong...&quot;));</code></pre>
 
-<p>We know that this function is passed <code>core::fmt::Arguments</code>(a data structure representing the panic message), and somehow starts a panic - but how? Let's take a glance at <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/core/src/panicking.rs#L55'>it's implementation</a>.</p>
+<p>We know that this function is passed <code>core::fmt::Arguments</code>(a data structure representing the panic message), and somehow starts a panic - but how? Let's take a glance at <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/core/src/panicking.rs#L55'>its implementation</a>.</p>
 
 <pre><code class="language-rust">#[track_caller]
 pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; ! {
@@ -280,7 +280,7 @@ pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; ! {
 
 <p>This allows it to be used for things like static assertions, and a whole lot more.</p>
 
-<p>Another interesting thing about <code>panic_fmt</code> is it's return type - '!'</p>
+<p>Another interesting thing about <code>panic_fmt</code> is its return type - '!'</p>
 
 <p>The <a href='https://doc.rust-lang.org/std/primitive.never.html'>never type</a> has a lot of really neat properties.</p>
 
@@ -457,7 +457,7 @@ pub fn begin_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! 
 
 <p>The next line is a bit interesting. We call a very odd function <code>__rust_end_short_backtrace</code> with a <em>closure</em>. Why?</p>
 
-<p><code>__rust_end_short_backtrace</code> and it's brother <code>__rust_begin_short_backtrace</code> are used to display better backtraces.</p>
+<p><code>__rust_end_short_backtrace</code> and its brother <code>__rust_begin_short_backtrace</code> are used to display better backtraces.</p>
 
 <p>You probably don't care all that much about anything that happens before <code>main</code> when diagnosing a panic. Who cares what the standard library did to initialize your program, if the error happens waaay after that?</p>
 
@@ -538,7 +538,7 @@ pub fn begin_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! 
 
 <h1 id='can_unwind'>can_unwind</h1>
 
-<p><code>can_unwind</code> is the most interesting of those arguments. As you might recall, &quot;unwinding&quot; is the mechanism by which panics can be thrown and caught. When an unwind occurs, our program will traverse it's call stack, dropping data along the way. It will stop when it finds the intrinsic <code>catch_unwind</code> - this allows us to recover from <em>some</em> panics.</p>
+<p><code>can_unwind</code> is the most interesting of those arguments. As you might recall, &quot;unwinding&quot; is the mechanism by which panics can be thrown and caught. When an unwind occurs, our program will traverse its call stack, dropping data along the way. It will stop when it finds the intrinsic <code>catch_unwind</code> - this allows us to recover from <em>some</em> panics.</p>
 
 <p>This is quite useful - for example, Rust test harness uses this mechanism to report when a test panics.</p>
 
@@ -606,13 +606,13 @@ fn rust_panic_with_hook(
 
 <p>The first interesting thing about this function is the <code>#[optimize(size)]</code> attribute. Rust programs <em>rarely</em> panic, so optimizing this function for performance makes little sense.</p>
 
-<p>We can instead optimize it to reduce it's <em>size</em>. You probably will not notice the minuscule difference in performance of panics this will cause.</p>
+<p>We can instead optimize it to reduce its <em>size</em>. You probably will not notice the minuscule difference in performance of panics this will cause.</p>
 
 <p>However, the reduction in <em>size</em> of the panicking machinery has a lot of benefits.</p>
 
-<p>Remember, this function is used in pretty much all Rust code: reducing it's size will reduce the size of all Rust programs.</p>
+<p>Remember, this function is used in pretty much all Rust code: reducing its size will reduce the size of all Rust programs.</p>
 
-<p><code>rust_panic_with_hook</code> starts doing it's magic by performing a call to <code>panic_count::increase</code>:</p>
+<p><code>rust_panic_with_hook</code> starts doing its magic by performing a call to <code>panic_count::increase</code>:</p>
 
 <pre><code class="language-rust">let must_abort = panic_count::increase(true);</code></pre>
 
@@ -647,7 +647,7 @@ fn rust_panic_with_hook(
 
 <h3 id='fork_ing_malloc'><code>fork</code>ing <code>malloc</code></h3>
 
-<p>The <code>fork</code> function duplicates the <strong>calling process</strong>, along with it's memory space.</p>
+<p>The <code>fork</code> function duplicates the <strong>calling process</strong>, along with its memory space.</p>
 
 <p>Seems fine, until you consider things like <code>Mutex</code>es. Suppose we have a thread <code>A</code> and a thread <code>B</code>. When thread <code>A</code> is holding a lock, thread <code>B</code> forks.</p>
 
@@ -763,7 +763,7 @@ if let Some(must_abort) = must_abort {
 
 <pre><code class="language-rust">let hook = HOOK.read().unwrap_or_else(PoisonError::into_inner);</code></pre>
 
-<p>A panic hook is, at it's core, nothing more than a callback, invoked during each panic. Changing this hook allows us to control what a panic will print.</p>
+<p>A panic hook is, at its core, nothing more than a callback, invoked during each panic. Changing this hook allows us to control what a panic will print.</p>
 
 <p>We can, for example, write information about the panic to a log file:</p>
 
@@ -938,7 +938,7 @@ int square(int num) {
     }
 }</code></pre>
 
-<p>If we don't re-throw this exception, it's <code>exception_cleanup</code> function will be called(to dispose of the exception object). We will then see the message &quot;Rust panics must be rethrown&quot;, and know exactly what is wrong.</p>
+<p>If we don't re-throw this exception, its <code>exception_cleanup</code> function will be called(to dispose of the exception object). We will then see the message &quot;Rust panics must be rethrown&quot;, and know exactly what is wrong.</p>
 
 <p>Finally, we can take a look at the last field of <code>_Unwind_Exception</code>.</p>
 
@@ -946,7 +946,7 @@ int square(int num) {
 
 <pre><code class="language-rust">private: [core::ptr::null(); uw::unwinder_private_data_size],</code></pre>
 
-<p>Seriously, we don't care about this field at all. <code>libunwind</code> uses it to store some of it's internal state.</p>
+<p>Seriously, we don't care about this field at all. <code>libunwind</code> uses it to store some of its internal state.</p>
 
 <p>We zero-initialize them here, but never touch them again.</p>
 
@@ -954,7 +954,7 @@ int square(int num) {
 
 <h2 id='exception'>Exception</h2>
 
-<p>The <code>Exception</code> type has a fixed, C-style layout. As I already mentioned, it's first field is <code>_Unwind_Exception</code> - that type contains all the data <code>libunwind</code> needs to work.</p>
+<p>The <code>Exception</code> type has a fixed, C-style layout. As I already mentioned, its first field is <code>_Unwind_Exception</code> - that type contains all the data <code>libunwind</code> needs to work.</p>
 
 <p>After that lies Rust-specific data, used by the Rust panicking machinery.</p>
 
@@ -980,13 +980,13 @@ return unsafe { uw::_Unwind_RaiseException(exception_param) as u32 };</code></pr
 
 <h1 id='unwinding_the_stack'>Unwinding the stack</h1>
 
-<p>Now, the <code>libunwind</code> library will start it's treacherous walk up the call stack, dropping(running destructors of) data along the way.</p>
+<p>Now, the <code>libunwind</code> library will start its treacherous walk up the call stack, dropping(running destructors of) data along the way.</p>
 
-<p>It's journey will continue, until it either encounters the <code>catch_unwind</code> intrinsic, or something that prevents the unwind from happening(eg. a function with an ABI not supporting unwinding).</p>
+<p>Its journey will continue, until it either encounters the <code>catch_unwind</code> intrinsic, or something that prevents the unwind from happening(eg. a function with an ABI not supporting unwinding).</p>
 
 <p>I describe the whole process in more detail <a href='https://fractalfir.github.io//generated_html/rustc_codegen_clr_v0_2_1.html'>in my article</a> about the compiler-side implementation of unwinding.</p>
 
-<p>The details of the process are quite complex, but, at it's basic level, it is fairly easy to understand.</p>
+<p>The details of the process are quite complex, but, at its basic level, it is fairly easy to understand.</p>
 
 <p>Just like a C++ exception travels up the call stack, so does a Rust panic.</p>
 
@@ -1023,7 +1023,7 @@ assert!(result.is_ok());</code></pre>
     unsafe { panicking::r#try(f) }
 }</code></pre>
 
-<p>Let me first explain it's odd name: in the newer versions of Rust, <code>try</code> became a keyword. You can escape Rust keywords using the <code>r#</code> prefix:</p>
+<p>Let me first explain its odd name: in the newer versions of Rust, <code>try</code> became a keyword. You can escape Rust keywords using the <code>r#</code> prefix:</p>
 
 <pre><code class="language-rust">fn r#use(){}
 fn r#mod(){}</code></pre>
@@ -1083,9 +1083,9 @@ let data_ptr = (&amp;raw mut data) as *mut u8;</code></pre>
 <p>The most important step here is the call to the <code>catch_unwind</code> <strong>intrinsic</strong> I mentioned before. Let us recap how that intrinsic works.</p>
 
 <ol type="1">
-<li>First, it calls it's first argument(a function pointer) with a provided <em>data pointer</em>.</li>
+<li>First, it calls its first argument(a function pointer) with a provided <em>data pointer</em>.</li>
 
-<li>If that call fails(it catches an unwind), it will call it's 3rd argument with the provided <em>data pointer</em>, and a pointer to the exception object.</li>
+<li>If that call fails(it catches an unwind), it will call its 3rd argument with the provided <em>data pointer</em>, and a pointer to the exception object.</li>
 
 <li>It will return <code>0</code> if no unwind was caught, or a non-zero value if an unwind <em>was caught</em>.</li>
 </ol>
@@ -1139,7 +1139,7 @@ if has_panicked == 0 {
 
 <pre><code class="language-rust">intrinsics::catch_unwind(do_call::&lt;F, R&gt;, data_ptr, do_catch::&lt;F, R&gt;)</code></pre>
 
-<p>Let us now look at <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L606'>it's implementation</a>!</p>
+<p>Let us now look at <a href='https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/std/src/panicking.rs#L606'>its implementation</a>!</p>
 
 <pre><code class="language-rust">unsafe {
     let data = data as *mut Data&lt;F, R&gt;;
@@ -1190,14 +1190,14 @@ if (*exception).exception_class != RUST_EXCEPTION_CLASS {
 
 <pre><code class="language-rust">let exception = exception.cast::&lt;Exception&gt;();</code></pre>
 
-<p>After we get the pointer to the <code>Exception</code> type, we will access one of it's field: the canary. You may recall that I skipped explaining the purpose of that field. Now, I will go into that in detail.</p>
+<p>After we get the pointer to the <code>Exception</code> type, we will access one of its field: the canary. You may recall that I skipped explaining the purpose of that field. Now, I will go into that in detail.</p>
 
 <pre><code class="language-rust">let canary = (&amp;raw const (*exception).canary).read();
 if !ptr::eq(canary, &amp;CANARY) {
    super::__rust_foreign_exception();
 }</code></pre>
 
-<p>The <code>canary</code> field, like it's feathered namesake, protects us against a rare, but vicious danger.</p>
+<p>The <code>canary</code> field, like its feathered namesake, protects us against a rare, but vicious danger.</p>
 
 <p>Consider the following. Somebody wrote a very useful library, <code>libgreat</code>, in C++. That library depends on <code>libawsome</code>, which just so happens to be written in Rust.</p>
 
@@ -1224,7 +1224,7 @@ if !ptr::eq(canary, &amp;CANARY) {
 
 <pre><code class="language-rust">static CANARY: u8 = 0;</code></pre>
 
-<p>This field is <em>private</em> to the standard library, and each <em>copy</em> of the standard library will have it's own canary - at a different address.</p>
+<p>This field is <em>private</em> to the standard library, and each <em>copy</em> of the standard library will have its own canary - at a different address.</p>
 
 <p>If we detect a panic with a different canary(different address), that means we are not catching &quot;our&quot; panic.</p>
 
