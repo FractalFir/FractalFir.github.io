@@ -265,7 +265,7 @@ pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; ! {
 
 <p><code>panic_fmt</code> may look a bit complex at first, but it is easy to understand, if you look at it part by part.</p>
 
-<p>It's signature seems like a good place to start.</p>
+<p>Its signature seems like a good place to start.</p>
 
 <pre><code class="language-rust">pub const fn panic_fmt(fmt: fmt::Arguments&lt;'_&gt;) -&gt; !</code></pre>
 
@@ -335,7 +335,7 @@ extern &quot;Rust&quot; {
 
 <p>However, panic handlers can also be defined outside the Rust standard library.</p>
 
-<p>This is exceptionally useful in embedded scenarios, where you might want to do something special(eg. rest the microcontroller) when a panic occurs.</p>
+<p>This is exceptionally useful in embedded scenarios, where you might want to do something special(eg. reset the microcontroller) when a panic occurs.</p>
 
 <pre><code class="language-rust">#[panic_handler]
 pub fn my_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! {
@@ -538,7 +538,7 @@ pub fn begin_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! 
 
 <h1 id='can_unwind'>can_unwind</h1>
 
-<p><code>can_unwind</code> is the most interesting of those arguments. As you might recall, &quot;unwinding&quot; is the mechanism by which panics can be thrown and caught. When an unwind occurs, our program will traverse it's call stack, dropping data along the way. It will stop when it finds the intrisnic <code>catch_unwind</code> - this allows us to recover from <em>some</em> panics.</p>
+<p><code>can_unwind</code> is the most interesting of those arguments. As you might recall, &quot;unwinding&quot; is the mechanism by which panics can be thrown and caught. When an unwind occurs, our program will traverse it's call stack, dropping data along the way. It will stop when it finds the intrinsic <code>catch_unwind</code> - this allows us to recover from <em>some</em> panics.</p>
 
 <p>This is quite useful - for example, Rust test harness uses this mechanism to report when a test panics.</p>
 
@@ -890,7 +890,7 @@ fn rust_panic(msg: &amp;mut dyn PanicPayload) -&gt; ! {
 
 <p>The layout of this type is mandated by <code>libunwind</code>, and contains a few interesting pieces of data.</p>
 
-<p>First of all, it begins with an <em>exeception class</em>. This is a 64 bit identifier, specifying the type of this exception. In the case of C++ exceptions, this will be &quot;XXXXC++\0&quot;, where the &quot;XXXX&quot; part of this string is replaced with vendor-specific data.</p>
+<p>First of all, it begins with an <em>exception class</em>. This is a 64 bit identifier, specifying the type of this exception. In the case of C++ exceptions, this will be &quot;XXXXC++\0&quot;, where the &quot;XXXX&quot; part of this string is replaced with vendor-specific data.</p>
 
 <p>The Rust exception class is a little throwback to the origin of the language:</p>
 
@@ -1199,13 +1199,13 @@ if !ptr::eq(canary, &amp;CANARY) {
 
 <p>The <code>canary</code> field, like it's feathered namesake, protects us against a rare, but vicious danger.</p>
 
-<p>Consider the following. Somebody wrote a very useful library, <code>libgreat</code>, in C++. That library deepends on <code>libawsome</code>, which just so happens to be written in Rust.</p>
+<p>Consider the following. Somebody wrote a very useful library, <code>libgreat</code>, in C++. That library depends on <code>libawsome</code>, which just so happens to be written in Rust.</p>
 
 <p><code>libawsome</code> is compiled with Rust <code>1.66</code>. Now, we call <code>libgreat</code> from a Rust program, compiled with rustc <code>1.78</code>.</p>
 
 <p>Due to an oversight, <code>libawsome</code> panics. <code>libgreat</code> does not catch that panic - after all, Rust panic's can't be caught in C++. So, it allows the panic to ride on trough, right to a <code>catch_unwind</code> inside our Rust program.</p>
 
-<p>The program checks the exception class, and sees <code>MOZ\0RUS</code>. Great, this panic was thrown from Rust, so we can catch it, right?</p>
+<p>The program checks the exception class, and sees <code>MOZ\0RUST</code>. Great, this panic was thrown from Rust, so we can catch it, right?</p>
 
 <pre><code class="language-rust">if (*exception).exception_class != RUST_EXCEPTION_CLASS{}
 // Let's catch this bad boy!</code></pre>

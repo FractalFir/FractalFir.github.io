@@ -205,7 +205,7 @@ pub const fn panic_fmt(fmt: fmt::Arguments<'_>) -> ! {
 
 `panic_fmt` may look a bit complex at first, but it is easy to understand, if you look at it part by part.
 
-It's signature seems like a good place to start. 
+Its signature seems like a good place to start. 
 ```rust
 pub const fn panic_fmt(fmt: fmt::Arguments<'_>) -> !
 ```
@@ -281,7 +281,7 @@ By default, this will be the function `begin_panic_handler` in `std`.
 
 However, panic handlers can also be defined outside the Rust standard library. 
 
-This is exceptionally useful in embedded scenarios, where you might want to do something special(eg. rest the microcontroller) when a panic occurs.
+This is exceptionally useful in embedded scenarios, where you might want to do something special(eg. reset the microcontroller) when a panic occurs.
 ```rust
 #[panic_handler]
 pub fn my_panic_handler(info: &core::panic::PanicInfo<'_>) -> ! {
@@ -493,7 +493,7 @@ Besides the payload, and the panic location, we pass 2 more arguments, extracted
 # can_unwind
 
 `can_unwind` is the most interesting of those arguments. As you might recall, "unwinding" is the mechanism by which panics can be thrown and caught. 
-When an unwind occurs, our program will traverse it's call stack, dropping data along the way. It will stop when it finds the intrisnic `catch_unwind` - this allows us to recover from *some* panics.
+When an unwind occurs, our program will traverse it's call stack, dropping data along the way. It will stop when it finds the intrinsic `catch_unwind` - this allows us to recover from *some* panics.
 
 This is quite useful - for example, Rust test harness uses this mechanism to report when a test panics. 
 
@@ -868,7 +868,7 @@ There is a lot going on [here](https://github.com/rust-lang/rust/blob/077cedc2af
 
 The layout of this type is mandated by `libunwind`, and contains a few interesting pieces of data. 
 
-First of all, it begins with an *exeception class*. This is a 64 bit identifier, specifying the type of this exception. 
+First of all, it begins with an *exception class*. This is a 64 bit identifier, specifying the type of this exception. 
 In the case of C++ exceptions, this will be "XXXXC++\0", where the "XXXX" part of this string is replaced with vendor-specific data.
 
 The Rust exception class is a little throwback to the origin of the language:
@@ -1191,14 +1191,14 @@ if !ptr::eq(canary, &CANARY) {
 ```
 The `canary` field, like it's feathered namesake, protects us against a rare, but vicious danger.
 
-Consider the following. Somebody wrote a very useful library, `libgreat`, in C++. That library deepends on `libawsome`, which just so happens to be written in Rust.
+Consider the following. Somebody wrote a very useful library, `libgreat`, in C++. That library depends on `libawsome`, which just so happens to be written in Rust.
 
 `libawsome` is compiled with Rust `1.66`. Now, we call `libgreat` from a Rust program, compiled with rustc `1.78`. 
 
 Due to an oversight, `libawsome` panics. `libgreat` does not catch that panic - after all, Rust panic's can't be caught in C++. 
 So, it allows the panic to ride on trough, right to a `catch_unwind` inside our Rust program.
 
-The program checks the exception class, and sees `MOZ\0RUS`. Great, this panic was thrown from Rust, so we can catch it, right?
+The program checks the exception class, and sees `MOZ\0RUST`. Great, this panic was thrown from Rust, so we can catch it, right?
 ```rust
 if (*exception).exception_class != RUST_EXCEPTION_CLASS{}
 // Let's catch this bad boy!
