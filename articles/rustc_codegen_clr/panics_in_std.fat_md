@@ -106,7 +106,7 @@ That code signals it is using the 2015 edition of Rust, so the breaking changes 
 
 Different editions have different preludes, with a slightly different set of functions. So, our code using the 2024 version of Rust will import the 2024 prelude. 
 
-Interestingly, the `panic` macro itself has changed between editions. This is why something like `std:panic::panic2015` exists. 
+Interestingly, the `panic` macro itself has changed between editions. This is why something like `std::panic::panic2015` exists. 
 
 However, we are interested in the 2024 version of panicking.
 
