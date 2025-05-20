@@ -68,7 +68,7 @@ fn main() {
     };
 }
 ```
-... 
+...
 
 That is quite chunk of code, don't you think?
 
@@ -864,7 +864,7 @@ pub(crate) unsafe fn panic(data: Box<dyn Any + Send>) -> u32 {
 ```
 There is a lot going on [here](https://github.com/rust-lang/rust/blob/077cedc2afa8ac0b727b7a6cbe012940ba228deb/library/panic_unwind/src/gcc.rs#L61) - so, let me break this down, step by step. First of all, the `_Unwind_Exception` type. 
 
-## _Unwind_Exception
+## `_Unwind_Exception`
 
 The layout of this type is mandated by `libunwind`, and contains a few interesting pieces of data. 
 
