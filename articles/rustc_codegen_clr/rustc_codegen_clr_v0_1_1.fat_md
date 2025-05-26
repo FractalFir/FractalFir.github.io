@@ -12,7 +12,7 @@ There have been also some architectural changes: I reworked the way I represent 
 
 ## Quick recap
 
-[rustc_codegen_clr](https://github.com/FractalFir/rustc_codegen_clr) is a Rust compiler backend(compiler module/pluigin), which allows it to produce .NET assemblies from Rust code.
+[rustc_codegen_clr](https://github.com/FractalFir/rustc_codegen_clr) is a Rust compiler backend(compiler module/plugin), which allows it to produce .NET assemblies from Rust code.
 # CIL trees
 
 CIL, or Common Intermediate Language, is what is actually stored in a .NET assembly. s is what I am compiling Rust code into - so it is really important that the code handling CIL is robust, and can be 
@@ -64,7 +64,7 @@ Now, it is not all sunshine and roses. CIL trees are a good abstraction, but the
 
 The `dup` instruction has one input, but **two** outputs. You can't represent a method containing it using a simple tree. By definition, a tree may only have 1 path connecting any 2 nodes. 
 
-![graph with a method using the dup instruction: it has two outputs, meaining it can't be stored nicely in a tree](../images/codegen_clr_v1_1_fg3.svg)
+![graph with a method using the dup instruction: it has two outputs, meaning it can't be stored nicely in a tree](../images/codegen_clr_v1_1_fg3.svg)
 
 You may think: this is not a big deal, you can just allow a node to be referenced twice. Sure, it will not be a tree anymore, but who cares about semantics?
 
@@ -94,10 +94,10 @@ div
 You can't use `dup` here: the value of `y` needs to be in between two `x`s. So, if I were to allow `dup` in CIL trees, I would have to keep track of the evaluation stack. Seeing as avoiding that was one of 
 the main reason I ditched linear CIL, I am not keen on doing that.
 
-The best solution seems to be insertring `dup` after the main optimzer runs, just after the trees are "flattened".  This is not a priority right now, since the performance does not seem to be affected.
+The best solution seems to be inserting `dup` after the main optimizer runs, just after the trees are "flattened".  This is not a priority right now, since the performance does not seem to be affected.
 
 Even if I don't use this instruction at all, there seems to be little to no change in terms of speed. The slowdown mainly occurs in "cold" functions, and during startup. Of course, I would prefer the generated 
-assebmlies to run buttery smooth in all scenarios, but this project mainly targets "hot" code - places where rewriting something in Rust makes the most sense.
+assemblies to run buttery smooth in all scenarios, but this project mainly targets "hot" code - places where rewriting something in Rust makes the most sense.
 
 In "hot" code the difference in benchmark results is well within the noise range, so not using `dup` seems to have almost no impact there.
 
@@ -128,13 +128,13 @@ Are the performance gains big enough to bother right now?
 
 *Nope.*
 
-So, I chose to sacrifice those micro-optimzations and go with a more convenient abstraction: it is not perfect, but more than good enough.
+So, I chose to sacrifice those micro-optimizations and go with a more convenient abstraction: it is not perfect, but more than good enough.
 
 # The project got runs ARM!
 
 I had wanted to test the cross-platform potential of Rust on .NET for quite a while, but I did not have any devices to test with. 
 
-Turns out, Rasberry Pis *really* don't like being stepped on, and solder paste, hot glue, and prayers can only go so far, even if you are very sorry.
+Turns out, Raspberry Pis *really* don't like being stepped on, and solder paste, hot glue, and prayers can only go so far, even if you are very sorry.
 
 Thankfully, they are not the only ARM devices in the world. After some struggle, I managed to get a Rust compiler and the .NET runtime to work on my Android phone.
 

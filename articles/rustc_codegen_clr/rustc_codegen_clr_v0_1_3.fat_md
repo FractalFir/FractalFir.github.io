@@ -57,11 +57,11 @@ enum Pet{
 Which is represented by the compiler roughly like this:
 
 ```rust
-union VaraintData{
+union VariantData{
   dog:(Breed,Color),
   fish:(Species),
 }
-struct PetTaged{
+struct PetTagged{
    tag:usize, // has value of 0(Dog) or 1(Fish)
    data:VariantData,
 }
@@ -74,7 +74,7 @@ When you write a `match` statement like this:
 ```rust
 match animal{
   Dog(b,c)=>bark(),
-  Fish(s)=>glup(),
+  Fish(s)=>gulp(),
 }
 ```
 
@@ -191,9 +191,9 @@ A place full of compiler magic and bizarre micro-optimizations, the meaning of w
 ## Procrastinating, with style! 
 
 I **really** don’t like debugging issues within the depths of `std` - for a lot of reasons. The first of them is its sheer size. I still have not fully implemented dead code elimination, a
-nd my solution for initiating static data is less than optimal. Because of that, the compiled `std` is around 5 MB of .NET CIL. Most of this is just CIL instructions.
+and my solution for initiating static data is less than optimal. Because of that, the compiled `std` is around 5 MB of .NET CIL. Most of this is just CIL instructions.
 
-I also can't use the standard suite of .NET debuggers, for a couple of reasons. For eaxmple: most of them are designed to deal with managed code. So, they lack tools for detecting things like unmanged heap corruption.
+I also can't use the standard suite of .NET debuggers, for a couple of reasons. For example: most of them are designed to deal with managed code. So, they lack tools for detecting things like unmanaged heap corruption.
 A lot of them are also Windows-specific, and I am just not as experienced with using Windows tools as I am with Linux ones. This may be a case of a "skill issue", but in order to use those tolls effectively, 
 I need to know them well.
 
@@ -451,7 +451,7 @@ Besides learning/being an experiment, this project also serves a real purpose. I
 
 **_Why use a Rust crate when I can use a .NET library?_**
 
-Rust code uses the stack heavily, and does not use the GC. This project can help you reduce GC pauses, and improve performance in memory-bound applications. It is not a silver bulet, it will not magicaly outperform
+Rust code uses the stack heavily, and does not use the GC. This project can help you reduce GC pauses, and improve performance in memory-bound applications. It is not a silver bullet, it will not magically outperform
 C# in most cases. It is a tool, designed for a very specific purpose. 
 
 **_What is the performance of the compiled code?_**

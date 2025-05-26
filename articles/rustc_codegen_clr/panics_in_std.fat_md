@@ -22,7 +22,7 @@ First of all, what is a panic? Well, a Rust panic is more or less equivalent to 
 The main difference is that, by convention, panics are *usually* used to indicate errors that you can't recover from. 
 ```rust
 if 2 + 2 != 4{
-   panic!("Math is not mathing :(!");
+   panic!("Math is not matching :(!");
 }
 ```
 For errors that you can recover from(eg. a parsing error, or a network error), you should use a `Result` instead.
@@ -156,7 +156,7 @@ Nope! It still has not expanded.
 
 There is a good reason we can’t expand this macro: it is not a macro at all!
 
-## Compiler bultin in a macros clothing
+## Compiler builtin in a macros clothing
 
 `format_args` is actually... a compiler built-in. It *looks* like an ordinary macro, *behaves* like an ordinary macro, but it is not one. 
 
@@ -401,7 +401,7 @@ pub fn begin_panic_handler(info: &core::panic::PanicInfo<'_>) -> ! {
     })
 }
 ```
-The first 2 lines just extract some information from `PanicInfo`. They retrive the panic location, and the panic message.
+The first 2 lines just extract some information from `PanicInfo`. They retrieve the panic location, and the panic message.
 ```rust
     let loc = info.location().unwrap(); // The current implementation always returns Some
     let msg = info.message();
@@ -438,7 +438,7 @@ This part of the backtrace will almost always stay the same, so it is just clutt
 
 Ideally, we'd like to display the "interesting" parts of the backtrace by default, and only show it in its entirety when need. 
 
-`__rust_end_short_backtrace` and  `__rust_begin_short_backtrace` mark the begining and end of this "short backtrace". 
+`__rust_end_short_backtrace` and  `__rust_begin_short_backtrace` mark the beginning and end of this "short backtrace". 
 
 By calling `__rust_end_short_backtrace`, we are marking anything after this call as not important to display. 
 
@@ -904,7 +904,7 @@ extern "C" fn __rust_drop_panic() -> ! {
     rtabort!("Rust panics must be rethrown");
 }
 ```
-This will print the error message "Rust panics must be rethrown". Since Rust code will never call `exception_cleanup` by itself, we know that this panic was caught in foregin code. 
+This will print the error message "Rust panics must be rethrown". Since Rust code will never call `exception_cleanup` by itself, we know that this panic was caught in foreign code. 
 ```cpp
 #include <exception>
 #include <iostream>

@@ -6,11 +6,11 @@ category = "hidden"
 </metadata>
 <markdown>
 
-I have a unusual hobby - I like making wierd things. My favoirte kind of programing problems are the ones noone needs solved. 
-I also really enjoy Rust and tinkering with compilers. A couple moths ago, I accidentaly stumbled across a pretty unique solution to a very real problem: reflection and metaprograming in Rust.
-While I am prertty sure this is not the best solution to that problem, I still belive it is a good food for tought, and could serve as inspiration for the final design of reflection in Rust.
+I have a unusual hobby - I like making weird things. My favorite kind of programing problems are the ones noone needs solved.
+I also really enjoy Rust and tinkering with compilers. A couple moths ago, I accidentally stumbled across a pretty unique solution to a very real problem: reflection and metaprograming in Rust.
+While I am pretty sure this is not the best solution to that problem, I still believe it is a good food for thought, and could serve as inspiration for the final design of reflection in Rust.
 
-# Reflecting on reflcetion
+# Reflecting on reflection
 
 The very first question we must ask ourselves is: what is reflection, exactly? If I asked you to describe it in one short sentence, what would it be?
 
@@ -36,9 +36,9 @@ I propose we try to turn those two monologues, into a conversation between your 
 
 # Metafunctions 
 
-Metafunctions are a crosbreed between generics, reflection and code generation. They allow you to programaticaly proivde different implementation of a generic function for each varaint.
+Metafunctions are a crossbreed between generics, reflection and code generation. They allow you to programmatically provide different implementation of a generic function for each variant.
 
-A metafunctions consts of 2 distinct, yet interlinked parts. The "target" descirbes the functions signature, but lacks an implemantation.
+A metafunctions consts of 2 distinct, yet interlinked parts. The "target" describes the functions signature, but lacks an implementation.
 
 The implemeantainon is provided at compile time by, well, the "provider". Take a look:
 
@@ -54,9 +54,9 @@ const fn field_count_prov(ctx:MetaFnCtx)->Result<MIRBody,MetaFnError>{
 }
 ```
 
-The keen eyed amoung you might have already noticed a couple of things. Let me explain how this works, step-by-step.
+The keen eyed among you might have already noticed a couple of things. Let me explain how this works, step-by-step.
 
-The function `field_count` is marked with a very special attribute - `#[metafn]`. This attribute tells the compiler the implemenation of this function will be generated proceduraly by `field_count_prov`.
+The function `field_count` is marked with a very special attribute - `#[metafn]`. This attribute tells the compiler the implementation of this function will be generated procedurally by `field_count_prov`.
 
 `field_count_prov` is a const function - it needs to be called at compile-time,  after all. It takes in one argument, of type `MetaFnCtx`. 
 This name stands for `Meta Function Context`. Such a context contains information about which generic variant of `field_count` is needed. 
@@ -64,13 +64,13 @@ So, for example, the exact type `T` is will be contained there.
 
 The context also contains references to internal compiler data structures - this is what will enable us to query the compiler for more details.
 
-The provider function returns a `Result<MIRBody,MetaFnError>`. So, if everyting goes well, it will return MIR implementing the target function.
-MIR is the repersentation of a Rust program used internaly, by the compiler. This may seem strange at first - after all, we don't want to expose any unstable APIs!
+The provider function returns a `Result<MIRBody,MetaFnError>`. So, if everything goes well, it will return MIR implementing the target function.
+MIR is the representation of a Rust program used internally, by the compiler. This may seem strange at first - after all, we don't want to expose any unstable APIs!
 
-Chosing MIR is very deliberate - while not stable yet, it will be, one day. The stable MIR project aims to expose stable APIs for interacting with the compiler - we can just reuse that work here.
-MIR is also the represenation used by the Rust compiler during the morphization stage - the point at which the copiler turns generic functions into many specialzed(concreate) ones.
+Choosing MIR is very deliberate - while not stable yet, it will be, one day. The stable MIR project aims to expose stable APIs for interacting with the compiler - we can just reuse that work here.
+MIR is also the representation used by the Rust compiler during the morphization stage - the point at which the compiler turns generic functions into many specialized(concreate) ones.
 
-Since `field_count_prov` will be called at that point, it will be able to provide specialzed implemenation for each `T`!
+Since `field_count_prov` will be called at that point, it will be able to provide specialized implementation for each `T`!
 
 ```rust
 struct Vec3(f32,f32,f32);
@@ -87,10 +87,10 @@ fn main(){
 
 You might have noticed that `field_count` is unsafe - but why? 
 
-MIR itself is very unsafe. Since it is ususaly created after all the safety checks, the compiler does not need to check it the 
+MIR itself is very unsafe. Since it is usually created after all the safety checks, the compiler does not need to check it the
 second time. We "bypass" those checks by creating MIR directly - so the compiler can't guarantee this function is safe.
 
-I haven't looked into how hard it would be to check MIR for safety - so for now, I want to be extra carefull and assume it is impossible. Because of that, all generated code is assumed to be unsafe.
+I haven't looked into how hard it would be to check MIR for safety - so for now, I want to be extra careful and assume it is impossible. Because of that, all generated code is assumed to be unsafe.
 
 Now that I explained the concept, let me show you how you would use it.
 
@@ -102,10 +102,10 @@ The very first step we need to take is to get the 1 generic argument of `field_c
     let t = ctx.gargs()[0];
 ```
 
-Here, we take it from the generic argument array. But what happens if we accidentaly tried to index out of bounds of the `gargs` array?
+Here, we take it from the generic argument array. But what happens if we accidentally tried to index out of bounds of the `gargs` array?
 
 ```rust
-// The `std` will proivde certain APIs for dealing with MIR. `std::metafunctions` is a placeholder and may be changed.
+// The `std` will provide certain APIs for dealing with MIR. `std::metafunctions` is a placeholder and may be changed.
 use std::metafunctions::{MetaFnCtx,MIRBody,MetaFnError,ADTKind,TerminatorKind,const_scalar};
 // The "target" - function which whose implementation is provided by `field_count_prov`
 #[metafunction(provider = field_count_prov)]

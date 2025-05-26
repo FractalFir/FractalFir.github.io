@@ -5,12 +5,12 @@ category = "The Rust Compiler"
 category = "hidden"
 </metadata>
 <markdown>
-Doing wierd stuff with compilers(and computers in general) is my hobby. I get a silly idea, and I try to see how far I can take it. This is how abominations, such as a [Java to C++] transpiler or 
-[Rust to .NET compiler backend], came to be. While toying with different designs for a Rust/.NET interop layer, I accidentaly sumbled across an interesting solution for reflection in Rust.  It has a 
-lot of drawbacks, and is not very pretty, but as I tought about it more and more, I realized just how much you could do with it. What I show in this article is an ugly duckling, that I hope one day becomes a 
-maginficent swan.
+Doing weird stuff with compilers(and computers in general) is my hobby. I get a silly idea, and I try to see how far I can take it. This is how abominations, such as a [Java to C++] transpiler or 
+[Rust to .NET compiler backend], came to be. While toying with different designs for a Rust/.NET interop layer, I accidentally stumbled across an interesting solution for reflection in Rust.  It has a
+lot of drawbacks, and is not very pretty, but as I thought about it more and more, I realized just how much you could do with it. What I show in this article is an ugly duckling, that I hope one day becomes a
+magnificent swan.
 
-So, join me as I present this propsed feature, and show how it can be used to implement:
+So, join me as I present this proposed feature, and show how it can be used to implement:
 1. Simple reflection
 2. Serialization for any type
 3. A (simple) variadic generic function
@@ -19,7 +19,7 @@ So, join me as I present this propsed feature, and show how it can be used to im
 
 # A short introduction 
 
-I would like to ask you a question - what even is reflection? This may seem obivous at first, but pointing out some of its properties will help me explain how "Procedural Generics" work. 
+I would like to ask you a question - what even is reflection? This may seem obvious at first, but pointing out some of its properties will help me explain how "Procedural Generics" work. 
 
 
 When we look at it from a very high level, abstract perspective:
@@ -27,35 +27,35 @@ When we look at it from a very high level, abstract perspective:
 Reflection is the ability of a program to examine itself.
 ```
 There are a lot of different implementations, but all of them are just ways for code to analyze itself, and behave differently based on that information. In the case of Rust, we are mostly interested
-in compiletime reflection. Rust is a very static language, and we want for it to behave in predictable ways, so restriciting reflection to compile time seems like a good idea.
+in compiletime reflection. Rust is a very static language, and we want for it to behave in predictable ways, so restricting reflection to compile time seems like a good idea.
 
 
-Another interesting property of reflection is the way it interracts with the type system. I would argue reflection is, almost always, an extension of generics.
+Another interesting property of reflection is the way it interacts with the type system. I would argue reflection is, almost always, an extension of generics.
 
-Supose we want there to be a reflection API, used to get the number of fields a type has. In order to get this information, we have to pass a type to this API. This is obivous: we can't ask about the properties 
+Suppose we want there to be a reflection API, used to get the number of fields a type has. In order to get this information, we have to pass a type to this API. This is obvious: we can't ask about the properties 
 of a type without specifying which type we are interested in.
 
-So, in the wast majority of cases, we will have an API whose behaviour depends on a type parameter. This is suspiciosly similar to generics.
+So, in the wast majority of cases, we will have an API whose behaviour depends on a type parameter. This is suspiciously similar to generics.
 
 > Generic programming is a style of computer programming in which algorithms are written in terms of data types to-be-specified-later
 > that are then instantiated when needed for specific types 
 > provided as parameters. 
 - [Wikipedia](https://en.wikipedia.org/wiki/Generic_programming)
 
-A lot of previosly propsed APIs used **magic** generic functions and/or types. They were hardcoded, and their implementation was provided by the compiler. 
+A lot of previously proposed APIs used **magic** generic functions and/or types. They were hardcoded, and their implementation was provided by the compiler. 
 
 4
-This is yet another interesting property of reflection: it requires the compiler(or a runtime) to proceduraly generate some code, and/or data.
+This is yet another interesting property of reflection: it requires the compiler(or a runtime) to procedurally generate some code, and/or data.
 
 
 In .NET, all assemblies contain metadata tables, precisely describing the types and methods they contain. In Java, all class files contain information about types: The reflection APIs just allow you to get
-that data. Even in the case of very dynamic langauges, such as python, reflection involves a *something* generating code/data for your program to use.
+that data. Even in the case of very dynamic languages, such as python, reflection involves a *something* generating code/data for your program to use.
 
-In the case of Rust, there would have to be a part of the compiler which would proceduraly generate types/code based on generic parameters. For a function which counts the fields of a type,
-you would be likely to see someting like this:
+In the case of Rust, there would have to be a part of the compiler which would procedurally generate types/code based on generic parameters. For a function which counts the fields of a type,
+you would be likely to see something like this:
 
 ```rust
-// This is a mock that only very vaugely resembles compiler code
+// This is a mock that only very vaguely resembles compiler code
 fn impl_field_count(ty:Ty)->ConstValue{
     let adt = if let TyKind::Adt(def,_){
         def
@@ -70,7 +70,7 @@ For each part of the reflection API, you would have hardcoded("magic") functions
 
 # What are Procedural Generics
 
-So, what is the soultion I wanted to show you? Procedural Generics are a way to change the implementation of a function based on its generic parameters. 
+So, what is the solution I wanted to show you? Procedural Generics are a way to change the implementation of a function based on its generic parameters. 
 
 
 </markdown>

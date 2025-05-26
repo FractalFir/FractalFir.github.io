@@ -1,12 +1,12 @@
-Some toughts on reflection in Rust
+Some thoughts on reflection in Rust
 
 Ah, reflection.
 
 There is some sort of strange, exotic beauty in this odd programing paradigm. I can't explain why, but it has captured my attention for quite some time now.
 I find myself obsessed with this missing feature of Rust, drafting and scrapping design after design, idea after idea.
 
-At first glance, it may seem like I don't have much to show for my strange obseesion. I feel like none of my designs were nearly good enough. I am a bit of a perfectionist, and
-tend to find and get stuck on all sorts of flaws and ege cases. 
+At first glance, it may seem like I don't have much to show for my strange obsession. I feel like none of my designs were nearly good enough. I am a bit of a perfectionist, and
+tend to find and get stuck on all sorts of flaws and edge cases. 
 
 Still, I feel like I can still share some things I discovered along the way. While quite a few of the issues I encountered were specific to my designs, other issues tend to be more general,
 some of them even being inherent to the Rust language. 
@@ -23,7 +23,7 @@ On one hand, this can cause quite a few issues. After all, those fields are priv
 
 Violating access rules allows us to do some truly cursed things. 
 
-Have you heard of the `sun.misc.Unsafe`? This Java class allows you to do a lot of cool things. Have you ever wanted to use raw pointers and manual memory managament in Java?
+Have you heard of the `sun.misc.Unsafe`? This Java class allows you to do a lot of cool things. Have you ever wanted to use raw pointers and manual memory management in Java?
 Well, with `Unsafe` you can... sort of. You can't *normally* get any instances of this class, which prevents you from using it. 
 
 The only instance of this class is inconvinently hidden in a **private** static field.
@@ -48,7 +48,7 @@ do so.
 
 With all of this said, allowing reflection to violate traditional access rules is sometimes a good thing.
 
-For example, if we want to serailze and deserialze this class:
+For example, if we want to serialize and deserialize this class:
 ```java
 class Deser implements java.io.Serializable
 {
@@ -56,7 +56,7 @@ class Deser implements java.io.Serializable
     private String b;
 }
 ```
-we need some way to acces private fields. Equaly, if Rust had a reflection API, we would need some way to access fields if we wanted to implement serailzation using reflection.
+we need some way to access private fields. Equally, if Rust had a reflection API, we would need some way to access fields if we wanted to implement serialization using reflection.
 
 Let us imagine we want to serialize a struct called `Even` form an external crate. 
 ```rust
@@ -76,8 +76,8 @@ impl Even{
 The internal value of this struct is *private* and it should stay so. We did all of that hard work ensuring this struct could only contain even numbers, and we don't want anybody to
 mess with that.
 
-Still, we want to be able to serialzie and deserialize this struct. If reflection can't access the fields of this struct, then we can't use it to serialze this data. 
-Since this is something peopele want to use reflection for, we should at least consider it to some degree. After all, what good is a feature that nobody uses?
+Still, we want to be able to serialize and deserialize this struct. If reflection can't access the fields of this struct, then we can't use it to serialize this data. 
+Since this is something people want to use reflection for, we should at least consider it to some degree. After all, what good is a feature that nobody uses?
 
 Surely, nothing bad can come from violating access rules a little bit?
 
@@ -105,7 +105,7 @@ impl GetFirstFieldMutTrait{
     }
 }
 ```
-However, despite its innocent apperance, being able to do this operation on arbitray types will quickly blow up in your face.
+However, despite its innocent appearance, being able to do this operation on arbitrary types will quickly blow up in your face.
 
 Let us start with the simpler `Even` example:
 ```rust
@@ -128,4 +128,4 @@ let even = Even::new(4).unwrap();
 // Calls some C code trough ffi. This code assumes `even` is an even number. Should be safe, since `even` is... well, even.
 blows_up_if_not_even(even);
 ```
-This already spells toruble for accessing private fields torugh reflection 
+This already spells trouble for accessing private fields through reflection 
