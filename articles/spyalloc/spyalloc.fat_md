@@ -12,7 +12,7 @@ Managing memory is also a problem that varies with time. Allocating a dozen mega
 Allocating that same amount of memory later, when your memory usage is already high may be a much bigger problem.
 
 Recently, I developed a small Rust memory profiler, `spyalloc`. The main goal of spyalloc is to capture as much info as possible. For each allocation, re/deallocation, `spyalloc`
-saves *full backtraces*, timestamps and aligement / size info.
+saves *full backtraces*, timestamps and alignment / size info.
 
-With this in mind, you might *expect* it to requre **a lot** of space to save log data. 
+With this in mind, you might *expect* it to require **a lot** of space to save log data. 
 </markdown>

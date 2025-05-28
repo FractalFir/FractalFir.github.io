@@ -26,7 +26,7 @@ So, how does interop look like?
 ```Rust
     // Construct a new StringBuilder
     let sb = mycorrhiza::system::text::StringBuilder::empty();
-    // Append charcaters which make up the `HelloWorld` string
+    // Append characters which make up the `HelloWorld` string
     sb.append_char('H');
     sb.append_char('e');
     sb.append_char('l');
@@ -109,7 +109,7 @@ As you can see, specifying a .NET type is almost trivial: we just need to specif
 By creating a type alias, we now can refer to it simply as `Stopwatch`, preventing potential issues. It is important to get the name of the type right, since .NET can be a bit surprising in that department.
 Support for generic types is not quite there yet, but it is planned. 
 
-For methods, you call them using `instance*n*`, `static*n*` and `virtaul*n*` respectively, where `n` is the number of arguments a given function takes. You then specify a list of n arguments, followed by the 
+For methods, you call them using `instance*n*`, `static*n*` and `virtual*n*` respectively, where `n` is the number of arguments a given function takes. You then specify a list of n arguments, followed by the 
 return type - in this case the `()`, Rust void type. This works similarly for constructors, with the difference of not specifying the return type, and the name being `ctor`.
 
 Writing wrappers such as this one is important! The codegen has no way to check if a C# type or method exists at compile time, so if you mess this up, you might get a `NotFoundException` on runtime. This is not
@@ -167,7 +167,7 @@ allocating any memory at all, and focus only on speed of raw computations.
 For test setup details, [check the GitHub repo](https://github.com/FractalFir/rustc_codegen_clr).
 
 
-`Codegen Optimzations Disabled` means that the Rust code was compiled in release mode, but post-MIR, codegen-internal optimizations were disabled.
+`Codegen Optimizations Disabled` means that the Rust code was compiled in release mode, but post-MIR, codegen-internal optimizations were disabled.
 
 ### Fibonacci of 10, recursive, Avg of 10K runs 
 

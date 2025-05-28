@@ -70,7 +70,7 @@ Take this snippet of Rust code as an example:
     string.push('.');
     string.push('\n');
     string.push('\0');
-    // Built-in standrad output does not work yet(since it uses atomics) but C `puts` does.
+    // Built-in standard output does not work yet(since it uses atomics) but C `puts` does.
     unsafe{puts(string.as_ptr())};
 ```
 While it is not fully operational, it shows that the `String` type works properly. 
@@ -217,7 +217,7 @@ Looking at the second option for more than a second makes it obvious why I tried
 
 In initial tests, this system worked quite well, and I was really, really proud of it. 
 
-And then I fixed a small bug(a little `explict` missing, nothing major), and realized I have to scrap the entire idea altogether. 
+And then I fixed a small bug(a little `explicit` missing, nothing major), and realized I have to scrap the entire idea altogether. 
 
 # "Artificial" limitations: Generics + Explicit Layout are not meant for each other.
 
@@ -246,8 +246,8 @@ The C# function presented above is roughly equivalent to this snippet of Rust co
 ```rust
 fn animal_from_sound(sound:&str)->Animal{
     match sound{
-        "Woof"=>Animal::defualt_dog(),
-        "Meow"=>Animal::defualt_cat(),
+        "Woof"=>Animal::default_dog(),
+        "Meow"=>Animal::default_cat(),
         _=>panic!("Unknown animal sound:{sound}!"),
     }
 }
@@ -283,7 +283,7 @@ There are a lot of things that are needed for a GC to work. A performant GC must
 Consider this little abomination:
 ```csharp
 [StructLayout(LayoutKind.Explicit)]
-public struct Scarry
+public struct Scary
 {
     [FieldOffset(0)]
     private string reference;
@@ -364,7 +364,7 @@ public struct _ZN4core5panic10panic_info9PanicInfo17ha57987986f46e937E
 ```
 ...but it does the job - and that is what really matters.
 
-# .NET verifcation - all or nothing
+# .NET verification - all or nothing
 
 Another, smaller issue related to .NET is its all-or-nothing verification: an assembly can either be safe (no pointers used) or unsafe. There is no in-between. The problem is that enabling the use of pointers disables nearly
 all checks, many of whose I would like to remain on. 
@@ -381,7 +381,7 @@ Consider this bit of invalid CIL:
         .locals init(
             [0] valuetype SomeValueType
         )
-        // Loads zero-initialzed SomeValueType 
+        // Loads zero-initialized SomeValueType 
         ldloc.0
         // Returns SomeValueType as nint. This is invalid, and would cause an exception in mono.
         ret

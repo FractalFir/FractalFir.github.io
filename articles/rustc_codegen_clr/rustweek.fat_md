@@ -146,12 +146,12 @@ Originally, I was a bit optimistic about situations like this: if my project com
 In *theory* Rust would be able to run anywhere C can. There are some big asterisks to this(I am still unsure if I can work around certain issues on *all platforms*), but hey - this might be the best shot at supporting Rust there, save for companies stepping in and adding LLVM support, which I feel is… unlikely.
 
 
-Recently, I wanted to check if "Supporting Rust by compling it to C" is a viable strategy in a case like this. 
+Recently, I wanted to check if "Supporting Rust by compiling it to C" is a viable strategy in a case like this. 
 
 
 However, I immediately hit a stone wall. I could find no legal way of obtaining a compiler for this platform without buying a server, which is definitely **way, way outside my budget**.
 
-So, I don't belive Rust is going to run on a platform like this any time soon. 
+So, I don't believe Rust is going to run on a platform like this any time soon. 
 
 
 ## Plan for now

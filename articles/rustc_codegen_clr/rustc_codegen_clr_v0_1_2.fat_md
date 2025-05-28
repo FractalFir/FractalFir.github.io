@@ -74,7 +74,7 @@ I could also test individual crates(Rust libraries), or try to use something lik
 With this kind of testing, I would be able to find almost any issue with this project. That is still far off in the future, but still - you can see why better tests could be really useful.
 
 The Rust tests would also run faster than my crappy, custom ones. Currently, I build a separate test binary for each test case - and that adds up quickly. At the time of writing, my test suite takes 44.461 seconds to run,
-on my machine. On gihub actions, the tests are even solwer - takning **4m** to run. With cargo tests, I could build *one* big binary for all tests - cutting down the build times significantly.
+on my machine. On github actions, the tests are even slower - taking **4m** to run. With cargo tests, I could build *one* big binary for all tests - cutting down the build times significantly.
 
 So, you probably can understand why I feel this is a good goal for the near future.
 
@@ -159,7 +159,7 @@ unsafe fn really_init(argc: isize, argv: *const *const u8) {
     ARGV.store(argv as *mut _, Ordering::Relaxed);
 }
 ```
-Ok, that makes sense. But what calls `really_init`? `really_init` is called by a "static initialzier" - on GNU Linux, it uses '.init_array'.
+Ok, that makes sense. But what calls `really_init`? `really_init` is called by a "static initializer" - on GNU Linux, it uses '.init_array'.
 ```
 #[used]
 #[link_section = ".init_array.00099"]
@@ -470,7 +470,7 @@ This incredibly "advanced" debugging solution is, of course, disabled by default
 
 However stupid it may be, it works.
 
-# Suprise for the end
+# Surprise for the end
 
 Oh, did I forget to mention that `rustc_codegen_clr` can also compiler Rust to C? 
 
@@ -511,7 +511,7 @@ Originally, I had more stuff to talk about, but I didn't want this article to be
 
 
 Once again, if you have any questions, feel free to ask. You can use the [Rust Zulip](https://rust-lang.zulipchat.com/#narrow/stream/421156-gsoc/topic/Project.3A.20Rust.20to.20.2ENET.20compiler), open a discussion on the [project GitHub](https://github.com/FractalFir/rustc_codegen_clr),
-or just ask in the Reddit comments. I will try to respond to all the feedback I recive.
+or just ask in the Reddit comments. I will try to respond to all the feedback I receive.
 
 So, goodbye, and see you next time!
 
@@ -519,7 +519,7 @@ So, goodbye, and see you next time!
 
 
 
-###### *You can also [sposor me on GitHub](https://github.com/sponsors/FractalFir), if you want to.*
+###### *You can also [sponsor me on GitHub](https://github.com/sponsors/FractalFir), if you want to.*
 
 </markdown> 
 <ignored>
