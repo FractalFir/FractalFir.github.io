@@ -93,7 +93,7 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <pre><code class="language-Rust">    // Construct a new StringBuilder
     let sb = mycorrhiza::system::text::StringBuilder::empty();
-    // Append charcaters which make up the `HelloWorld` string
+    // Append characters which make up the `HelloWorld` string
     sb.append_char('H');
     sb.append_char('e');
     sb.append_char('l');
@@ -168,7 +168,7 @@ impl Stopwatch {
 
 <p>As you can see, specifying a .NET type is almost trivial: we just need to specify which assembly it is in(<code>System.Runtime</code>) and its full path (class name and all namespaces). By creating a type alias, we now can refer to it simply as <code>Stopwatch</code>, preventing potential issues. It is important to get the name of the type right, since .NET can be a bit surprising in that department. Support for generic types is not quite there yet, but it is planned.</p>
 
-<p>For methods, you call them using <code>instance*n*</code>, <code>static*n*</code> and <code>virtaul*n*</code> respectively, where <code>n</code> is the number of arguments a given function takes. You then specify a list of n arguments, followed by the return type - in this case the <code>()</code>, Rust void type. This works similarly for constructors, with the difference of not specifying the return type, and the name being <code>ctor</code>.</p>
+<p>For methods, you call them using <code>instance*n*</code>, <code>static*n*</code> and <code>virtual*n*</code> respectively, where <code>n</code> is the number of arguments a given function takes. You then specify a list of n arguments, followed by the return type - in this case the <code>()</code>, Rust void type. This works similarly for constructors, with the difference of not specifying the return type, and the name being <code>ctor</code>.</p>
 
 <p>Writing wrappers such as this one is important! The codegen has no way to check if a C# type or method exists at compile time, so if you mess this up, you might get a <code>NotFoundException</code> on runtime. This is not ideal, but without having the ability to open assemblies, there is not much more we can do.</p>
 
@@ -211,7 +211,7 @@ impl Stopwatch {
 
 <p>For test setup details, <a href='https://github.com/FractalFir/rustc_codegen_clr'>check the GitHub repo</a>.</p>
 
-<p><code>Codegen Optimzations Disabled</code> means that the Rust code was compiled in release mode, but post-MIR, codegen-internal optimizations were disabled.</p>
+<p><code>Codegen Optimizations Disabled</code> means that the Rust code was compiled in release mode, but post-MIR, codegen-internal optimizations were disabled.</p>
 
 <h3 id='fibonacci_of_10,_recursive,_avg_of_10k_runs'>Fibonacci of 10, recursive, Avg of 10K runs</h3>
 

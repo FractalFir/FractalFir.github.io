@@ -81,7 +81,7 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <h2 id='quick_recap'>Quick recap</h2>
 
-<p><a href='https://github.com/FractalFir/rustc_codegen_clr'>rustc_codegen_clr</a> is a Rust compiler backend(compiler module/pluigin), which allows it to produce .NET assemblies from Rust code.</p>
+<p><a href='https://github.com/FractalFir/rustc_codegen_clr'>rustc_codegen_clr</a> is a Rust compiler backend(compiler module/plugin), which allows it to produce .NET assemblies from Rust code.</p>
 
 <h1 id='cil_trees'>CIL trees</h1>
 
@@ -128,7 +128,7 @@ ret</code></pre>
 
 <p>The <code>dup</code> instruction has one input, but <strong>two</strong> outputs. You can't represent a method containing it using a simple tree. By definition, a tree may only have 1 path connecting any 2 nodes.</p>
 
-<p><img src='../images/codegen_clr_v1_1_fg3.svg' alt='graph with a method using the dup instruction: it has two outputs, meaining it can't be stored nicely in a tree' /></p>
+<p><img src='../images/codegen_clr_v1_1_fg3.svg' alt='graph with a method using the dup instruction: it has two outputs, meaning it can't be stored nicely in a tree' /></p>
 
 <p>You may think: this is not a big deal, you can just allow a node to be referenced twice. Sure, it will not be a tree anymore, but who cares about semantics?</p>
 
@@ -156,9 +156,9 @@ div</code></pre>
 
 <p>You can't use <code>dup</code> here: the value of <code>y</code> needs to be in between two <code>x</code>s. So, if I were to allow <code>dup</code> in CIL trees, I would have to keep track of the evaluation stack. Seeing as avoiding that was one of the main reason I ditched linear CIL, I am not keen on doing that.</p>
 
-<p>The best solution seems to be insertring <code>dup</code> after the main optimzer runs, just after the trees are &quot;flattened&quot;.  This is not a priority right now, since the performance does not seem to be affected.</p>
+<p>The best solution seems to be inserting <code>dup</code> after the main optimizer runs, just after the trees are &quot;flattened&quot;.  This is not a priority right now, since the performance does not seem to be affected.</p>
 
-<p>Even if I don't use this instruction at all, there seems to be little to no change in terms of speed. The slowdown mainly occurs in &quot;cold&quot; functions, and during startup. Of course, I would prefer the generated assebmlies to run buttery smooth in all scenarios, but this project mainly targets &quot;hot&quot; code - places where rewriting something in Rust makes the most sense.</p>
+<p>Even if I don't use this instruction at all, there seems to be little to no change in terms of speed. The slowdown mainly occurs in &quot;cold&quot; functions, and during startup. Of course, I would prefer the generated assemblies to run buttery smooth in all scenarios, but this project mainly targets &quot;hot&quot; code - places where rewriting something in Rust makes the most sense.</p>
 
 <p>In &quot;hot&quot; code the difference in benchmark results is well within the noise range, so not using <code>dup</code> seems to have almost no impact there.</p>
 
@@ -187,13 +187,13 @@ ret</code></pre>
 
 <p><em>Nope.</em></p>
 
-<p>So, I chose to sacrifice those micro-optimzations and go with a more convenient abstraction: it is not perfect, but more than good enough.</p>
+<p>So, I chose to sacrifice those micro-optimizations and go with a more convenient abstraction: it is not perfect, but more than good enough.</p>
 
 <h1 id='the_project_got_runs_arm!'>The project got runs ARM!</h1>
 
 <p>I had wanted to test the cross-platform potential of Rust on .NET for quite a while, but I did not have any devices to test with.</p>
 
-<p>Turns out, Rasberry Pis <em>really</em> don't like being stepped on, and solder paste, hot glue, and prayers can only go so far, even if you are very sorry.</p>
+<p>Turns out, Raspberry Pis <em>really</em> don't like being stepped on, and solder paste, hot glue, and prayers can only go so far, even if you are very sorry.</p>
 
 <p>Thankfully, they are not the only ARM devices in the world. After some struggle, I managed to get a Rust compiler and the .NET runtime to work on my Android phone.</p>
 

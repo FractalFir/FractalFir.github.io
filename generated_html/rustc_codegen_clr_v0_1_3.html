@@ -119,11 +119,11 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <p>Which is represented by the compiler roughly like this:</p>
 
-<pre><code class="language-rust">union VaraintData{
+<pre><code class="language-rust">union VariantData{
   dog:(Breed,Color),
   fish:(Species),
 }
-struct PetTaged{
+struct PetTagged{
    tag:usize, // has value of 0(Dog) or 1(Fish)
    data:VariantData,
 }</code></pre>
@@ -134,7 +134,7 @@ struct PetTaged{
 
 <pre><code class="language-rust">match animal{
   Dog(b,c)=&gt;bark(),
-  Fish(s)=&gt;glup(),
+  Fish(s)=&gt;gulp(),
 }</code></pre>
 
 <p>To optimize and properly compile this piece of code, the <em>frontend</em> of the compiler will turn it from Rust into a simplified form called MIR.</p>
@@ -232,9 +232,9 @@ unsafe{printf(&quot;raw_width is %p,tag is %p.\n\0&quot;.as_ptr() as *const i8,r
 
 <h2 id='procrastinating,_with_style!'>Procrastinating, with style!</h2>
 
-<p>I <strong>really</strong> don’t like debugging issues within the depths of <code>std</code> - for a lot of reasons. The first of them is its sheer size. I still have not fully implemented dead code elimination, a nd my solution for initiating static data is less than optimal. Because of that, the compiled <code>std</code> is around 5 MB of .NET CIL. Most of this is just CIL instructions.</p>
+<p>I <strong>really</strong> don’t like debugging issues within the depths of <code>std</code> - for a lot of reasons. The first of them is its sheer size. I still have not fully implemented dead code elimination, a and my solution for initiating static data is less than optimal. Because of that, the compiled <code>std</code> is around 5 MB of .NET CIL. Most of this is just CIL instructions.</p>
 
-<p>I also can't use the standard suite of .NET debuggers, for a couple of reasons. For eaxmple: most of them are designed to deal with managed code. So, they lack tools for detecting things like unmanged heap corruption. A lot of them are also Windows-specific, and I am just not as experienced with using Windows tools as I am with Linux ones. This may be a case of a &quot;skill issue&quot;, but in order to use those tolls effectively, I need to know them well.</p>
+<p>I also can't use the standard suite of .NET debuggers, for a couple of reasons. For example: most of them are designed to deal with managed code. So, they lack tools for detecting things like unmanaged heap corruption. A lot of them are also Windows-specific, and I am just not as experienced with using Windows tools as I am with Linux ones. This may be a case of a &quot;skill issue&quot;, but in order to use those tolls effectively, I need to know them well.</p>
 
 <p>While this is not too crazy, it is enough to make <code>ILSpy</code> choke and lag a bit. To be honest, it works surprisingly well(I expected it to just crash), taking the sheer volume of methods I emit into consideration.</p>
 
@@ -457,7 +457,7 @@ unsafe {
 
 <p><strong><em>Why use a Rust crate when I can use a .NET library?</em></strong></p>
 
-<p>Rust code uses the stack heavily, and does not use the GC. This project can help you reduce GC pauses, and improve performance in memory-bound applications. It is not a silver bulet, it will not magicaly outperform C# in most cases. It is a tool, designed for a very specific purpose.</p>
+<p>Rust code uses the stack heavily, and does not use the GC. This project can help you reduce GC pauses, and improve performance in memory-bound applications. It is not a silver bullet, it will not magically outperform C# in most cases. It is a tool, designed for a very specific purpose.</p>
 
 <p><strong><em>What is the performance of the compiled code?</em></strong></p>
 

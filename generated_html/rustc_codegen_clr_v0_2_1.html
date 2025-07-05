@@ -95,7 +95,7 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <pre><code class="language-rust">// Early WIP syntax, subject to change.
 dotnet_typedef! {
-  class MyClass inherits [Some::External::Assebmly]SomeNamespace::SomeClass{
+  class MyClass inherits [Some::External::Assembly]SomeNamespace::SomeClass{
     virtual fn ToString(_this:MyClass)-&gt;MString{
       &quot;I am a class defined in Rust!&quot;.into_managed()
     },
@@ -120,7 +120,7 @@ fn decode_file(path:&amp;Path)-&gt;Result&lt;DecodedFile, DecodeError&gt;{
 }
 // A person's birth date can't be later than the current date. 
 // If it is, then either that person is a time traveler, or we have a bug.
-fn calcualte_age(date_of_birth:Date)-&gt;Duration{
+fn calculate_age(date_of_birth:Date)-&gt;Duration{
   if Date::now() &lt; date_of_birth{
     panic!(&quot;Found a time traveler!&quot;);
   }
@@ -288,7 +288,7 @@ if condition {
 <p>To solve this, the compiler introduces a second variable, which checks if x is initialized.</p>
 
 <pre><code class="language-rust">let x;
-// Hiden, compiler-generated drop flags
+// Hidden, compiler-generated drop flags
 let _is_x_init = false;
 if condition{
     x = Box::new(0);  
@@ -487,7 +487,7 @@ public unsafe static void _ZN4core4iter8adapters3map8map_fold28_$u7b$$u7b$closur
 
 <p>Looking at the default inlining policy, it seems like RyuJIT will not inline a function, if it exceeds a certain limit of basic blocks.</p>
 
-<pre><code class="language-cpp">// Code snipet from: https://github.com/dotnet/runtime/blob/02e95ebff119189ac2d65e4a641980ccb3ea1091/src/coreclr/jit/inlinepolicy.cpp#L577
+<pre><code class="language-cpp">// Code snippet from: https://github.com/dotnet/runtime/blob/02e95ebff119189ac2d65e4a641980ccb3ea1091/src/coreclr/jit/inlinepolicy.cpp#L577
 
 // CALLEE_IS_FORCE_INLINE overrides CALLEE_DOES_NOT_RETURN
 if (!m_IsForceInline &amp;&amp; m_IsNoReturn &amp;&amp; (basicBlockCount == 1))
@@ -521,7 +521,7 @@ else if (!m_IsForceInline &amp;&amp; (basicBlockCount &gt; MAX_BASIC_BLOCKS))
 
 <h2 id='removing_empty_handlers'>Removing empty handlers</h2>
 
-<p>Now that I expalined why those optimzations are needed, I will show how I implemented them.</p>
+<p>Now that I explained why those optimizations are needed, I will show how I implemented them.</p>
 
 <p>To remove a useless cleanup block(or exception handlers) I first need a good way of detecting them. Originally, I went with a more complex solution: First, I would simplify each block separately, removing all the side-effect-free statements before a <code>rethrow</code>.</p>
 
@@ -553,9 +553,9 @@ rethrow
 
 <p>However, the added complexity made this optimization a bit error-prone. For the sake of simplicity, I have overlooked some of the non-obvious issues. Most of them were caused by some of the tech debt the project has. Fixing them requires some additional refactors, which are just not done yet.</p>
 
-<p>Since the code in cleanup blocks only runs during an uwnind(so not during normal excution), debuging it is a bit of a pain.</p>
+<p>Since the code in cleanup blocks only runs during an unwind(so not during normal execution), debugging it is a bit of a pain.</p>
 
-<p>Any issues in cleaup blocks will also be very hard to notice:removing a necessary cleanup block can just lead to a memory leak. So I need to get all the optimzations operating on them to be perfect.</p>
+<p>Any issues in cleanup blocks will also be very hard to notice:removing a necessary cleanup block can just lead to a memory leak. So I need to get all the optimizations operating on them to be perfect.</p>
 
 <p>In order to avoid those issues, I have decided to go with a much simpler, more conservative approach for now.</p>
 
@@ -581,7 +581,7 @@ rethrow
   _ZN4iter13for_each_fold28_$u7b$$u7b$closure$u7d$$u7d$17hfc540be8426f74d2E(f_, rustVoid, tuple3vi.Item2);
 }</code></pre>
 
-<p>Don't get me wrong - there are still a lot of optimizations to be done(the whole function can be optimzed to one line, and easily inlined), but this is far better than what we had before.</p>
+<p>Don't get me wrong - there are still a lot of optimizations to be done(the whole function can be optimized to one line, and easily inlined), but this is far better than what we had before.</p>
 
 <h1 id='conclusion'>Conclusion</h1>
 

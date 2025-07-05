@@ -81,9 +81,9 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <p>As the complexity of your code grows, and the number of allocations in play increases, you slowly start to loose the forest for the trees. Managing memory is also a problem that varies with time. Allocating a dozen megabytes to parse config files at start-up is not that big of a deal. Allocating that same amount of memory later, when your memory usage is already high may be a much bigger problem.</p>
 
-<p>Recently, I developed a small Rust memory profiler, <code>spyalloc</code>. The main goal of spyalloc is to capture as much info as possible. For each allocation, re/deallocation, <code>spyalloc</code> saves <em>full backtraces</em>, timestamps and aligement / size info.</p>
+<p>Recently, I developed a small Rust memory profiler, <code>spyalloc</code>. The main goal of spyalloc is to capture as much info as possible. For each allocation, re/deallocation, <code>spyalloc</code> saves <em>full backtraces</em>, timestamps and alignment / size info.</p>
 
-<p>With this in mind, you might <em>expect</em> it to requre <strong>a lot</strong> of space to save log data.</p>
+<p>With this in mind, you might <em>expect</em> it to require <strong>a lot</strong> of space to save log data.</p>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"

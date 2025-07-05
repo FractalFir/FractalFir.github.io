@@ -94,7 +94,7 @@ console.log(`Highlight time: ${end - start} ms`);
 <p>The main difference is that, by convention, panics are <em>usually</em> used to indicate errors that you can't recover from.</p>
 
 <pre><code class="language-rust">if 2 + 2 != 4{
-   panic!(&quot;Math is not mathing :(!&quot;);
+   panic!(&quot;Math is not matching :(!&quot;);
 }</code></pre>
 
 <p>For errors that you can recover from(eg. a parsing error, or a network error), you should use a <code>Result</code> instead.</p>
@@ -219,7 +219,7 @@ extern crate std;</code></pre>
 
 <p>There is a good reason we can’t expand this macro: it is not a macro at all!</p>
 
-<h2 id='compiler_bultin_in_a_macros_clothing'>Compiler bultin in a macros clothing</h2>
+<h2 id='compiler_builtin_in_a_macros_clothing'>Compiler builtin in a macros clothing</h2>
 
 <p><code>format_args</code> is actually... a compiler built-in. It <em>looks</em> like an ordinary macro, <em>behaves</em> like an ordinary macro, but it is not one.</p>
 
@@ -450,7 +450,7 @@ pub fn begin_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! 
     })
 }</code></pre>
 
-<p>The first 2 lines just extract some information from <code>PanicInfo</code>. They retrive the panic location, and the panic message.</p>
+<p>The first 2 lines just extract some information from <code>PanicInfo</code>. They retrieve the panic location, and the panic message.</p>
 
 <pre><code class="language-rust">    let loc = info.location().unwrap(); // The current implementation always returns Some
     let msg = info.message();</code></pre>
@@ -485,7 +485,7 @@ pub fn begin_panic_handler(info: &amp;core::panic::PanicInfo&lt;'_&gt;) -&gt; ! 
 
 <p>Ideally, we'd like to display the &quot;interesting&quot; parts of the backtrace by default, and only show it in its entirety when need.</p>
 
-<p><code>__rust_end_short_backtrace</code> and  <code>__rust_begin_short_backtrace</code> mark the begining and end of this &quot;short backtrace&quot;.</p>
+<p><code>__rust_end_short_backtrace</code> and  <code>__rust_begin_short_backtrace</code> mark the beginning and end of this &quot;short backtrace&quot;.</p>
 
 <p>By calling <code>__rust_end_short_backtrace</code>, we are marking anything after this call as not important to display.</p>
 
@@ -924,7 +924,7 @@ fn rust_panic(msg: &amp;mut dyn PanicPayload) -&gt; ! {
     rtabort!(&quot;Rust panics must be rethrown&quot;);
 }</code></pre>
 
-<p>This will print the error message &quot;Rust panics must be rethrown&quot;. Since Rust code will never call <code>exception_cleanup</code> by itself, we know that this panic was caught in foregin code.</p>
+<p>This will print the error message &quot;Rust panics must be rethrown&quot;. Since Rust code will never call <code>exception_cleanup</code> by itself, we know that this panic was caught in foreign code.</p>
 
 <pre><code class="language-cpp">#include &lt;exception&gt;
 #include &lt;iostream&gt;

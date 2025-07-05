@@ -1,0 +1,780 @@
+<metadata>
+title = "Building the Rust compiler with GCC"
+id = "cg_gcc_bootstrap"
+category = "cg_gcc"
+category = "hidden"
+date = "31 Feb 404 bc"
+style = "inverted_imgs"
+</metadata>
+<markdown>
+
+# Bootstrapping Rust with GCC
+
+If you know one thing about me, it is that I love working on the Rust compiler. Some people kayak, travel or play guitar - and I stare at assembly, trying to figure out what I broke.
+
+This summer, I am taking on quite a large task: bootstrapping the Rust compiler using `cg_gcc` 
+
+What does that mean? “bootstrapping” is simply a name given to the Rust compiler build process. 
+
+So, what I am really trying to do is build a Rust compiler, without using LLVM - and using GCC instead. 
+
+![Diagram explaining the bootstrap process](../images/gcc_bootstrap_process.png)
+
+The bootstrap process is quite complex, and split into 3 stages. 
+
+## Stage 1
+
+First, we use a pre-existing, LLVM-based Rust compiler to build `rustc`, and the GCC-based codegen.
+
+## Stage 2
+
+Then, we take that GCC-based codegen, and rebuilt the Rust compiler using GCC.
+
+## Stage 3
+
+As a sanity check, we built the compiler ***again***, this time using `stage2`. 
+
+The idea here is quite simple: if `stage1` and `stage2` produce identical executables, then they behave identically, 
+which means the rust compiler build with GCC is (more or less) equivalent to the one built with LLVM. 
+
+Of course, a lot of this is a gorss oversimplification, but you should get the gist. 
+Getting to the stage3 is a big milestone - and the goal of my GSoC project.
+
+# The 3 little buglets
+
+You may be asking: what is preventing us from building a working stage 3 build right now?
+
+Usually, I would answer this question with something akin to “TODO: INSERT BUG QUOTE HERE”. However, this is a rare case, where I knew exactly what bugs I needed to fix.
+
+How could I know that? 
+
+Via the advanced debugging technique I dubbed “Giving the compiler a lobotomy”.
+
+## Lobotomizing ferris
+
+Some of the bugs I presented had some pretty clear symptoms: 
+
+`libgcccjit`(the library we use to interface with GCC) would show errors, complaining about some sort of IR issue.
+
+It would then abort the build, and give me the name of the problematic crate.
+
+```text
+   Compiling rustix v0.38.44
+libgccjit.so: error: : gcc_jit_block_add_assignment: mismatching types: assignment to input_register (type: __int8_t *) from param1 (type: restrict __int32_t  __attribute__((aligned(4))) *)
+```
+
+So, I went into the source code of that crate, found the function responsible, and just patched the problem out. 
+
+The compiler does not support 128 bit matches? Cool, a bunch of `if`’s it is. 
+```rust
+if val == 0 {
+    // Do sth
+} else if val == 1{
+    // Do sth else
+} else if val == 2{
+    // Do other thing
+}/*...*/
+else{
+    // Do yet another thing
+}
+```
+
+Inline causes trouble? Well, out it goes. 
+
+```rust
+/*#[inline(always)]*/ // Who needs inlining, anyways?
+```
+
+The compiler segfaults? It works with optimizations disabled? Well, who cares about speed, let’s build the compiler with none of that “optimization” business. 
+
+After axing enough things, I got a pretty good idea about the source of my issues. 
+
+I got a stage 2 build working, and was pretty close to stage 3. So, I knew loosely what needed fixing. 
+
+Still, I have got to implement those fixes… somehow. Hopefully, they are not too hard.
+
+# Go inlinine yourself
+
+The first bug I fought is kind of obvious in hindsight. 
+
+It is caused by using the `#[inline(always)]` attribute on a recursive function. 
+
+```rust
+#[inline(always)]
+fn fib(n:u32) -> u32{
+  if n <= 1{return 1}
+  else{ fib(n - 1) + fib(n - 2) }
+}
+```
+Now, a big chunk of you might be confused as to why this works when using LLVM. 
+
+If we read the attribute literally, we are asking `rustc` to “always inline this function”. Since fib is recursive, that would mean we have to inline it into itself.
+
+Let us try that!
+
+```rust
+#[inline(always)]
+fn fib(n: u32) ->u32{
+    if n <= 1 {
+        return 1;
+    } else {
+        (if n - 1 <= 1 {
+            1
+        } else {
+            fib(n - 1 - 1) + fib(n - 1 - 2)
+        }) + (if n - 2 <= 1 {
+            1
+        } else {
+            fib(n - 2 - 1) + fib(n - 2 - 2)
+        })
+    }
+}
+```
+
+Uh, you might already see the problem. No matter how many times we inline fib, it will always still contain a non-inlined call to itself.
+
+We are asking the compiler to do something impossible. So, it is no wonder the GCC based backend fails to do this, and errors out.
+
+How on earth does LLVM manage to fully inline fib? 
+
+The answer is… it does not. 
+
+## It was just a hint, bro
+
+Yeap, you hear me right - `#[inline(always)]` does not guarantee our function will always get inlined. 
+Maybe, the more appropriate name would be `#[inline(inline_this_if_u_can_pretty_please)]`. 
+
+That might be a bit harder to remember, though ;). 
+
+So, `#[inline(always)]` does not always inline. Is this not a compiler bug?
+
+Nope! It is actually intended behaviour, and something [the docs](https://doc.rust-lang.org/nightly/reference/attributes/codegen.html?highlight=inline#the-inline-attribute) clearly state:
+
+> `#[inline(always)]` *suggests* that an inline expansion should always be performed
+
+Seems a bit silly, but... ¯\_(ツ)_/¯.
+
+Yeah, so if we tell LLVM to “always inline” something, and it can’t do that, it will just not inline it, and happily chug on.
+
+*Sidenote: There exists a way to make LLVM error out in this case, but it is not used by `rustc` here.*
+*If you want this behaviour, you'd have to use the internal `#[rustc_force_inline]` attribute instead.* 
+
+So, the GCC error is not *really* a fault of GCC - we are telling it to always inline this function, and it simply tells us it is not possible.
+
+How can we work around this?
+
+# Breaking the cycle of inling
+
+Really, the problem stems from us asking GCC to do something impossible, and being shocked when it does not work as expected.
+
+What we need to do is somehow prevent this kind of cyclic, unconditional inline.
+
+## Demoting inlines
+
+The simplest solution to this problem is to treat all uses of `#[inline(always)]` the same way `#[inline]` is treated.
+
+This does work, and is a one-line change. 
+```rust
+// Change this
+InlineAttr::Hint => Some(FnAttribute::Inline),
+InlineAttr::Always | InlineAttr::Force { .. } => Some(FnAttribute::AlwaysInline),
+// into this:
+InlineAttr::Always | InlineAttr::Hint => Some(FnAttribute::Inline),
+InlineAttr::Force { .. } => Some(FnAttribute::AlwaysInline),
+```
+
+Since `#[inline(always)]` is *just a hint*, ignoring it is fully correct. 
+
+However, it is also not without its own downsides. 
+
+People are using `#[inline(always)]` for a reason: they have determined that `#[inline]` will not suffice.
+
+So, we can expect performance regressions from this "fix".
+
+## Checking if a function is recursive
+
+You might think you have came up with a clever solution that allows us to have our cake and eat it too. 
+
+This problem is caused by functions marked with `#[inline(always)]` calling themselves.
+
+Can't we just check for that?
+
+Given a function `fib`, decorated with the attribute #[inline(always)], could we check if it ever calls `fib`?
+
+```rust
+#[inline(always)]
+fn fib(n:u32) -> u32{
+  if n <= 1{return 1}
+  else{ fib(n - 1) + fib(n - 2) }
+}
+```
+We could replace `#[inline(always)]` with plain ol' inline in just that case. 
+
+Well, this works... *in simple scenarios*. It even fixed the problem that originally caused me to look into this: 
+
+The **one** use of recursive always-inline in the Rust compiler! 
+
+Remember: This is the **main** reason I am looking into this particular set of issues: 
+
+*they are preventing us from using cg_gcc to build the Rust compiler.*
+
+So... this is the fix, right? Not really...
+
+Despite fixing the original symptom of the issue, this fix is flawed. 
+
+It ignores indirectly-recursive functions. 
+
+### Indirectly-recursive functions
+
+What do I mean by that?
+
+Suppose we are felling funny: we create *two* copies of our `fib` function: 
+
+1. `fib_a` calling `fib_b`...
+2. and `fib_b` calling fib_a.
+
+Kind of like this:
+
+```rust
+#[inline(always)]
+fn fib_a(n:u32) -> u32{
+  if n <= 1{return 1}
+  else{ fib_b(n - 1) + fib_b(n - 2) }
+}
+#[inline(always)]
+fn fib_a(n:u32) -> u32{
+  if n <= 1{return 1}
+  else{ fib_b(n - 1) + fib_b(n - 2) }
+}
+```
+
+Now, none of those functions *directly* call themselves. So, our check will not trigger, but the original bug *will*.
+
+
+After we inline `fib_b` into `fib_a`, it now will directly call itself, recreating the original bug.
+
+
+```rust
+#[inline(always)]
+fn fib_a(n: u32) ->u32{
+    if n <= 1 {
+        return 1;
+    } else {
+        (if n - 1 <= 1 {
+            1
+        } else {
+            fib_a(n - 1 - 1) + fib_a(n - 1 - 2)
+        }) + (if n - 2 <= 1 {
+            1
+        } else {
+            fib_a(n - 2 - 1) + fib_a(n - 2 - 2)
+        })
+    }
+}
+```
+
+However, by that point, the function is squarely in the `GCC`s hand, and we will get a `libgccjit` error.
+
+You may think: can we make the check *recursive*? 
+
+As in, we descend trough all the functions called by `fib_a`, and then functions called by `fib_b`, and so on, checking if `fib_a` is recursive?
+
+*Well*, this would get very complex, very quickly.
+
+uppose we have some function f0, which calls f1, which calls f2, which calls f3, and so on, till f2^20.
+
+Such a recursion check would be sluggish, and easily overflow the compiler stack.
+
+That is... not exactly what we want to happen. We could place some limits, but that would be a bit *awkward*. 
+
+We want a solution that is both *performant*, and *correct*. 
+
+## Attribute based check. 
+
+We can rephrase the problem a bit. 
+
+Instead of checking for recursion, we check if a function marked with `#[inline(always)]` calls another function marked with the same attribute. 
+
+This will prevent any issues recursive, unconditional inling could cause.
+
+Can we detect a scenario like this? Yup, and with ease. 
+
+All we need to do is:
+1. Grab the function MIR(the function representation used by the compiler)
+2. Iterate trough all the blocks of this function
+3. Check if they end with a function call(function calls can only be present at the end of a block)
+4. Check if that function is marked inline(always)
+
+This is surpsinly cheap, and straightforward. 
+
+First and foremost, we only need to perform this check for functions marked with `#[inline(always)]`
+
+```rust
+InlineAttr::Always => if resursively_inline(compiler_context, function) {
+    Some(FnAttribute::Inline) // Use weaker attribute to break potential cycles
+} else {
+    Some(FnAttribute::AlwaysInline) // Cycle impossible, use stronger attribute.
+}
+```
+
+So, most of the time, this does not trigger, and is thus "free". 
+
+Second, we already need the function MIR to be able to compile it to GIMPLE(the IR GCC uses). 
+
+So, checking the function MIR incurs no additional cost: the data we need is computed anyway. 
+
+```rust
+let body = cx.tcx.optimized_mir(instance.def_id());
+```
+
+Additionally, most functions contain a relatively small number of *blocks*. 
+
+MIR blocks are ended by terminators, which affect the control flow. 
+
+So, to check for *calls*, we only need to check all the *terminators*.
+
+```rust
+for block in body.basic_blocks.iter() {
+    let Some(ref terminator) = block.terminator else { continue };
+    // I assume that the recursive-inline issue applies only to functions, and not to drops.
+    // In principle, a recursive, `#[inline(always)]` drop could(?) exist, but I don't think it does.
+    let TerminatorKind::Call { ref func, .. } = terminator.kind else { continue };
+    let Some((def, _args)) = func.const_fn_def() else { continue };
+```
+
+Checking what *attributes* a function has is also a dirt-cheap process.
+
+```rust
+if matches!(
+    cx.tcx.codegen_fn_attrs(def).inline,
+    InlineAttr::Always | InlineAttr::Force { .. }
+) {
+    return true;
+}
+```
+This is the solution I went with: it is simple to understand & implement.
+
+It also allows us to keep the benefits of `#[inline(always)]` in *most* cases.
+
+# 128 bit switch 
+
+There is another bug preventing GCC from bootstrapping rustc: an incorrect implementation of 128 bit `SwitchInt` terminator.
+
+This issue has a pretty clear symptom: `libgccjit` yells at us, and the compiler stops. 
+
+But, what is `SwitchInt`, and why do we have a problem with 128 bit intigers?
+
+`SwitchInt` is the primitive used to implement all conditional control flow in MIR(Rust compiler’s IR). 
+
+It more or less works like the C switch statement. Given some value to switch on, and a list of cases, we jump to the case with the matching value. 
+```rust
+switchInt(_11) -> [0: bb10, 1: bb9, otherwise: bb8];
+```
+Simple stuff, really. 
+
+Mapping this to GCC IR is very, very easy. We just... turn it into a switch. Duh. 
+
+```c
+switch (local_11){
+    case 0: 
+        goto bb10;
+    case 1:
+        goto bb9;
+    default:
+        goto bb8;
+}
+```
+
+The problem arises when we try to create a switch, which operates on 128 bit integers. This works just fine in C, but not in Rust. Why?
+
+Well, all switch cases must be constants. Creating those is not too hard: we just need to call this libgccjit function and…
+
+```c
+extern gcc_jit_rvalue *
+gcc_jit_context_new_rvalue_from_long (gcc_jit_context *ctxt,
+				      gcc_jit_type *numeric_type,
+				      long value);
+```
+
+Yeah, you can already see the problem… This function accepts 64 bit arguments(longs), but we need to create 128 bit constants. That is not going to work.
+
+The GCC compiler is using the GCC-internal APIs, which do expose a way to create such a value. `cg_gcc` is using GCC as a library(`libgccjit`), and uses the API exposed by this library. That API does not have the function we need.
+
+In all other places, we can kind of cheat to get a 128 bit value the long way round. We simply assemble it from its high and low qwords, like this:
+```c
+uint128_t res = (((uint128_t) high)<<64) | ((uint128_t) low);
+```
+
+This approach, however, means that instead of a simple literal, our value is an expression. So, it can’t be used as a switch case.
+
+Now, the long term fix for this problem is kind of obvious: we need to add a new function to `libgccjit`, allowing us to get 128 bit constants directly. 
+
+This is difficult for 2 reasons: 
+1. Modifying `libgccjit` is not all that easy, in general
+2. GCC does not support 128 bit intigers on 32 bit targets... which would break `libgccjit` code there. 
+```c
+extern gcc_jit_rvalue *
+gcc_jit_context_new_rvalue_from_very_long (gcc_jit_context *ctxt,
+				      gcc_jit_type *numeric_type,
+                      // Fails to compile on 32 bit targets :(
+				      int128_t value);
+```
+
+
+However, just to get things going, is there a simpler workaround?
+
+## Switching on quadwords
+
+At first, your thought might be to split the switch statement up, first matching on its lower qword(`u64`) and then matching on the high qword.
+```c
+uint64_t high = (uint64_t)(big>>64);
+uint64_t low = (uint64_t)big;
+switch(high){
+    case 0:
+        switch(low){
+            case 0:
+                do_sth();
+                break;
+            case 120453:
+                do_sth_else();
+                break;
+            default:
+                do_nothing();
+        }
+        break;
+    case 3453:
+    switch(low){
+            case 0:
+                do_sth();
+            /* ... and so on ..*/
+    }
+}
+```
+This *would* work as expected, but would also introduce many, many unnecessary blocks and switches. Additionally, it would be a bit ugly to implement.
+
+I don’t want that: the fewer branches we need to have, the better. 
+
+Additionally, we must ask ourselves one more question: would GCC be able to “see” what we are doing?
+
+In the good old days, writing clever, complex algorithms was quite often needed to squeeze every bit of performance out of your computer. The compilers were as dumb as a sack of bricks, and you needed to wrangle them into generating decent assembly.
+
+This is where things like the [duff’s device](https://en.wikipedia.org/wiki/Duff%27s_device), or the [fast inverse square root](https://en.wikipedia.org/wiki/Fast_inverse_square_root) and other such oddities come from.
+
+Nowadays, compilers are quite a bit smarter. They are able to detect naive implementations of certain operations, and replace them with optimized intrinsics. 
+
+A manual copy loop will get replaced with a `memcpy` call, manual `stren` will also get replaced by an efficient builtin, and so on.
+
+Now, the compiler is not omnipotent: it can’t read your mind, and discover what your complex, hard to read function is doing. Sometimes, simplicity is the key: it allows a compiler to understand your code a bit better.
+
+In this case, it is unlikely GCC will turn our nested switch into something simpler. Some other patterns, however, might be a bit easier to understand. Maybe if we dumb our code down, it will work better?
+
+## if ladder 
+
+What is the most common, most stupid replacement for a switch? Something loads of people will write, and then be laughed at?
+
+*A whole lot of ifs.*
+
+Really, think about it. How often do you see somebody inexperienced use ifs instead of a switch? This pattern is common enough for most compilers to recognize, and more importantly, optimize it.
+
+Those 2 functions
+```c
+char* test(int num){
+    switch(num){
+        case 0:
+            return "zero";
+        case 1:
+            return "one";
+        case 2:
+            return "two";
+        default:
+            return "IDK, go bother somebody else";
+    }
+}
+char* test2(int num){
+    if(num == 0)return "zero";
+    else if(num == 1)return "one";
+    else if(num == 2)return "two";
+    else return "IDK, go bother somebody else";
+}
+```
+result in the same assembly in GCC:
+```x86_64
+"test":
+        mov     eax, OFFSET FLAT:.LC1
+        cmp     edi, 1
+        je      .L1
+        mov     eax, OFFSET FLAT:.LC2
+        cmp     edi, 2
+        je      .L1
+        test    edi, edi
+        mov     eax, OFFSET FLAT:.LC0
+        mov     edx, OFFSET FLAT:.LC3
+        cmovne  rax, rdx
+.L1:
+        ret
+"test2":
+        mov     eax, OFFSET FLAT:.LC0
+        test    edi, edi
+        je      .L6
+        mov     eax, OFFSET FLAT:.LC1
+        cmp     edi, 1
+        je      .L6
+        cmp     edi, 2
+        mov     eax, OFFSET FLAT:.LC3
+        mov     edx, OFFSET FLAT:.LC2
+        cmove   rax, rdx
+.L6:
+        ret
+```
+
+Moreover, if we turn the optimizations above level 2, GCC will merge those 2 functions. Man, compilers are smart.
+
+So, by doing something seemingly stupid, we can indirectly create a 128 bit switch. 
+
+Of course, we should not rely on compiler optimizations here, but, for now, this is good enough. 
+
+
+Working inefficiently is better than not working at all.
+
+So, I applied those patches, and… we have a liftoff! The compiler can now successfully crawl till stage 2! 
+
+Sadly, we experience some [rapid unscheduled disassembly](https://en.wiktionary.org/wiki/rapid_unplanned_disassembly) - the stage 2 segfaults. 
+
+Looks like we are not out of the woods quite yet. 
+
+# Diagnosing a segfault
+
+The sentence “the compiler segfaulted”  does not tell us all that much. Such a thing can happen for a whole bunch of reasons: invalid memory accesses, corrupt data, stack overflows, incorrect alignment. 
+
+However, there are a few hints that can help us diagnose the issue.
+
+The first hint is very interesting: this issue only happens when the optimization level is larger than 1. 
+
+That means the `GIMPlE`(GCC IR) we generate is not fully incorrect, but is broken after optimization. That suggest we are dealing with undefined behaviour. **Ouch.** 
+
+We can use a few tricks to deuce exactly what is going on here. 
+
+## Toggling optimizations on and off.
+
+We know that compiling with `-Copt-level=1` works, but compiling with `-Copt-level=2` does not. From the GCC docs, we can get a list of passes that `-O2` enables.
+
+One of those is involved in this issue. 
+
+Which one? Well, I managed to cut the list down to this much smaller set. 
+
+I know, for a fact, that the issue is caused by one of the vectorisation passes.
+
+Sadly, at this point, things became much more… wobbly. I could not pinpoint a single pass that was required for the issue to occur. I know some combo of them was required, but I did not know which exactly. 
+
+Running unoptimized compiler builds is… not exactly pleasant. 
+
+Due to some issues(which will I mention later) I was only able to use one thread at most during the build. That slowed it down to a nice, leasuirly 50 minutes per build. 
+
+That is not too terrible, but it makes the investigation process much, much harder. Can we do something else to diagnose the issue?
+
+## Debugging the compiler
+
+Normally, debuing the compiler is fairly straightforward: it is more or less a run of the mill executable.
+
+In the bootstrap process, the entire thing becomes way more complex. You see, `rustc` is not invoked directly. The bootstrap script calls a wrapper around the compiler.
+
+Running that wrapped `rustc` is not easy to run either: it requires a whole lot of complex, environment flags to be set.
+
+All that is to say: I don’t know how to debug the Rust compiler. I am 99.9 % sure there is an easy way to do this, documented somewhere I did not think to look. After I post this, somebody will tell me “oh, you just need to do X”.
+
+Still, at the time of writing, I did not know how to do this. 
+
+So, can we attach gdb to the running process? Nope, it crashes way to quickly for that. 
+
+Funny - I never thought I'd be complaining my computer is *too fast*.
+
+This may seem like a hopeless situation, but it is not. 
+
+### Core dumps
+
+Even tough the process in question no longer exists, we can still debug it. How?
+
+We can use a core dump:
+```sh
+coredumpctl gdb
+```
+
+What is a core dump? It is an image of the crashed process, at the point of failure. This snapshot contains all the data we need to diagnose this issue. 
+
+Let's look a the stack trace:
+```
+#18 0x00007fe64d16ebcd in <hashbrown::raw::RawTable<(rustc_middle::ty::context::InternedInSet<rustc_middle::ty::consts::valtree::ValTreeKind>, ())>>::find_or_find_insert_slot::<rustc_data_structures::sharded::table_entry<rustc_middle::ty::context::InternedInSet<rustc_middle::ty::consts::valtree::ValTreeKind>, (), rustc_middle::ty::consts::valtree::ValTreeKind>::{closure#0}, rustc_data_structures::sharded::table_entry<rustc_middle::ty::context::InternedInSet<rustc_middle::ty::consts::valtree::ValTreeKind>, (), rustc_middle::ty::consts::valtree::ValTreeKind>::{closure#1}>::{closure#0} ()
+   from librustc_driver.so
+#19 0x00007fe64d171e65 in <hashbrown::raw::RawTableInner>::find_or_find_insert_slot_inner () from librustc_driver.so
+#20 0x00007fe64d1b2cf2 in <rustc_middle::ty::context::TyCtxt>::intern_valtree () from librustc_driver.so
+```
+
+Huh, we are crashing when building a hash table, inside of the Rust compiler interner(`intern_valtree`). What is an interner? Glad you asked.
+
+The interner is a data structure, used by the Rust compiler to store most of it’s types. It is quite complex, but you can kind of think of it as a mix between an arena allocator, and a hash map. Each item in an interner is guaranteed to be *unique*. 
+
+Now, this is the first place I'd expect Rust to break in.
+
+The interner contains a bit of unsafe code, and uses a **lot** of advanced features to squeze every bit of performance it can. 
+
+This could explain our issue: maybe we don’t translate all of that into GCC IR correctly? Most code does not really on those finer detali, so it might have slipped trough the tests. 
+
+Let us take a look at the assembly of the offending function:
+```
+   0x00007fe64d16ebc9 <+41>:    test   %cl,%cl
+   0x00007fe64d16ebcb <+43>:    jne    0x7fe64d16ebe8
+=> 0x00007fe64d16ebcd <+45>:    vmovdqa 0x2(%rax),%xmm0
+   0x00007fe64d16ebd2 <+50>:    vpxor  0x2(%rdx),%xmm0,%xmm0
+   0x00007fe64d16ebd7 <+55>:    vptest %xmm0,%xmm0
+```
+
+Would you look at that -  it is a 256 bit vector move instruction. I wonder what the address it operates on is…
+```sh 
+(gdb) p/x *(int8_t[16]*)$rax
+$10 = {0x0, 0x8, 0x1, 0x0 <repeats 13 times>}
+p/x $rax
+$6 = 0x7fe646423b90
+```
+
+Huh, it points to accessible memory, but it does not look correctly aligned to me… we need an alignment of 32 bytes, but this pointer is only aligned to 16.
+
+So, case closed! We have a misaligned pointer dereference! Eh, not so fast… we still don’t know *why* the pointer is misaligned.
+
+Let us take a look at some of the problematic types.
+
+## ValTree and ScalarInt
+
+We crash when creating a `ValTree`. Let us take a look at that type:
+```rust
+pub struct ValTree<'tcx>(pub(crate) Interned<'tcx, ValTreeKind<'tcx>>);
+```
+So, `ValTree` is a pointer to an interned(stored in the compilers arena allocator) `ValTreeKind`.
+
+How does a `ValTreeKind` look like?
+
+```rust
+pub enum ValTreeKind<'tcx> {
+    Leaf(ScalarInt),
+    Branch(Box<[ValTree<'tcx>]>),
+}
+```
+
+Ok, so it is a classic tree. It contains either *itself*, or a `ScalarInt`. That makes sense - `ValTreeKind` is used to represent constants.
+
+So far, I don't see anything suspicious. Let us take a look at  `ScalarInt`.
+
+```rust
+#[derive(Clone, Copy, PartialEq)]
+#[repr(packed(1))]
+pub struct ScalarInt {
+    data: u128,
+    size: u8,
+}
+```
+
+Ah! I can imedietly sense something suspicious about this code!
+
+We have an *aligement* issue, and `#[repr(packed(1))]` is supposed to relax the aligement requirements. 
+
+Perhaps we are simply translating it incorrectly?
+
+Let us see if we can minimize the issue:
+```rust
+#[derive(Clone, Copy, PartialEq)]
+#[repr(packed(1))]
+pub struct ScalarInt {
+    data: u128,
+    size: u8,
+}
+#[inline(never)]
+fn eq(a: &ScalarInt, b: &ScalarInt) -> bool {
+    a == b
+}
+fn main() {
+    // We create an array of 2 elements to get an unaligned `ScalarInt`
+    // (which is normally fine with `#[repr(packed(1))]`).
+    let data = [std::hint::black_box(ScalarInt { data: 0, size: 1 }); 2];
+    data.iter().all(|v| eq(v, &ScalarInt { data: 0, size: 1 }));
+}
+```
+
+Yeap - that is enough to make the program *crash*. Surpsingly, this issue occurs **only** if we use `i128` or `u128`.
+
+Any other type - everything works out just fine... why? Why does packed work with `u64`(and use unalgined loads there), but breaks with `u128`.
+
+Let us take a look and the code handling unaligned loads. 
+
+## unaligned loads
+
+```rust
+fn load(&mut self, pointee_ty: Type<'gcc>, ptr: RValue<'gcc>, align: Align) -> RValue<'gcc> {
+    let block = self.llbb();
+    let function = block.get_function();
+```
+
+Ok, so we get a pointer, a type, and an alignment. Seems fine so far
+```rust
+// FIXME(antoyo): this check that we don't call get_aligned() a second time on a type.
+// Ideally, we shouldn't need to do this check.
+let aligned_type = if pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i128_type {
+    pointee_ty
+} else {
+    pointee_ty.get_aligned(align.bytes())
+}
+```
+Huh? Normally, we set the aligement of the pointer, but here... we just skip that for 128 bit intigers.
+
+That... that explains the bug.
+
+Now, you may wonder why we need to skip the aligement here in the first place. 
+
+You see, `libgccjit` is sometimes a bit... special. 
+
+It behaves in a consistent, kind of logical way, that is also uterly infurating. 
+
+If you call `get_aligned(4)` on a `uint8_t`, it will turn it into:
+```rust
+__attribute__((aligned(4))) uint8_t
+```
+logical. 
+
+If we call `get_aligned(4)` on that type, we'll get:
+```rust
+__attribute__((aligned(4))) __attribute__((aligned(4))) uint8_t
+```
+
+obviously.
+
+Also, `__attribute__((aligned(4))) uint8_t` and `__attribute__((aligned(4))) __attribute__((aligned(4))) uint8_t` are different, incompatible types, and you can't mix them together. 
+
+So, we have to avoid calling `get_aligned` twice on a type at all costs. 
+
+The fix ended up being simple: we just skip calling `get_aligned` only when the aligement is already correct.
+
+```rust
+let aligned_type = if (pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i128_type) && align == self.int128_align
+```
+
+And, with this, we can limp on to stage3! 
+
+... with the emphasis on *limp*. At some points, we are using over 100 GB of RAM... not ideal. 
+
+We also often overflow our stack... but that is a story for another day.
+
+# Wrappin up
+
+Yeah. We achieaved some great things. But, as always in life, there is so much more to do...
+
+To spoil my future articles, both of the issues I mentioned... have been fixed for over a month. 
+
+I have *so much* to write about. Fuzzing with `rustlantis`, bootstrapping on ARM, ABI bugs, GCC(?) bugs...
+
+I suppose that is a good thing.
+
+If you want some unedited, more up-to-date information about my progress, you can check out the GSoC proposal's [zulip channel](https://rust-lang.zulipchat.com/#narrow/channel/421156-gsoc/topic/Project.3A.20Bootstrap.20of.20rustc.20with.20rustc_codegen_gcc/with/527276268). 
+
+That is the place where I discuss the progress with other Rust compiler devs. Overall, I'd recommend you read over all the GSoC zulip channels - there are some great projects in the works :).
+
+If you want to check out [`rustc_codegen_gcc`, here is the repo link](https://github.com/rust-lang/rustc_codegen_gcc).
+
+</markdown>

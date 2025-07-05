@@ -136,7 +136,7 @@ fn should_fail(){
 
 <p>I could also test individual crates(Rust libraries), or try to use something like <a href='https://github.com/rust-lang/crater'>crater</a>. <code>crater</code> is a Rust tool, that tests <em>every single Rust library</em> - all 100 000 of them. With this kind of testing, I would be able to find almost any issue with this project. That is still far off in the future, but still - you can see why better tests could be really useful.</p>
 
-<p>The Rust tests would also run faster than my crappy, custom ones. Currently, I build a separate test binary for each test case - and that adds up quickly. At the time of writing, my test suite takes 44.461 seconds to run, on my machine. On gihub actions, the tests are even solwer - takning <strong>4m</strong> to run. With cargo tests, I could build <em>one</em> big binary for all tests - cutting down the build times significantly.</p>
+<p>The Rust tests would also run faster than my crappy, custom ones. Currently, I build a separate test binary for each test case - and that adds up quickly. At the time of writing, my test suite takes 44.461 seconds to run, on my machine. On github actions, the tests are even slower - taking <strong>4m</strong> to run. With cargo tests, I could build <em>one</em> big binary for all tests - cutting down the build times significantly.</p>
 
 <p>So, you probably can understand why I feel this is a good goal for the near future.</p>
 
@@ -219,7 +219,7 @@ unsafe fn really_init(argc: isize, argv: *const *const u8) {
     ARGV.store(argv as *mut _, Ordering::Relaxed);
 }</code></pre>
 
-<p>Ok, that makes sense. But what calls <code>really_init</code>? <code>really_init</code> is called by a &quot;static initialzier&quot; - on GNU Linux, it uses '.init_array'.</p>
+<p>Ok, that makes sense. But what calls <code>really_init</code>? <code>really_init</code> is called by a &quot;static initializer&quot; - on GNU Linux, it uses '.init_array'.</p>
 
 <pre><code>#[used]
 #[link_section = &quot;.init_array.00099&quot;]
@@ -512,7 +512,7 @@ calli void ()</code></pre>
 
 <p>However stupid it may be, it works.</p>
 
-<h1 id='suprise_for_the_end'>Suprise for the end</h1>
+<h1 id='surprise_for_the_end'>Surprise for the end</h1>
 
 <p>Oh, did I forget to mention that <code>rustc_codegen_clr</code> can also compiler Rust to C?</p>
 
@@ -548,11 +548,11 @@ calli void ()</code></pre>
 
 <p>Originally, I had more stuff to talk about, but I didn't want this article to become an unreadable wall of text.</p>
 
-<p>Once again, if you have any questions, feel free to ask. You can use the <a href='https://rust-lang.zulipchat.com/#narrow/stream/421156-gsoc/topic/Project.3A.20Rust.20to.20.2ENET.20compiler'>Rust Zulip</a>, open a discussion on the <a href='https://github.com/FractalFir/rustc_codegen_clr'>project GitHub</a>, or just ask in the Reddit comments. I will try to respond to all the feedback I recive.</p>
+<p>Once again, if you have any questions, feel free to ask. You can use the <a href='https://rust-lang.zulipchat.com/#narrow/stream/421156-gsoc/topic/Project.3A.20Rust.20to.20.2ENET.20compiler'>Rust Zulip</a>, open a discussion on the <a href='https://github.com/FractalFir/rustc_codegen_clr'>project GitHub</a>, or just ask in the Reddit comments. I will try to respond to all the feedback I receive.</p>
 
 <p>So, goodbye, and see you next time!</p>
 
-<h6 id='you_can_also_sposor_me_on_github_,_if_you_want_to.'><em>You can also <a href='https://github.com/sponsors/FractalFir'>sposor me on GitHub</a>, if you want to.</em></h6>
+<h6 id='you_can_also_sponsor_me_on_github_,_if_you_want_to.'><em>You can also <a href='https://github.com/sponsors/FractalFir'>sponsor me on GitHub</a>, if you want to.</em></h6>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"

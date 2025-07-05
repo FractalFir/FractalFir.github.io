@@ -83,6 +83,11 @@ impl Metadata {
                             .to_string(),
                     )
                 }
+                "style" => res.style = value
+                        .split('"')
+                        .nth(1)
+                        .expect("ID must be contained between 2 quotation marks!")
+                        .to_string(),
                 _ => panic!(
                     "unknown variable \"{var}\"!",
                     var = variable.escape_debug().to_string()

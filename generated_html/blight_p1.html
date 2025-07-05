@@ -77,11 +77,11 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
             <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Rust that could have been</h1><br><small><div class = "article_metadata"><i>4 - 8 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I often like to think about how the world would look like, had a small change to the history been made. How a seemingly insignificant change could reshape the world into something unrecognizable. But, while most focus on history of mankind, I like to think about more broad changes. How would our world look like, had dinosaurs not went extinct? What would happen if the day was 72 hours long? What kind of animals would roam the earth today? How would their evolution diverge from our timeline, to make them better in this strange world? This kind of questions are not exactly brand new, there exist an entire genere of books called <a href='https://en.wikipedia.org/wiki/Speculative_evolution'>Speculative Evolution</a>. The only major diference between those books and this article is that the &quot;animal&quot; in question is a programing language, Rust to be precise.</p>
+        </nav></div><div class = "article_header"><h1 class="title">Rust that could have been</h1><br><small><div class = "article_metadata"><i>4 - 8 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>I often like to think about how the world would look like, had a small change to the history been made. How a seemingly insignificant change could reshape the world into something unrecognizable. But, while most focus on history of mankind, I like to think about more broad changes. How would our world look like, had dinosaurs not went extinct? What would happen if the day was 72 hours long? What kind of animals would roam the earth today? How would their evolution diverge from our timeline, to make them better in this strange world? This kind of questions are not exactly brand new, there exist an entire genre of books called <a href='https://en.wikipedia.org/wiki/Speculative_evolution'>Speculative Evolution</a>. The only major difference between those books and this article is that the &quot;animal&quot; in question is a programing language, Rust to be precise.</p>
 
 <h2 id='programing_languages_as_species'>Programing languages as Species</h2>
 
-<p>Programing languages and animals have far more in common than it may seem at first. They both spread their genes further, animals by bringing an new generation onto this world, and programing languages - by inspiring creators of new programing languges to copy some faeatures of the old ones. In both cases, their success depends on how well they fit their niche. None will use a programing language, if it has nothing going for it. An animal that is bad at its job will simply die. There are many other interesting paralells one could make, but this is enough. This is all evolution needs to do its magic: for the <em>thing</em> it affect to be able to create inperfect copies, and for natural selection to get rid of those which are not good enoguh.</p>
+<p>Programing languages and animals have far more in common than it may seem at first. They both spread their genes further, animals by bringing an new generation onto this world, and programing languages - by inspiring creators of new programing languages to copy some features of the old ones. In both cases, their success depends on how well they fit their niche. None will use a programing language, if it has nothing going for it. An animal that is bad at its job will simply die. There are many other interesting parallels one could make, but this is enough. This is all evolution needs to do its magic: for the <em>thing</em> it affect to be able to create imperfect copies, and for natural selection to get rid of those which are not good enough.</p>
 
 <h2 id='point_of_divergence.'>Point of divergence.</h2>
 
@@ -91,7 +91,7 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <pre><code class="language-FORTH">	17 5 + .</code></pre>
 
-<p>Huh? It may seem totaly insane, but it is actualy fairly sensible.</p>
+<p>Huh? It may seem totally insane, but it is actually fairly sensible.</p>
 
 <p>A number literal pushes the number on the stack. So, first we push <code>17</code> on the stack.</p>
 
@@ -111,7 +111,7 @@ console.log(`Highlight time: ${end - start} ms`);
 <p>| 22 |</p>
 </blockquote>
 
-<p>and . prints the number from the stack to the terminal. After some consideration, while wierd, it makes sense. A more complex program calculating a multiple of sums of two numbers, which we would normaly write like `(5+8)*(9+7)</p>
+<p>and . prints the number from the stack to the terminal. After some consideration, while weird, it makes sense. A more complex program calculating a multiple of sums of two numbers, which we would normally write like `(5+8)*(9+7)</p>
 
 <pre><code class="language-FORTH">5 8 + 9 7 + *</code></pre>
 
@@ -133,17 +133,17 @@ console.log(`Highlight time: ${end - start} ms`);
 <p>| 208 |</p>
 </blockquote>
 
-<p>But why would anyone program like that? Why would you use this seemingly insane notation? It has one, huge advantage: As long as each operator takes a fixed ammount of operands(which is the case for all the operators that concern us), it is never ambigious. There is no need for precedence of operators, parnethesis, or anything like that. There is always one, and only one, way to calculate things.</p>
+<p>But why would anyone program like that? Why would you use this seemingly insane notation? It has one, huge advantage: As long as each operator takes a fixed amount of operands(which is the case for all the operators that concern us), it is never ambiguous. There is no need for precedence of operators, parenthesis, or anything like that. There is always one, and only one, way to calculate things.</p>
 
-<p>So, let us assume that <code>Forth</code> became way more popular in this timeline. That it was the next <code>C</code>, and everyone after it just went along with the stack-based approach. How did this happen? Aliens, mass madness, anything. It does not realy matter, whe are here to think how this language would work, not how it came to be.</p>
+<p>So, let us assume that <code>Forth</code> became way more popular in this timeline. That it was the next <code>C</code>, and everyone after it just went along with the stack-based approach. How did this happen? Aliens, mass madness, anything. It does not really matter, whe are here to think how this language would work, not how it came to be.</p>
 
 <h2 id='why_bother_with_all_of_this?'>Why bother with all of this?</h2>
 
-<p>This may seem like a pointless exercise. And to some degree, it is. Something done just for fun. But there is hidden value to this madness. Many studies show that, depending on which (human) lanaguage you use, you view problems diffrently. Your thinking changes, and you can easily see solutions you would not see otherwise. This is an attempt at doing just that, but with code. Who knows what ideas you can get when programing in such a wierd way?</p>
+<p>This may seem like a pointless exercise. And to some degree, it is. Something done just for fun. But there is hidden value to this madness. Many studies show that, depending on which (human) language you use, you view problems differently. Your thinking changes, and you can easily see solutions you would not see otherwise. This is an attempt at doing just that, but with code. Who knows what ideas you can get when programing in such a weird way?</p>
 
 <h2 id='blight'>Blight</h2>
 
-<p>So I decided to call this evil twin of Rust <code>Blight</code>. The goal is to keep everything as Rust-like as possible, with the only difference being that <code>Blight</code> is stack-based. So lets see how a function adding two intigers looks like in Blight:</p>
+<p>So I decided to call this evil twin of Rust <code>Blight</code>. The goal is to keep everything as Rust-like as possible, with the only difference being that <code>Blight</code> is stack-based. So lets see how a function adding two integers looks like in Blight:</p>
 
 <h4 id='blight'>Blight</h4>
 
@@ -157,7 +157,7 @@ console.log(`Highlight time: ${end - start} ms`);
    a + b
 }</code></pre>
 
-<p>We can already see a couple differences: there are no argument names, since arguments are pushed onto the stack. Rust returns the value of last expresion by default, and it translates really well into <code>Blight</code>. It simply returns the value on top of the stack at the end of the function. So, lets now make something slightly more complex: calculate the square of a number!</p>
+<p>We can already see a couple differences: there are no argument names, since arguments are pushed onto the stack. Rust returns the value of last expression by default, and it translates really well into <code>Blight</code>. It simply returns the value on top of the stack at the end of the function. So, lets now make something slightly more complex: calculate the square of a number!</p>
 
 <h4 id='blight'>Blight</h4>
 
@@ -171,7 +171,7 @@ console.log(`Highlight time: ${end - start} ms`);
    a * a
 }</code></pre>
 
-<p>You can propably already see the newly introduced keyword <code>dup</code>. It simply copies the top value on the stack, changing it from</p>
+<p>You can probably already see the newly introduced keyword <code>dup</code>. It simply copies the top value on the stack, changing it from</p>
 
 <blockquote>
 <p>| a |</p>
@@ -293,7 +293,7 @@ console.log(`Highlight time: ${end - start} ms`);
 <p>| a | a % 2 == 0 |</p>
 </blockquote>
 
-<p><code>if</code> looks at the top of the stack, and if the boolean on it is true, executes its body. Even if <code>else</code> was not present, this example would still be valid, since both branches leave the stack in the exact same state. There is one, and exactly one, <code>i32</code> at the end, no matter if the body of the if is executed. The only diference is the exact value of data on the stack.</p>
+<p><code>if</code> looks at the top of the stack, and if the boolean on it is true, executes its body. Even if <code>else</code> was not present, this example would still be valid, since both branches leave the stack in the exact same state. There is one, and exactly one, <code>i32</code> at the end, no matter if the body of the if is executed. The only difference is the exact value of data on the stack.</p>
 
 <h4 id='blight'>Blight</h4>
 
@@ -306,7 +306,7 @@ console.log(`Highlight time: ${end - start} ms`);
    }
 }</code></pre>
 
-<p>This example, however, is not valid, since the type of values on the stack would depend on the condtion of if statement.</p>
+<p>This example, however, is not valid, since the type of values on the stack would depend on the condition of if statement.</p>
 
 <h4 id='blight'>Blight</h4>
 

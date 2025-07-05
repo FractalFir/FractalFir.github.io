@@ -77,29 +77,29 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
             <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
-        </nav></div><div class = "article_header"><h1 class="title">.NET and Zombies</h1><br><small><div class = "article_metadata">Published on 11 May 2024<br><i>1 - 4 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='ensuring_higher_aligement_of_.net_types'>Ensuring higher aligement of .NET types</h1>
+        </nav></div><div class = "article_header"><h1 class="title">.NET and Zombies</h1><br><small><div class = "article_metadata">Published on 11 May 2024<br><i>1 - 4 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='ensuring_higher_alignment_of_.net_types'>Ensuring higher alignment of .NET types</h1>
 
-<p>Most of the time, concepts and features from <code>rustc</code>'s MIR map nicely to <em>something</em> in CIL. For type layout, I can use explict field offsets, for atomics, I can use the <code>Interlocked</code> class and insert memory fences.</p>
+<p>Most of the time, concepts and features from <code>rustc</code>'s MIR map nicely to <em>something</em> in CIL. For type layout, I can use explicit field offsets, for atomics, I can use the <code>Interlocked</code> class and insert memory fences.</p>
 
-<p>Sure, the translation is not always all that clean, but the convertion is almost always <em>relatively</em> striagtforward. Thing &quot;X&quot; in Rust gets tunrned into thing &quot;Y&quot;.</p>
+<p>Sure, the translation is not always all that clean, but the conversion is almost always <em>relatively</em> straightforward. Thing &quot;X&quot; in Rust gets turned into thing &quot;Y&quot;.</p>
 
-<p>A couple days ago, I finaly encountered something in Rust that had <em>no</em> direct mapping in .NET - type aligement.</p>
+<p>A couple days ago, I finally encountered something in Rust that had <em>no</em> direct mapping in .NET - type alignment.</p>
 
 <h2 id='the_un-aligned_menace'>The un-aligned Menace</h2>
 
-<p>Before I ramble on about type aligment, I should proapbly first explain <strong>what it is</strong>.</p>
+<p>Before I ramble on about type alignment, I should probably first explain <strong>what it is</strong>.</p>
 
-<p>Type aligement, is, at its core, nothing more than a constraint on <em>where</em> a piece of data may be placed.</p>
+<p>Type alignment, is, at its core, nothing more than a constraint on <em>where</em> a piece of data may be placed.</p>
 
-<p>If a type requires an &quot;aligement of 2 bytes&quot;, it means it can <strong>only</strong> be placed at an even address.</p>
+<p>If a type requires an &quot;alignment of 2 bytes&quot;, it means it can <strong>only</strong> be placed at an even address.</p>
 
-<p>So, if you want to store a <code>short</code>(<code>i16</code> in Rust), it <strong>must</strong> be  at an address divisisble by <code>2</code>.</p>
+<p>So, if you want to store a <code>short</code>(<code>i16</code> in Rust), it <strong>must</strong> be  at an address divisible by <code>2</code>.</p>
 
-<p>It works the same way for any other aligement:</p>
+<p>It works the same way for any other alignment:</p>
 
-<p>For 4 byte aligned stuff(<code>float</code> - <code>f32</code>, <code>uint</code> - <code>u32</code>), its address <strong>must</strong> be divisisble by <code>4</code>.</p>
+<p>For 4 byte aligned stuff(<code>float</code> - <code>f32</code>, <code>uint</code> - <code>u32</code>), its address <strong>must</strong> be divisible by <code>4</code>.</p>
 
-<p>For 8 byte aligned stuff(<code>double</code> - <code>f64</code>, <code>ulong</code> - <code>u64</code>), its address <strong>must</strong> be divisisble by <code>8</code>.</p>
+<p>For 8 byte aligned stuff(<code>double</code> - <code>f64</code>, <code>ulong</code> - <code>u64</code>), its address <strong>must</strong> be divisible by <code>8</code>.</p>
 
 <p>And so on.</p>
 
@@ -113,37 +113,37 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <p><em>Your hardware or your boss, depending on the circumstances.</em></p>
 
-<p>Sorry, there is no secret &quot;soceiety of aligned types&quot; which will hunt you down for disrespecting their secret, acient ways.</p>
+<p>Sorry, there is no secret &quot;society of aligned types&quot; which will hunt you down for disrespecting their secret, ancient ways.</p>
 
-<p>Truth be told, most CPUs don't like unaligned access - thats all.</p>
+<p>Truth be told, most CPUs don't like unaligned access - that's all.</p>
 
-<p>And the reason why they don't like it is equaly trivial - implementing unaligned access is slower and more costly than not bothering with the stuff.</p>
+<p>And the reason why they don't like it is equally trivial - implementing unaligned access is slower and more costly than not bothering with the stuff.</p>
 
-<p>Most popular CPUs will just deal with your idiocy, and use additonal, <em>slow</em>, special hardware to load the unaligned value.</p>
+<p>Most popular CPUs will just deal with your idiocy, and use additional, <em>slow</em>, special hardware to load the unaligned value.</p>
 
-<p>Unaligned data is not common, so loading it slowly is not a big issue. The CPU manuafcturer can foccus die space and developement time working on stuff that is <em>usefull</em>.</p>
+<p>Unaligned data is not common, so loading it slowly is not a big issue. The CPU manufacturer can focus die space and development time working on stuff that is <em>useful</em>.</p>
 
-<p>Other (often cheaper) CPUs will just see that you are stupid and refuse to collaborate with such an idiot, faulting instead. In the embeded world, wasting precious die space and power on suppoting something almost nonone uses would be insane. So, the developers of embeded CPUs just... don't support unaligned access and say &quot;<em>skill issue</em>&quot; if anyone compilains.</p>
+<p>Other (often cheaper) CPUs will just see that you are stupid and refuse to collaborate with such an idiot, faulting instead. In the embedded world, wasting precious die space and power on supporting something almost nonone uses would be insane. So, the developers of embedded CPUs just... don't support unaligned access and say &quot;<em>skill issue</em>&quot; if anyone compilations.</p>
 
-<p>So, since being not slow, and not crashing are pretty imporant things when we program, you could start to guess why compiles bother enforcing type aligement.</p>
+<p>So, since being not slow, and not crashing are pretty important things when we program, you could start to guess why compiles bother enforcing type alignment.</p>
 
-<h2 id='attack_of_the_higher_aligement'>Attack of the Higher Aligement</h2>
+<h2 id='attack_of_the_higher_alignment'>Attack of the Higher Alignment</h2>
 
-<p>Ok, so we can't have fun and read unaligned data, because the boring CPU manufactures are too foccused on making CPUs that are &quot;fast&quot; and &quot;efficent&quot;.</p>
+<p>Ok, so we can't have fun and read unaligned data, because the boring CPU manufactures are too focused on making CPUs that are &quot;fast&quot; and &quot;efficient&quot;.</p>
 
 <p>And if we play with unaligned data anyway, we will either crash or be very slow, right?</p>
 
-<p>Why is this a problem for a Rust to .NET compiler? The .NET runtime is not famous for crashing, and while it is not the fastest thing in the world, it certanly is not <em>slow</em>.</p>
+<p>Why is this a problem for a Rust to .NET compiler? The .NET runtime is not famous for crashing, and while it is not the fastest thing in the world, it certainly is not <em>slow</em>.</p>
 
-<p>Knowing those things, it seems logical to assume .NET already delas with this &quot;aligement&quot; stuff for us, and we should not have to do anything more.</p>
+<p>Knowing those things, it seems logical to assume .NET already deals with this &quot;alignment&quot; stuff for us, and we should not have to do anything more.</p>
 
-<p>Most of the time, Rust and .NET agree on type aligement. <code>int</code> and <code>i32</code> both must be aligned to a 4 byte boundary, <code>ulong</code> and <code>u64</code> both align to 8 bytes, etc.</p>
+<p>Most of the time, Rust and .NET agree on type alignment. <code>int</code> and <code>i32</code> both must be aligned to a 4 byte boundary, <code>ulong</code> and <code>u64</code> both align to 8 bytes, etc.</p>
 
-<p>This means that, untill a week-ish ago, I never even hand to consider where my types lay in memory. Sure, I had to consider <em>how</em> they are arranged, but I never had to force them to be placed in a partuclar spot.</p>
+<p>This means that, until a week-ish ago, I never even hand to consider where my types lay in memory. Sure, I had to consider <em>how</em> they are arranged, but I never had to force them to be placed in a particular spot.</p>
 
 <h1 id='the_return_of_the_rewrite'>The return of the Rewrite</h1>
 
-<p>Besides the &quot;boring&quot; stuff, like fixing bugs, I also had the immense pleasure of rewritting a piece of code I had already rewriten a couple months ago.</p>
+<p>Besides the &quot;boring&quot; stuff, like fixing bugs, I also had the immense pleasure of rewriting a piece of code I had already rewritten a couple months ago.</p>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"

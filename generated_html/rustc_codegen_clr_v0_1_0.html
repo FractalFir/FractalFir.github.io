@@ -132,7 +132,7 @@ console.log(`Highlight time: ${end - start} ms`);
     string.push('.');
     string.push('\n');
     string.push('\0');
-    // Built-in standrad output does not work yet(since it uses atomics) but C `puts` does.
+    // Built-in standard output does not work yet(since it uses atomics) but C `puts` does.
     unsafe{puts(string.as_ptr())};</code></pre>
 
 <p>While it is not fully operational, it shows that the <code>String</code> type works properly. A buffer is allocated, and filled with characters. It is not much - but it does show that, in the future, a vast majority of Rust crates (libraries) and programs could <em>just run</em> within the .NET runtime. There are some places where changes may be very beneficial (mainly - the standard lib), but in most cases - they will not be strictly <em>necessary</em>.</p>
@@ -250,7 +250,7 @@ struct PointerTo&lt;T:?Sized&gt;{
 
 <p>In initial tests, this system worked quite well, and I was really, really proud of it.</p>
 
-<p>And then I fixed a small bug(a little <code>explict</code> missing, nothing major), and realized I have to scrap the entire idea altogether.</p>
+<p>And then I fixed a small bug(a little <code>explicit</code> missing, nothing major), and realized I have to scrap the entire idea altogether.</p>
 
 <h1 id='"artificial"_limitations:_generics_+_explicit_layout_are_not_meant_for_each_other.'>&quot;Artificial&quot; limitations: Generics + Explicit Layout are not meant for each other.</h1>
 
@@ -278,8 +278,8 @@ struct PointerTo&lt;T:?Sized&gt;{
 
 <pre><code class="language-rust">fn animal_from_sound(sound:&amp;str)-&gt;Animal{
     match sound{
-        &quot;Woof&quot;=&gt;Animal::defualt_dog(),
-        &quot;Meow&quot;=&gt;Animal::defualt_cat(),
+        &quot;Woof&quot;=&gt;Animal::default_dog(),
+        &quot;Meow&quot;=&gt;Animal::default_cat(),
         _=&gt;panic!(&quot;Unknown animal sound:{sound}!&quot;),
     }
 }</code></pre>
@@ -305,7 +305,7 @@ struct PointerTo&lt;T:?Sized&gt;{
 <p>Consider this little abomination:</p>
 
 <pre><code class="language-csharp">[StructLayout(LayoutKind.Explicit)]
-public struct Scarry
+public struct Scary
 {
     [FieldOffset(0)]
     private string reference;
@@ -375,7 +375,7 @@ public struct _ZN4core5panic10panic_info9PanicInfo17ha57987986f46e937E
 
 <p>...but it does the job - and that is what really matters.</p>
 
-<h1 id='.net_verifcation_-_all_or_nothing'>.NET verifcation - all or nothing</h1>
+<h1 id='.net_verification_-_all_or_nothing'>.NET verification - all or nothing</h1>
 
 <p>Another, smaller issue related to .NET is its all-or-nothing verification: an assembly can either be safe (no pointers used) or unsafe. There is no in-between. The problem is that enabling the use of pointers disables nearly all checks, many of whose I would like to remain on.</p>
 
@@ -391,7 +391,7 @@ public struct _ZN4core5panic10panic_info9PanicInfo17ha57987986f46e937E
         .locals init(
             [0] valuetype SomeValueType
         )
-        // Loads zero-initialzed SomeValueType 
+        // Loads zero-initialized SomeValueType 
         ldloc.0
         // Returns SomeValueType as nint. This is invalid, and would cause an exception in mono.
         ret
