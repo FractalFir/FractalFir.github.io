@@ -567,13 +567,13 @@ Sadly, at this point, things became much more… wobbly. I could not pinpoint a 
 
 Running unoptimized compiler builds is… not exactly pleasant. 
 
-Due to some issues(which will I mention later) I was only able to use one thread at most during the build. That slowed it down to a nice, leasuirly 50 minutes per build. 
+Due to some issues(which will I mention later) I was only able to use one thread at most during the build. That slowed it down to a nice, leisurly 50 minutes per build. 
 
 That is not too terrible, but it makes the investigation process much, much harder. Can we do something else to diagnose the issue?
 
 ## Debugging the compiler
 
-Normally, debuing the compiler is fairly straightforward: it is more or less a run of the mill executable.
+Normally, debugging the compiler is fairly straightforward: it is more or less a run of the mill executable.
 
 In the bootstrap process, the entire thing becomes way more complex. You see, `rustc` is not invoked directly. The bootstrap script calls a wrapper around the compiler.
 
@@ -719,7 +719,7 @@ So, we now know for sure that:
 
 Surprisingly, this issue occurs **only** if we use `i128` or `u128`.
 
-Any other type - everything works out just fine... why? Why does packed work with `u64`(and use unalgined loads there), but breaks with `u128`?
+Any other type - everything works out just fine... why? Why does packed work with `u64`(and use unaligned loads there), but breaks with `u128`?
 
 Let us take a look and the code handling unaligned loads. 
 
@@ -741,7 +741,7 @@ let aligned_type = if pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i
     pointee_ty.get_aligned(align.bytes())
 }
 ```
-Huh? Normally, we set the alignment of the pointer, but here... we just skip that for 128 bit intigers.
+Huh? Normally, we set the alignment of the pointer, but here... we just skip that for 128 bit integers.
 
 That... that explains the bug.
 
