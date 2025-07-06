@@ -77,13 +77,13 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
             <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Building the Rust compiler with GCC</h1><br><small><div class = "article_metadata">Published on 31 Feb 404 bc<br><i>12 - 21 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='bootstrapping_rust_with_gcc'>Bootstrapping Rust with GCC</h1>
+        </nav></div><div class = "article_header"><h1 class="title">Building the Rust compiler with GCC</h1><br><small><div class = "article_metadata">Published on 6 Jul 2025<br><i>13 - 22 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='bootstrapping_rust_with_gcc'>Bootstrapping Rust with GCC</h1>
 
 <p>If you know one thing about me, it is that I love working on the Rust compiler. Some people kayak, travel or play guitar - and I stare at assembly, trying to figure out what I broke.</p>
 
-<p>This summer, I am taking on quite a large task: bootstrapping the Rust compiler using <code>cg_gcc</code></p>
+<p>This summer, I am taking on quite a large task: bootstrapping the Rust compiler using <a href='https://github.com/rust-lang/rustc_codegen_gcc'>`cg_gcc`</a></p>
 
-<p>What does that mean? “bootstrapping” is simply a name given to the Rust compiler build process.</p>
+<p>What does that mean? <a href='https://rustc-dev-guide.rust-lang.org/building/bootstrapping/what-bootstrapping-does.html'>&quot;bootstrapping&quot;</a> is simply a name given to the Rust compiler build process.</p>
 
 <p>So, what I am really trying to do is build a Rust compiler, without using LLVM - and using GCC instead.</p>
 
@@ -97,7 +97,7 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <h2 id='stage_2'>Stage 2</h2>
 
-<p>Then, we take that GCC-based codegen, and rebuilt the Rust compiler using GCC.</p>
+<p>Then, we take that GCC-based codegen, and rebuild the Rust compiler using GCC.</p>
 
 <h2 id='stage_3'>Stage 3</h2>
 
@@ -105,17 +105,17 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <p>The idea here is quite simple: if <code>stage1</code> and <code>stage2</code> produce identical executables, then they behave identically, which means the rust compiler build with GCC is (more or less) equivalent to the one built with LLVM.</p>
 
-<p>Of course, a lot of this is a gorss oversimplification, but you should get the gist. Getting to the stage3 is a big milestone - and the goal of my GSoC project.</p>
+<p>Of course, a lot of this is a gross oversimplification, but you should get the gist. Getting to the stage3 is a big milestone - and the goal of my GSoC project.</p>
 
 <h1 id='the_3_little_buglets'>The 3 little buglets</h1>
 
 <p>You may be asking: what is preventing us from building a working stage 3 build right now?</p>
 
-<p>Usually, I would answer this question with something akin to “TODO: INSERT BUG QUOTE HERE”. However, this is a rare case, where I knew exactly what bugs I needed to fix.</p>
+<p>Usually, I would answer this question with something akin to <em>&quot;If knew what bugs we had, I would have fixed them already&quot;</em>. However, this is a rare case, where I knew exactly what bugs I needed to fix.</p>
 
 <p>How could I know that?</p>
 
-<p>Via the advanced debugging technique I dubbed “Giving the compiler a lobotomy”.</p>
+<p>Via the advanced debugging technique I dubbed <em>&quot;Giving the compiler a lobotomy&quot;</em>.</p>
 
 <h2 id='lobotomizing_ferris'>Lobotomizing ferris</h2>
 
@@ -147,7 +147,7 @@ else{
 
 <pre><code class="language-rust">/*#[inline(always)]*/ // Who needs inlining, anyways?</code></pre>
 
-<p>The compiler segfaults? It works with optimizations disabled? Well, who cares about speed, let’s build the compiler with none of that “optimization” business.</p>
+<p>The compiler segfaults? It works with optimizations disabled? Well, who cares about speed, let’s build the compiler with none of that &quot;optimization&quot; business.</p>
 
 <p>After axing enough things, I got a pretty good idea about the source of my issues.</p>
 
@@ -169,7 +169,7 @@ fn fib(n:u32) -&gt; u32{
 
 <p>Now, a big chunk of you might be confused as to why this works when using LLVM.</p>
 
-<p>If we read the attribute literally, we are asking <code>rustc</code> to “always inline this function”. Since fib is recursive, that would mean we have to inline it into itself.</p>
+<p>If we read the attribute literally, we are asking <code>rustc</code> to &quot;always inline this function&quot;. Since fib is recursive, that would mean we have to inline it into itself.</p>
 
 <p>Let us try that!</p>
 
@@ -214,7 +214,7 @@ fn fib(n: u32) -&gt;u32{
 
 <p>Seems a bit silly, but... ¯\<em>(ツ)</em>/¯.</p>
 
-<p>Yeah, so if we tell LLVM to “always inline” something, and it can’t do that, it will just not inline it, and happily chug on.</p>
+<p>Yeah, so if we tell LLVM to &quot;always inline&quot; something, and it can’t do that, it will just not inline it, and happily chug on.</p>
 
 <p><em>Sidenote: There exists a way to make LLVM error out in this case, but it is not used by <code>rustc</code> here.</em> <em>If you want this behaviour, you'd have to use the internal <code>#[rustc_force_inline]</code> attribute instead.</em></p>
 
@@ -405,7 +405,7 @@ fn fib_a(n: u32) -&gt;u32{
     return true;
 }</code></pre>
 
-<p>This is the solution I went with: it is simple to understand &amp; implement.</p>
+<p>This is the solution <a href='https://github.com/rust-lang/rustc_codegen_gcc/commit/f111416e43a36a1ee062a2194eae37c39d0f0be1'>I went with</a>: it is simple to understand &amp; implement.</p>
 
 <p>It also allows us to keep the benefits of <code>#[inline(always)]</code> in <em>most</em> cases.</p>
 
@@ -506,7 +506,7 @@ switch(high){
 
 <p>I don’t want that: the fewer branches we need to have, the better.</p>
 
-<p>Additionally, we must ask ourselves one more question: would GCC be able to “see” what we are doing?</p>
+<p>Additionally, we must ask ourselves one more question: would GCC be able to &quot;see&quot; what we are doing?</p>
 
 <p>In the good old days, writing clever, complex algorithms was quite often needed to squeeze every bit of performance out of your computer. The compilers were as dumb as a sack of bricks, and you needed to wrangle them into generating decent assembly.</p>
 
@@ -586,7 +586,7 @@ char* test2(int num){
 
 <p>Working inefficiently is better than not working at all.</p>
 
-<p>So, I applied those patches, and… we have a liftoff! The compiler can now successfully crawl till stage 2!</p>
+<p>So, I applied <a href='https://github.com/rust-lang/rustc_codegen_gcc/commit/33966ccbb6570c83b9fc1dd0942f83ae2d56f47c'>those patches</a>, and… we have a liftoff! The compiler can now successfully crawl till stage 2!</p>
 
 <p>Sadly, we experience some <a href='https://en.wiktionary.org/wiki/rapid_unplanned_disassembly'>rapid unscheduled disassembly</a> - the stage 2 segfaults.</p>
 
@@ -594,7 +594,7 @@ char* test2(int num){
 
 <h1 id='diagnosing_a_segfault'>Diagnosing a segfault</h1>
 
-<p>The sentence “the compiler segfaulted”  does not tell us all that much. Such a thing can happen for a whole bunch of reasons: invalid memory accesses, corrupt data, stack overflows, incorrect alignment.</p>
+<p>The sentence &quot;the compiler segfaulted&quot;  does not tell us all that much. Such a thing can happen for a whole bunch of reasons: invalid memory accesses, corrupt data, stack overflows, incorrect alignment.</p>
 
 <p>However, there are a few hints that can help us diagnose the issue.</p>
 
@@ -630,7 +630,7 @@ char* test2(int num){
 
 <p>Running that wrapped <code>rustc</code> is not easy to run either: it requires a whole lot of complex, environment flags to be set.</p>
 
-<p>All that is to say: I don’t know how to debug the Rust compiler. I am 99.9 % sure there is an easy way to do this, documented somewhere I did not think to look. After I post this, somebody will tell me “oh, you just need to do X”.</p>
+<p>All that is to say: I don’t know how to debug the Rust compiler. I am 99.9 % sure there is an easy way to do this, documented somewhere I did not think to look. After I post this, somebody will tell me &quot;oh, you just need to do X&quot;.</p>
 
 <p>Still, at the time of writing, I did not know how to do this.</p>
 
@@ -686,7 +686,19 @@ $6 = 0x7fe646423b90</code></pre>
 
 <p>So, case closed! We have a misaligned pointer dereference! Eh, not so fast… we still don’t know <em>why</em> the pointer is misaligned.</p>
 
-<p>Let us take a look at some of the problematic types.</p>
+<p>There are multiple reasons <em>why</em> we might dereference an unaligned pointer.</p>
+
+<ol type="1">
+<li>This pointer was <em>supposed</em> to be <strong>aligned</strong>, but we screwed up with pointer arthimetnics, and it is not.</li>
+
+<li>This pointer was <em>supposed</em> to be <strong>unaligned</strong>, and we used an aligned load(eg. a vector load) instead of an unaligned one.</li>
+</ol>
+
+<p>Both of those options are equally likely, and figuring out the real cause will require some more investigative work.</p>
+
+<p>We segfault in the code <em>interning</em> some data. It might be worth looking at that code, or at least at the types in play.</p>
+
+<p>Who knows - maybe we'll notice something intresting.</p>
 
 <h2 id='valtree_and_scalarint'>ValTree and ScalarInt</h2>
 
@@ -695,6 +707,8 @@ $6 = 0x7fe646423b90</code></pre>
 <pre><code class="language-rust">pub struct ValTree&lt;'tcx&gt;(pub(crate) Interned&lt;'tcx, ValTreeKind&lt;'tcx&gt;&gt;);</code></pre>
 
 <p>So, <code>ValTree</code> is a pointer to an interned(stored in the compilers arena allocator) <code>ValTreeKind</code>.</p>
+
+<h3 id='valtreekind'><code>ValTreeKind</code></h3>
 
 <p>How does a <code>ValTreeKind</code> look like?</p>
 
@@ -707,6 +721,8 @@ $6 = 0x7fe646423b90</code></pre>
 
 <p>So far, I don't see anything suspicious. Let us take a look at  <code>ScalarInt</code>.</p>
 
+<h3 id='scalarint'>ScalarInt</h3>
+
 <pre><code class="language-rust">#[derive(Clone, Copy, PartialEq)]
 #[repr(packed(1))]
 pub struct ScalarInt {
@@ -716,7 +732,7 @@ pub struct ScalarInt {
 
 <p>Ah! I can imedietly sense something suspicious about this code!</p>
 
-<p>We have an <em>aligement</em> issue, and <code>#[repr(packed(1))]</code> is supposed to relax the aligement requirements.</p>
+<p>We have an <em>alignment</em> issue, and <code>#[repr(packed(1))]</code> is supposed to relax the alignment requirements.</p>
 
 <p>Perhaps we are simply translating it incorrectly?</p>
 
@@ -739,9 +755,21 @@ fn main() {
     data.iter().all(|v| eq(v, &amp;ScalarInt { data: 0, size: 1 }));
 }</code></pre>
 
-<p>Yeap - that is enough to make the program <em>crash</em>. Surpsingly, this issue occurs <strong>only</strong> if we use <code>i128</code> or <code>u128</code>.</p>
+<p>Yeap - that is enough to make the program <em>crash</em>.</p>
 
-<p>Any other type - everything works out just fine... why? Why does packed work with <code>u64</code>(and use unalgined loads there), but breaks with <code>u128</code>.</p>
+<p>So, we now know for sure that:</p>
+
+<ol type="1">
+<li>The pointer is <em>supposed</em> to be unaligned, and</li>
+
+<li>We are supposed to codegen an unaligned load instruction here</li>
+
+<li>But we codegen an aligned one instead.</li>
+</ol>
+
+<p>Surprisingly, this issue occurs <strong>only</strong> if we use <code>i128</code> or <code>u128</code>.</p>
+
+<p>Any other type - everything works out just fine... why? Why does packed work with <code>u64</code>(and use unalgined loads there), but breaks with <code>u128</code>?</p>
 
 <p>Let us take a look and the code handling unaligned loads.</p>
 
@@ -761,15 +789,15 @@ let aligned_type = if pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i
     pointee_ty.get_aligned(align.bytes())
 }</code></pre>
 
-<p>Huh? Normally, we set the aligement of the pointer, but here... we just skip that for 128 bit intigers.</p>
+<p>Huh? Normally, we set the alignment of the pointer, but here... we just skip that for 128 bit intigers.</p>
 
 <p>That... that explains the bug.</p>
 
-<p>Now, you may wonder why we need to skip the aligement here in the first place.</p>
+<p>Now, you may wonder why we need to skip the alignment here in the first place.</p>
 
 <p>You see, <code>libgccjit</code> is sometimes a bit... special.</p>
 
-<p>It behaves in a consistent, kind of logical way, that is also uterly infurating.</p>
+<p>It behaves in a consistent, kind of logical way, that is also utterly infuriating.</p>
 
 <p>If you call <code>get_aligned(4)</code> on a <code>uint8_t</code>, it will turn it into:</p>
 
@@ -787,33 +815,35 @@ let aligned_type = if pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i
 
 <p>So, we have to avoid calling <code>get_aligned</code> twice on a type at all costs.</p>
 
-<p>The fix ended up being simple: we just skip calling <code>get_aligned</code> only when the aligement is already correct.</p>
+<p>The fix ended up being simple: we just skip calling <code>get_aligned</code> only when the alignment is already correct.</p>
 
 <pre><code class="language-rust">let aligned_type = if (pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i128_type) &amp;&amp; align == self.int128_align</code></pre>
 
-<p>And, with this, we can limp on to stage3!</p>
+<p>And, <a href='https://github.com/rust-lang/rustc_codegen_gcc/commit/1afdb550193caea993648e2dc34427335eaca4b2'>with this fix</a>, we can limp on to stage3!</p>
 
-<ol type=".">
-<li>with the emphasis on <em>limp</em>. At some points, we are using over 100 GB of RAM... not ideal.</li>
-</ol>
+<p>...with the emphasis on <em>limp</em>. At some points, we are using over 100 GB of RAM... not ideal.</p>
 
-<p>We also often overflow our stack... but that is a story for another day.</p>
+<p>We also often overflow our stack(in a GCC analysis pass)... but that is a story for another day.</p>
 
 <h1 id='wrappin_up'>Wrappin up</h1>
 
-<p>Yeah. We achieaved some great things. But, as always in life, there is so much more to do...</p>
+<p>Yeah. We achieved some neat things. But, as always in life, there is so much more to do...</p>
 
 <p>To spoil my future articles, both of the issues I mentioned... have been fixed for over a month.</p>
 
 <p>I have <em>so much</em> to write about. Fuzzing with <code>rustlantis</code>, bootstrapping on ARM, ABI bugs, GCC(?) bugs...</p>
 
+<p>But my writing has been lagging behind my work by a lot.</p>
+
 <p>I suppose that is a good thing.</p>
 
 <p>If you want some unedited, more up-to-date information about my progress, you can check out the GSoC proposal's <a href='https://rust-lang.zulipchat.com/#narrow/channel/421156-gsoc/topic/Project.3A.20Bootstrap.20of.20rustc.20with.20rustc_codegen_gcc/with/527276268'>zulip channel</a>.</p>
 
-<p>That is the place where I discuss the progress with other Rust compiler devs. Overall, I'd recommend you read over all the GSoC zulip channels - there are some great projects in the works :).</p>
+<p>That is the place where I discuss the progress with other Rust compiler devs. Overall, I'd recommend you read over all the<a href='https://rust-lang.zulipchat.com/#narrow/channel/421156-gsoc'> GSoC zulip channels</a> - there are some great projects in the works :).</p>
 
 <p>If you want to check out <a href='https://github.com/rust-lang/rustc_codegen_gcc'>`rustc_codegen_gcc`, here is the repo link</a>.</p>
+
+<p>As always: if you have any questions(or feedback), feel free to let me know :)!</p>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"

@@ -2,8 +2,7 @@
 title = "Building the Rust compiler with GCC"
 id = "cg_gcc_bootstrap"
 category = "cg_gcc"
-category = "hidden"
-date = "31 Feb 404 bc"
+date = "6 Jul 2025"
 style = "inverted_imgs"
 </metadata>
 <markdown>
@@ -12,9 +11,9 @@ style = "inverted_imgs"
 
 If you know one thing about me, it is that I love working on the Rust compiler. Some people kayak, travel or play guitar - and I stare at assembly, trying to figure out what I broke.
 
-This summer, I am taking on quite a large task: bootstrapping the Rust compiler using `cg_gcc` 
+This summer, I am taking on quite a large task: bootstrapping the Rust compiler using [`cg_gcc`](https://github.com/rust-lang/rustc_codegen_gcc) 
 
-What does that mean? “bootstrapping” is simply a name given to the Rust compiler build process. 
+What does that mean? ["bootstrapping"](https://rustc-dev-guide.rust-lang.org/building/bootstrapping/what-bootstrapping-does.html) is simply a name given to the Rust compiler build process. 
 
 So, what I am really trying to do is build a Rust compiler, without using LLVM - and using GCC instead. 
 
@@ -28,7 +27,7 @@ First, we use a pre-existing, LLVM-based Rust compiler to build `rustc`, and the
 
 ## Stage 2
 
-Then, we take that GCC-based codegen, and rebuilt the Rust compiler using GCC.
+Then, we take that GCC-based codegen, and rebuild the Rust compiler using GCC.
 
 ## Stage 3
 
@@ -37,18 +36,18 @@ As a sanity check, we built the compiler ***again***, this time using `stage2`.
 The idea here is quite simple: if `stage1` and `stage2` produce identical executables, then they behave identically, 
 which means the rust compiler build with GCC is (more or less) equivalent to the one built with LLVM. 
 
-Of course, a lot of this is a gorss oversimplification, but you should get the gist. 
+Of course, a lot of this is a gross oversimplification, but you should get the gist. 
 Getting to the stage3 is a big milestone - and the goal of my GSoC project.
 
 # The 3 little buglets
 
 You may be asking: what is preventing us from building a working stage 3 build right now?
 
-Usually, I would answer this question with something akin to “TODO: INSERT BUG QUOTE HERE”. However, this is a rare case, where I knew exactly what bugs I needed to fix.
+Usually, I would answer this question with something akin to *"If knew what bugs we had, I would have fixed them already"*. However, this is a rare case, where I knew exactly what bugs I needed to fix.
 
 How could I know that? 
 
-Via the advanced debugging technique I dubbed “Giving the compiler a lobotomy”.
+Via the advanced debugging technique I dubbed *"Giving the compiler a lobotomy"*.
 
 ## Lobotomizing ferris
 
@@ -85,7 +84,7 @@ Inline causes trouble? Well, out it goes.
 /*#[inline(always)]*/ // Who needs inlining, anyways?
 ```
 
-The compiler segfaults? It works with optimizations disabled? Well, who cares about speed, let’s build the compiler with none of that “optimization” business. 
+The compiler segfaults? It works with optimizations disabled? Well, who cares about speed, let’s build the compiler with none of that "optimization" business. 
 
 After axing enough things, I got a pretty good idea about the source of my issues. 
 
@@ -108,7 +107,7 @@ fn fib(n:u32) -> u32{
 ```
 Now, a big chunk of you might be confused as to why this works when using LLVM. 
 
-If we read the attribute literally, we are asking `rustc` to “always inline this function”. Since fib is recursive, that would mean we have to inline it into itself.
+If we read the attribute literally, we are asking `rustc` to "always inline this function". Since fib is recursive, that would mean we have to inline it into itself.
 
 Let us try that!
 
@@ -154,7 +153,7 @@ Nope! It is actually intended behaviour, and something [the docs](https://doc.ru
 
 Seems a bit silly, but... ¯\_(ツ)_/¯.
 
-Yeah, so if we tell LLVM to “always inline” something, and it can’t do that, it will just not inline it, and happily chug on.
+Yeah, so if we tell LLVM to "always inline" something, and it can’t do that, it will just not inline it, and happily chug on.
 
 *Sidenote: There exists a way to make LLVM error out in this case, but it is not used by `rustc` here.*
 *If you want this behaviour, you'd have to use the internal `#[rustc_force_inline]` attribute instead.* 
@@ -352,7 +351,7 @@ if matches!(
     return true;
 }
 ```
-This is the solution I went with: it is simple to understand & implement.
+This is the solution [I went with](https://github.com/rust-lang/rustc_codegen_gcc/commit/f111416e43a36a1ee062a2194eae37c39d0f0be1): it is simple to understand & implement.
 
 It also allows us to keep the benefits of `#[inline(always)]` in *most* cases.
 
@@ -454,7 +453,7 @@ This *would* work as expected, but would also introduce many, many unnecessary b
 
 I don’t want that: the fewer branches we need to have, the better. 
 
-Additionally, we must ask ourselves one more question: would GCC be able to “see” what we are doing?
+Additionally, we must ask ourselves one more question: would GCC be able to "see" what we are doing?
 
 In the good old days, writing clever, complex algorithms was quite often needed to squeeze every bit of performance out of your computer. The compilers were as dumb as a sack of bricks, and you needed to wrangle them into generating decent assembly.
 
@@ -536,7 +535,7 @@ Of course, we should not rely on compiler optimizations here, but, for now, this
 
 Working inefficiently is better than not working at all.
 
-So, I applied those patches, and… we have a liftoff! The compiler can now successfully crawl till stage 2! 
+So, I applied [those patches](https://github.com/rust-lang/rustc_codegen_gcc/commit/33966ccbb6570c83b9fc1dd0942f83ae2d56f47c), and… we have a liftoff! The compiler can now successfully crawl till stage 2! 
 
 Sadly, we experience some [rapid unscheduled disassembly](https://en.wiktionary.org/wiki/rapid_unplanned_disassembly) - the stage 2 segfaults. 
 
@@ -544,7 +543,7 @@ Looks like we are not out of the woods quite yet.
 
 # Diagnosing a segfault
 
-The sentence “the compiler segfaulted”  does not tell us all that much. Such a thing can happen for a whole bunch of reasons: invalid memory accesses, corrupt data, stack overflows, incorrect alignment. 
+The sentence "the compiler segfaulted"  does not tell us all that much. Such a thing can happen for a whole bunch of reasons: invalid memory accesses, corrupt data, stack overflows, incorrect alignment. 
 
 However, there are a few hints that can help us diagnose the issue.
 
@@ -580,7 +579,7 @@ In the bootstrap process, the entire thing becomes way more complex. You see, `r
 
 Running that wrapped `rustc` is not easy to run either: it requires a whole lot of complex, environment flags to be set.
 
-All that is to say: I don’t know how to debug the Rust compiler. I am 99.9 % sure there is an easy way to do this, documented somewhere I did not think to look. After I post this, somebody will tell me “oh, you just need to do X”.
+All that is to say: I don’t know how to debug the Rust compiler. I am 99.9 % sure there is an easy way to do this, documented somewhere I did not think to look. After I post this, somebody will tell me "oh, you just need to do X".
 
 Still, at the time of writing, I did not know how to do this. 
 
@@ -640,7 +639,16 @@ Huh, it points to accessible memory, but it does not look correctly aligned to m
 
 So, case closed! We have a misaligned pointer dereference! Eh, not so fast… we still don’t know *why* the pointer is misaligned.
 
-Let us take a look at some of the problematic types.
+There are multiple reasons *why* we might dereference an unaligned pointer.
+
+1. This pointer was *supposed* to be **aligned**, but we screwed up with pointer arthimetnics, and it is not. 
+2. This pointer was *supposed* to be **unaligned**, and we used an aligned load(eg. a vector load) instead of an unaligned one.
+
+Both of those options are equally likely, and figuring out the real cause will require some more investigative work. 
+
+We segfault in the code *interning* some data. It might be worth looking at that code, or at least at the types in play.
+
+Who knows - maybe we'll notice something intresting. 
 
 ## ValTree and ScalarInt
 
@@ -649,6 +657,8 @@ We crash when creating a `ValTree`. Let us take a look at that type:
 pub struct ValTree<'tcx>(pub(crate) Interned<'tcx, ValTreeKind<'tcx>>);
 ```
 So, `ValTree` is a pointer to an interned(stored in the compilers arena allocator) `ValTreeKind`.
+
+### `ValTreeKind` 
 
 How does a `ValTreeKind` look like?
 
@@ -663,6 +673,8 @@ Ok, so it is a classic tree. It contains either *itself*, or a `ScalarInt`. That
 
 So far, I don't see anything suspicious. Let us take a look at  `ScalarInt`.
 
+### ScalarInt
+
 ```rust
 #[derive(Clone, Copy, PartialEq)]
 #[repr(packed(1))]
@@ -674,7 +686,7 @@ pub struct ScalarInt {
 
 Ah! I can imedietly sense something suspicious about this code!
 
-We have an *aligement* issue, and `#[repr(packed(1))]` is supposed to relax the aligement requirements. 
+We have an *alignment* issue, and `#[repr(packed(1))]` is supposed to relax the alignment requirements. 
 
 Perhaps we are simply translating it incorrectly?
 
@@ -698,9 +710,16 @@ fn main() {
 }
 ```
 
-Yeap - that is enough to make the program *crash*. Surpsingly, this issue occurs **only** if we use `i128` or `u128`.
+Yeap - that is enough to make the program *crash*. 
 
-Any other type - everything works out just fine... why? Why does packed work with `u64`(and use unalgined loads there), but breaks with `u128`.
+So, we now know for sure that:
+1. The pointer is *supposed* to be unaligned, and 
+2. We are supposed to codegen an unaligned load instruction here
+3. But we codegen an aligned one instead.
+
+Surprisingly, this issue occurs **only** if we use `i128` or `u128`.
+
+Any other type - everything works out just fine... why? Why does packed work with `u64`(and use unalgined loads there), but breaks with `u128`?
 
 Let us take a look and the code handling unaligned loads. 
 
@@ -722,15 +741,15 @@ let aligned_type = if pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i
     pointee_ty.get_aligned(align.bytes())
 }
 ```
-Huh? Normally, we set the aligement of the pointer, but here... we just skip that for 128 bit intigers.
+Huh? Normally, we set the alignment of the pointer, but here... we just skip that for 128 bit intigers.
 
 That... that explains the bug.
 
-Now, you may wonder why we need to skip the aligement here in the first place. 
+Now, you may wonder why we need to skip the alignment here in the first place. 
 
 You see, `libgccjit` is sometimes a bit... special. 
 
-It behaves in a consistent, kind of logical way, that is also uterly infurating. 
+It behaves in a consistent, kind of logical way, that is also utterly infuriating. 
 
 If you call `get_aligned(4)` on a `uint8_t`, it will turn it into:
 ```rust
@@ -749,32 +768,36 @@ Also, `__attribute__((aligned(4))) uint8_t` and `__attribute__((aligned(4))) __a
 
 So, we have to avoid calling `get_aligned` twice on a type at all costs. 
 
-The fix ended up being simple: we just skip calling `get_aligned` only when the aligement is already correct.
+The fix ended up being simple: we just skip calling `get_aligned` only when the alignment is already correct.
 
 ```rust
 let aligned_type = if (pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i128_type) && align == self.int128_align
 ```
 
-And, with this, we can limp on to stage3! 
+And, [with this fix](https://github.com/rust-lang/rustc_codegen_gcc/commit/1afdb550193caea993648e2dc34427335eaca4b2), we can limp on to stage3! 
 
-... with the emphasis on *limp*. At some points, we are using over 100 GB of RAM... not ideal. 
+...with the emphasis on *limp*. At some points, we are using over 100 GB of RAM... not ideal. 
 
-We also often overflow our stack... but that is a story for another day.
+We also often overflow our stack(in a GCC analysis pass)... but that is a story for another day.
 
 # Wrappin up
 
-Yeah. We achieaved some great things. But, as always in life, there is so much more to do...
+Yeah. We achieved some neat things. But, as always in life, there is so much more to do...
 
 To spoil my future articles, both of the issues I mentioned... have been fixed for over a month. 
 
 I have *so much* to write about. Fuzzing with `rustlantis`, bootstrapping on ARM, ABI bugs, GCC(?) bugs...
 
+But my writing has been lagging behind my work by a lot. 
+
 I suppose that is a good thing.
 
 If you want some unedited, more up-to-date information about my progress, you can check out the GSoC proposal's [zulip channel](https://rust-lang.zulipchat.com/#narrow/channel/421156-gsoc/topic/Project.3A.20Bootstrap.20of.20rustc.20with.20rustc_codegen_gcc/with/527276268). 
 
-That is the place where I discuss the progress with other Rust compiler devs. Overall, I'd recommend you read over all the GSoC zulip channels - there are some great projects in the works :).
+That is the place where I discuss the progress with other Rust compiler devs. Overall, I'd recommend you read over all the[ GSoC zulip channels](https://rust-lang.zulipchat.com/#narrow/channel/421156-gsoc) - there are some great projects in the works :).
 
 If you want to check out [`rustc_codegen_gcc`, here is the repo link](https://github.com/rust-lang/rustc_codegen_gcc).
+
+As always: if you have any questions(or feedback), feel free to let me know :)!
 
 </markdown>

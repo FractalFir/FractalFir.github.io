@@ -79,7 +79,7 @@ impl Metadata {
                         value
                             .split('"')
                             .nth(1)
-                            .expect("ID must be contained between 2 quotation marks!")
+                            .unwrap_or("31 Feb 404 bc")
                             .to_string(),
                     )
                 }
