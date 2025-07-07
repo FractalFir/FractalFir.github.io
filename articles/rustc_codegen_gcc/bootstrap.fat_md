@@ -241,9 +241,9 @@ fn fib_a(n:u32) -> u32{
   else{ fib_b(n - 1) + fib_b(n - 2) }
 }
 #[inline(always)]
-fn fib_a(n:u32) -> u32{
+fn fib_b(n:u32) -> u32{
   if n <= 1{return 1}
-  else{ fib_b(n - 1) + fib_b(n - 2) }
+  else{ fib_a(n - 1) + fib_a(n - 2) }
 }
 ```
 
