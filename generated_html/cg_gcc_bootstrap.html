@@ -296,14 +296,20 @@ fn fib(n:u32) -&gt; u32{
 <p>Kind of like this:</p>
 
 <pre><code class="language-rust">#[inline(always)]
-fn fib_a(n:u32) -&gt; u32{
-  if n &lt;= 1{return 1}
-  else{ fib_b(n - 1) + fib_b(n - 2) }
+fn fib_a(n: u32) -&gt; u32 {
+    if n &lt;= 1 {
+        return 1;
+    } else {
+        fib_b(n - 1) + fib_b(n - 2)
+    }
 }
 #[inline(always)]
-fn fib_a(n:u32) -&gt; u32{
-  if n &lt;= 1{return 1}
-  else{ fib_b(n - 1) + fib_b(n - 2) }
+fn fib_b(n: u32) -&gt; u32 {
+    if n &lt;= 1 {
+        return 1;
+    } else {
+        fib_a(n - 1) + fib_a(n - 2)
+    }
 }</code></pre>
 
 <p>Now, none of those functions <em>directly</em> call themselves. So, our check will not trigger, but the original bug <em>will</em>.</p>
@@ -335,7 +341,7 @@ fn fib_a(n: u32) -&gt;u32{
 
 <p><em>Well</em>, this would get very complex, very quickly.</p>
 
-<p>uppose we have some function f0, which calls f1, which calls f2, which calls f3, and so on, till f2^20.</p>
+<p>Suppose we have some function f0, which calls f1, which calls f2, which calls f3, and so on, till f2^20.</p>
 
 <p>Such a recursion check would be sluggish, and easily overflow the compiler stack.</p>
 

@@ -236,14 +236,20 @@ Kind of like this:
 
 ```rust
 #[inline(always)]
-fn fib_a(n:u32) -> u32{
-  if n <= 1{return 1}
-  else{ fib_b(n - 1) + fib_b(n - 2) }
+fn fib_a(n: u32) -> u32 {
+    if n <= 1 {
+        return 1;
+    } else {
+        fib_b(n - 1) + fib_b(n - 2)
+    }
 }
 #[inline(always)]
-fn fib_a(n:u32) -> u32{
-  if n <= 1{return 1}
-  else{ fib_b(n - 1) + fib_b(n - 2) }
+fn fib_b(n: u32) -> u32 {
+    if n <= 1 {
+        return 1;
+    } else {
+        fib_a(n - 1) + fib_a(n - 2)
+    }
 }
 ```
 
@@ -280,7 +286,7 @@ As in, we descend trough all the functions called by `fib_a`, and then functions
 
 *Well*, this would get very complex, very quickly.
 
-uppose we have some function f0, which calls f1, which calls f2, which calls f3, and so on, till f2^20.
+Suppose we have some function f0, which calls f1, which calls f2, which calls f3, and so on, till f2^20.
 
 Such a recursion check would be sluggish, and easily overflow the compiler stack.
 
