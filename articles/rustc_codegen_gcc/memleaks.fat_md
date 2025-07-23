@@ -1,7 +1,6 @@
 <metadata>
 title = "Building the Rust compiler with GCC - stack overflows, memory leaks."
-id = "cg_gcc_bootstrap_2"
-category = "cg_gcc"
+id = "cg_gcc_bootstrap_3"
 category = "hidden"
 date = "11 Jul 2025"
 </metadata>

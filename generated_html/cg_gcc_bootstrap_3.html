@@ -1,0 +1,177 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Building the Rust compiler with GCC - stack overflows, memory leaks.</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script async src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
+<script>window.addEventListener('load', () => {
+const start = Date.now();
+hljs.addPlugin(new CopyButtonPlugin());
+function cil() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint","line"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","ldarga","sizeof","mul","ldobj","div","blt","br",".rs",".s","calli"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: types.concat(ops).concat(short_types),
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['cil','common_intermediate_language'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+function mir() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["switchInt","unreachable","return","unwind","continue"];
+
+   var vars = ["bb0","bb1","bb2","bb3","bb4","_0","_1","_2"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: vars,
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['mir'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+
+hljs.registerLanguage('cil',cil);
+hljs.registerLanguage('mir',mir);
+
+const code_blocks = document.querySelectorAll('pre code');
+const highlight_promises = Array.from(code_blocks).map(el => {
+  return new Promise((resolve) => {
+    hljs.highlightElement(el);
+    resolve(el); 
+    });
+    });
+
+
+
+const end = Date.now();
+console.log(`Highlight time: ${end - start} ms`);
+});</script></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+            <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
+        </nav></div><div class = "article_header"><h1 class="title">Building the Rust compiler with GCC - stack overflows, memory leaks.</h1><br><small><div class = "article_metadata">Published on 11 Jul 2025<br><i>1 - 3 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>In my previous article, I managed to “bootstrap”(meaning: build) the Rust compiler with GCC.</p>
+
+<p>I used a project called <code>rustc_codegen_gcc</code> - which is, in broad words, is a Rust compiler plugin, which allows you to use GCC instead of LLVM.</p>
+
+<p>Going trough the full bootstrap process is a big milestone, however, we barely limped over the finish line. The compilation process used <strong>over 100 GB of RAM</strong> - and that is with just one thread. We have also overflown our stack, which forced me to raise the stack size.</p>
+
+<p>Both of those issues are... less than ideal. Both of them also need fixing, before  <code>cg_gcc</code> can be used more widely.</p>
+
+<p>So, strap in, and join me in the process of diagnosing an fixing those bugs!</p>
+
+<h1 id='oveflowing_our_stack'>Oveflowing our stack</h1>
+
+<p>We will first start with the stack overflow, since that issue is easier to understand.</p>
+
+<p>At a certain spot during the bootstrap(compiler build) process, <code>rustc</code> overflows it's stack.</p>
+
+<pre><code class="language-text">error: rustc interrupted by SIGSEGV, printing backtrace
+
+/home/gh-FractalFir/rust/build/aarch64-unknown-linux-gnu/stage1/lib/librustc_driver-2ff3177f95f1e36d.so(+0x258d7b0)[0xecde26b6d7b0]
+linux-vdso.so.1(__kernel_rt_sigreturn+0x0)[0xecde2a8b08f8]
+/lib/aarch64-linux-gnu/libc.so.6(+0xa1b10)[0xecde244c1b10]
+libgccjit.so(+0xc14a9)[0x00007ffff7c14a90]
+libgccjit.so(+0xc14a9)[0x00007ffff7c14a90]  
+...
+libgccjit.so(+0xc14a9)[0x00007ffff7c14a90]  
+...
+
+note: we would appreciate a report at https://github.com/rust-lang/rust
+help: you can increase rustc's stack size by setting RUST_MIN_STACK=42949672960
+note: backtrace dumped due to SIGSEGV! resuming signal
+rustc exited with signal: 11 (SIGSEGV) (core dumped)
+error: could not compile `rustc_codegen_gcc` (lib)</code></pre>
+
+<p><em>NOTE: this backtrace is for ilustrational purposes - I don't have the original one</em></p>
+
+<p>This already tells us a few things:</p>
+
+<ol type="1">
+<li>The overflow happens within <code>libgccjit</code>. the library we use to &quot;talk&quot; to GCC</li>
+
+<li>The overflow happen when we build <code>rustc_codegen_gcc</code> itself - and, surprisingly, nowhere else.</li>
+</ol>
+
+<h2 id='core_dump'>Core dump</h2>
+
+<p>After loading the core dump into <code>gdb</code>:</p>
+
+<pre><code class="language-sh">coredumpctl gdb</code></pre>
+
+<p>I could see something odd - the overflow happens within a function called <a href='https://github.com/gcc-mirror/gcc/blob/cfa827188dc236ba905b12ef06ccc517b9f2de39/gcc/tree-ssa.cc#L639'>`veryfiy_vssa`</a>. That function seems to be calling itself, recursively, tens of thousands of times.</p>
+
+<pre><code class="language-txt">#0  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2300, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+#1  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2320, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+#2  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2328, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+#3  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2528, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+...
+#3323  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2528, current_vdef=0xcbdef2200, visited=0xdcbaf2200)</code></pre>
+
+<p><em>NOTE: this backtrace is for ilustrational purposes - I don't have the original one</em></p>
+
+<p>That is... quite odd.</p>
+
+<p><code>verify_ssa</code> is supposed to check the validity of the internal GCC IR. It performs this check for each &quot;block&quot;(a block is a piece of code, ended with a branch).</p>
+
+<pre><code class="language-c">bool verify_vssa (basic_block bb, tree current_vdef, sbitmap visited)</code></pre>
+
+<p>One of it's functions is checking so called &quot;phi nodes&quot;.</p>
+
+<p>This is where we overflow(<a href='https://github.com/gcc-mirror/gcc/blob/cfa827188dc236ba905b12ef06ccc517b9f2de39/gcc/tree-ssa.cc#L706C1-L710C35'>code sample</a> taken from the GCC mirror).</p>
+
+<pre><code class="language-c">/* Verify destination PHI uses and recurse.  */
+edge_iterator ei;
+edge e;
+FOR_EACH_EDGE (e, ei, bb-&gt;succs){
+    /* Some checks */ 
+    err |= verify_vssa (e-&gt;dest, current_vdef, visited);
+}</code></pre>
+
+<p>Now, you don't really need to know what a &quot;phi node&quot; is to understand this bug.</p>
+
+<p>All you really need to know is that checking &quot;phi nodes&quot; requires some cross-block checks.</p>
+
+<p>Here, GCC iterates trough all he</p>
+</div><script src="https://giscus.app/client.js"
+        data-repo="FractalFir/FractalFir.github.io"
+        data-repo-id="R_kgDOJ_iWYA"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOJ_iWYM4CiwXV"
+        data-mapping="pathname"
+        data-strict="1"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async></script></div></body></html>

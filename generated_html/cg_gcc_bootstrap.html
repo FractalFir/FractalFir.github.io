@@ -624,13 +624,13 @@ char* test2(int num){
 
 <p>Running unoptimized compiler builds is… not exactly pleasant.</p>
 
-<p>Due to some issues(which will I mention later) I was only able to use one thread at most during the build. That slowed it down to a nice, leasuirly 50 minutes per build.</p>
+<p>Due to some issues(which will I mention later) I was only able to use one thread at most during the build. That slowed it down to a nice, leisurly 50 minutes per build.</p>
 
 <p>That is not too terrible, but it makes the investigation process much, much harder. Can we do something else to diagnose the issue?</p>
 
 <h2 id='debugging_the_compiler'>Debugging the compiler</h2>
 
-<p>Normally, debuing the compiler is fairly straightforward: it is more or less a run of the mill executable.</p>
+<p>Normally, debugging the compiler is fairly straightforward: it is more or less a run of the mill executable.</p>
 
 <p>In the bootstrap process, the entire thing becomes way more complex. You see, <code>rustc</code> is not invoked directly. The bootstrap script calls a wrapper around the compiler.</p>
 
@@ -775,7 +775,7 @@ fn main() {
 
 <p>Surprisingly, this issue occurs <strong>only</strong> if we use <code>i128</code> or <code>u128</code>.</p>
 
-<p>Any other type - everything works out just fine... why? Why does packed work with <code>u64</code>(and use unalgined loads there), but breaks with <code>u128</code>?</p>
+<p>Any other type - everything works out just fine... why? Why does packed work with <code>u64</code>(and use unaligned loads there), but breaks with <code>u128</code>?</p>
 
 <p>Let us take a look and the code handling unaligned loads.</p>
 
@@ -795,7 +795,7 @@ let aligned_type = if pointee_ty == self.cx.u128_type || pointee_ty == self.cx.i
     pointee_ty.get_aligned(align.bytes())
 }</code></pre>
 
-<p>Huh? Normally, we set the alignment of the pointer, but here... we just skip that for 128 bit intigers.</p>
+<p>Huh? Normally, we set the alignment of the pointer, but here... we just skip that for 128 bit integers.</p>
 
 <p>That... that explains the bug.</p>
 
