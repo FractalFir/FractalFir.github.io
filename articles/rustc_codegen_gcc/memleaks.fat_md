@@ -1,0 +1,95 @@
+<metadata>
+title = "Building the Rust compiler with GCC - stack overflows, memory leaks."
+id = "cg_gcc_bootstrap_2"
+category = "cg_gcc"
+category = "hidden"
+date = "11 Jul 2025"
+</metadata>
+<markdown>
+
+In my previous article, I managed to “bootstrap”(meaning: build) the Rust compiler with GCC.
+
+I used a project called `rustc_codegen_gcc` - which is, in broad words, is a Rust compiler plugin, which allows you to use GCC instead of LLVM. 
+
+Going trough the full bootstrap process is a big milestone, however, we barely limped over the finish line. The compilation process used **over 100 GB of RAM** - and that is with just one thread. We have also overflown our stack, which forced me to raise the stack size.
+
+Both of those issues are... less than ideal. Both of them also need fixing, before  `cg_gcc` can be used more widely. 
+
+So, strap in, and join me in the process of diagnosing an fixing those bugs!
+
+# Oveflowing our stack
+
+We will first start with the stack overflow, since that issue is easier to understand. 
+
+At a certain spot during the bootstrap(compiler build) process, `rustc` overflows it's stack. 
+
+```text
+error: rustc interrupted by SIGSEGV, printing backtrace
+
+/home/gh-FractalFir/rust/build/aarch64-unknown-linux-gnu/stage1/lib/librustc_driver-2ff3177f95f1e36d.so(+0x258d7b0)[0xecde26b6d7b0]
+linux-vdso.so.1(__kernel_rt_sigreturn+0x0)[0xecde2a8b08f8]
+/lib/aarch64-linux-gnu/libc.so.6(+0xa1b10)[0xecde244c1b10]
+libgccjit.so(+0xc14a9)[0x00007ffff7c14a90]
+libgccjit.so(+0xc14a9)[0x00007ffff7c14a90]  
+...
+libgccjit.so(+0xc14a9)[0x00007ffff7c14a90]  
+...
+
+note: we would appreciate a report at https://github.com/rust-lang/rust
+help: you can increase rustc's stack size by setting RUST_MIN_STACK=42949672960
+note: backtrace dumped due to SIGSEGV! resuming signal
+rustc exited with signal: 11 (SIGSEGV) (core dumped)
+error: could not compile `rustc_codegen_gcc` (lib)
+```
+*NOTE: this backtrace is for ilustrational purposes - I don't have the original one*
+
+This already tells us a few things:
+1. The overflow happens within `libgccjit`. the library we use to "talk" to GCC
+2. The overflow happen when we build `rustc_codegen_gcc` itself - and, surprisingly, nowhere else.
+
+## Core dump
+
+After loading the core dump into `gdb`:
+```sh
+coredumpctl gdb
+``` 
+
+I could see something odd - the overflow happens within a function called [`veryfiy_vssa`](https://github.com/gcc-mirror/gcc/blob/cfa827188dc236ba905b12ef06ccc517b9f2de39/gcc/tree-ssa.cc#L639). That function seems to be calling itself, recursively, tens of thousands of times.
+
+```txt
+
+#0  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2300, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+#1  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2320, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+#2  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2328, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+#3  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2528, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+...
+#3323  0x00007ffff7c14a90 verify_vssa (bb=0xabcdef2528, current_vdef=0xcbdef2200, visited=0xdcbaf2200)
+```
+*NOTE: this backtrace is for ilustrational purposes - I don't have the original one*
+
+That is... quite odd. 
+
+`verify_ssa` is supposed to check the validity of the internal GCC IR. It performs this check for each "block"(a block is a piece of code, ended with a branch). 
+```c
+bool verify_vssa (basic_block bb, tree current_vdef, sbitmap visited)
+```
+One of it's functions is checking so called "phi nodes".
+
+This is where we overflow([code sample](https://github.com/gcc-mirror/gcc/blob/cfa827188dc236ba905b12ef06ccc517b9f2de39/gcc/tree-ssa.cc#L706C1-L710C35) taken from the GCC mirror). 
+
+```c
+/* Verify destination PHI uses and recurse.  */
+edge_iterator ei;
+edge e;
+FOR_EACH_EDGE (e, ei, bb->succs){
+    /* Some checks */ 
+    err |= verify_vssa (e->dest, current_vdef, visited);
+}
+```
+Now, you don't really need to know what a "phi node" is to understand this bug. 
+
+All you really need to know is that checking "phi nodes" requires some cross-block checks. 
+
+Here, GCC iterates trough all he
+
+</markdown>

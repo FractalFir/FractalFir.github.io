@@ -72,7 +72,10 @@ impl Metadata {
                         .split('"')
                         .nth(1)
                         .expect("ID must be contained between 2 quotation marks!")
-                        .to_string()
+                        .to_string();
+                    if res.category == "hidden"{
+                        res.date = Some("32 Feb 404 BC".to_owned());
+                    }
                 }
                 "date" => {
                     res.date = Some(

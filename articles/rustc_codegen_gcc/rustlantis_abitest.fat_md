@@ -1,0 +1,740 @@
+<metadata>
+title = "Building the Rust compiler with GCC - stack overflows, memory leaks."
+id = "cg_gcc_bootstrap_2"
+category = "cg_gcc"
+category = "hidden"
+date = "11 Jul 2025"
+</metadata>
+<markdown>
+
+In my previous article, I talked about some of my work on fixing the bugs within the `GCC` based Rust compiler backed. 
+
+`rustc_codegen_gcc` is, in layman's term, nothing more than a Rust compiler plug-in, allowing use to use GCC instead of LLVM.
+
+There is nothing more important for a compiler than *correctness*. An buggy, non-standard compiler is nothing short of a nightmare. Imagine a world in which a correct program proudly proclaims that infinity is less than 0. What a nightmare!
+
+Finding compiler bugs is not exactly easy - in this article, I explain some of my work on finding bugs in `cg_gcc`. 
+
+# The problem 
+
+The main problem we face is quite simple : compilers are very *big*. There is a lot of moving parts, and they interact in non-obvious ways. 
+
+The code you write goes trough multiple processing stages, all of which can break. Each tiny part of syntax, type and operation need to be tested - and tested extensively. 
+
+Moreover, we can't test those things in isolation - bugs often arise from complex, hard to understand combos of features. 
+
+One of the bugs I(spoilers!) found required some pretty absurd control flow. 
+```rust
+pub fn fn2(mut arg: u8) -> isize {
+    let mut mut_int = 0;
+    let mut adt1: Adt1 = Default::default();
+    loop {
+        let mut tmp = !mut_int;
+        match arg {
+            0 => return 0,
+            1 => {
+                mut_int = 1;
+                adt1.a.fld1 = tmp as u8;
+                fn3(adt1.a, adt1);
+            }
+            _ => return 0,
+        }
+        // Needed to prevent an earlier opt pass from seeing arg does not change(?).
+        core::hint::black_box(());
+        arg = arg & arg;
+        match arg {
+            1 => return 0,
+            _ => continue,
+        }
+    }
+}
+#[inline(never)]
+pub fn fn3(arg1: Adt38, arg2: Adt1) {
+    dump_var(!(arg1.fld1) as isize);
+}
+```
+If you remove *any* part of this sample - it will no longer get miscompiled by `cg_gcc`. 
+
+This is as simple as I could get, after a lot of tries. If you think about this code for a second, it is kind of pointless.
+
+Think about the loop I have shown here. 
+
+If arg is *not* `1`, then we return in the first match(the Rust equivalent of `switch`):
+```rust
+match arg {
+    0 => return 0,
+    1 => {
+     	mut_int = 1;
+        adt1.a.fld1 = tmp as u8;
+        fn3(adt1.a, adt1);
+     }
+     _ => return 0,
+}
+```
+
+So, after this point, we *know* that `arg` is `1`.
+
+At the very end of the loop body, we do this:
+```rust
+arg = arg & arg;
+match arg {
+     1 => return 0,
+     _ => continue,
+}
+```
+
+Since we know `arg` to be `1` at this point... this `loop` can never actually loop - we just always return `0` in the first iteration!
+
+Still, that admittedly useless loop is needed to trigger the bug. Bizarre.
+```text
+// LLVM
+!(arg1.fld1) as isize = 0
+// GCC without opts 
+!(arg1.fld1) as isize = 0
+// GCC with opts
+!(arg1.fld1) as isize = -256
+```
+
+No real person would write code *like this*. But... this is a sign of a larger problem, that *could* affect real code. We can't have that.
+
+Now, think about how you could test for something like this. How can we detect a compiler bug - especially one that requires so many moving parts to fall into place?
+
+The best solution seems to be, for better or worse, throwing more compute at the problem. We need to fuzz.
+
+# The mythical city of Rustlantis
+
+The best way to test a compiler is... to compile a whole bunch of things. Who would have thunk. 
+
+Now, I could try generating random Rust code myself, but doing so in an efficient, and correct way is surprisingly difficult. So, I will take an off-the-shelf tool, called `rustlantis`. 
+
+If you want to hear it from the horse's mouth, [here is a paper about it](https://dl.acm.org/doi/10.1145/3689780). It is an interesting read, and I strongly recommend you take a peek.
+
+Still, what matters for our purposes is that `rustlantis` generates something called "MIR". 
+
+## MIR
+
+You can think of MIR as a simplified representation of Rust. The Rust compiler fronted maps *all* the complex features of Rust(iterator, async, borrows) down to simple MIR ops: copying data, arithmetics, function calls and so on. 
+
+
+So, all the complex features of Rust get boiled away into simple, primitive operations. 
+```rust
+use core::intrinsics::mir::*;
+// The Rust compiler can parse MIR from Rust files
+// Neat :)
+#[custom_mir(dialect = "built")]
+pub fn simple(x: i32) -> i32 {
+    mir! {
+        let temp2: i32;
+        {
+            let temp1 = x + x;
+            Goto(my_second_block)
+        }
+        my_second_block = {
+            temp2 = temp1 * temp1; // only one op per line is allowed!
+            RET = temp2;
+            Return()
+        }
+    }
+}
+```
+
+Each compiler backend(`cg_llvm`, `cg_gcc`) is feed this simplified representation of Rust. 
+
+This is *perfect* for our purposes: we only care about this very last part of the compilation process. This is the part we(as in the GCC based backend) are responsible for - so the more we test it, the better. 
+
+The code generated by `rustlantis` is also fully deterministic, and well defined. So, if we compile code with LLVM(in `debug` mode), and with GCC(with optimizations), their results **MUST** match up. Otherwise, we have a bug.  
+
+`rustlantis`'s output is also quite odd. It offsets pointers, performs odd casts, transmutes types, calls a whole lot of intrinsics. In simpler words, it uses a lot of parts of the compiler. Not *all* of them, but still more than enough for our purposes. 
+
+```rust
+(*_1) = -RET;
+_1 = core::ptr::addr_of_mut!(_6);
+_4 = !_9;
+_17.1 = core::ptr::addr_of_mut!(_7);
+_15 = _12.2 << _8;
+_16 = (-3256106608463376368_i64) as f64;
+_8 = RET >> _3;
+```
+
+The tool is also decently fast - on my laptop, I could achieve a fuzz rate of 1.7 files(each file of 10K+ lines) per second. 
+
+So, in an hour, we could fuzz 61 million lines of code. If we throw this much things at the wall, something is bound to stick. 
+
+And, we got a bug. In fact, we got quite a few bugs!
+
+# Miniature bugs. 
+
+So, we got a bug - now, all that remains is to fix it, right?!
+
+Well, hold your horses. 
+
+We did not really find a bug - we found a 10K+ LOC file, with *some* code that triggers the bug in it. 
+
+It is like finding a needle in a haystack - knowing that the needle is in *this* haystack does not help all that much.
+
+Ideally, we'd like a simple one-function file, containing a few lines of code, needed to trigger the bug. 
+
+Getting such a smaller bug reproducer requires a process called minimization. 
+
+## Naive approach 
+
+The simplest, most brain-dead solution to this problem is to... try removing lines of code, and check if the bug is still present. 
+
+```rust
+(*_1) = -RET;
+_1 = core::ptr::addr_of_mut!(_6);
+_4 = !_9;
+// Is this needed to trigger the bug?
+// _17.1 = core::ptr::addr_of_mut!(_7); 
+_15 = _12.2 << _8;
+_16 = (-3256106608463376368_i64) as f64;
+_8 = RET >> _3;
+```
+
+This would not really work, for a couple of reasons. 
+
+## UB
+
+Remember when I said this:
+
+> The code generated by `rustlantis` is also fully deterministic, and well define
+
+That is *true*. But... removing random lines of code can lead to non-determinism, or worse, UB.  
+
+Suppose we have code like this:
+```c
+int index = rand();
+index = index % sizeof(arr); // Ensure index within bounds!
+return arr[index];
+```
+
+This is perfectly fine, albeit odd, code. 
+
+What happens when we comment out the second line?
+```c
+int index = rand();
+return arr[index];
+```
+
+Yeah... we are going to be reading out of bounds - which is UB in C. This program will compile, and LLVM and GCC will disagree about the result... but that does not mean the compilers are buggy - our code is. 
+
+Now, some of you may say: hang on a minute, you can't trigger UB in safe Rust! The compiler won't let you do that!
+
+MIR is not safe Rust - in fact, it is not Rust at all. Remember, MIR is what the compiler *produces* after borrow checking, and a bunch of other checks. 
+
+All MIR is, in a sense, implicitly unsafe. The compiler does not check it, because it is not supposed to be written by humans. 
+
+So yeah, you can trigger UB in MIR, and you can do so with ease :(.
+
+This means that we need to *somehow* ensure our code contains no UB.
+
+### MIRI
+
+[`miri`](https://github.com/rust-lang/miri) is a handy little tool that can catch the *vast majority* of UB in any unsafe Rust code. As the name implies, it works with `MIR` - so we can use it to check if our changes introduce any UB.
+
+This should work out fine in most if not all cases... with some caveats. 
+
+`miri` is *slow*.
+
+## Speed
+
+Running our sample, 10K+ program under MIR takes 3-4 seconds. 
+
+So, checking every line in a our program will take at least 4s * 10 000 = 40 000 s = **eleven hours**. Per *one* pass of a file. And we *do* need more than one. 
+
+Consider this:
+
+```rust
+let _3:f32;
+_3 = 0.0;
+```
+We can't remove the variable declaration `_3` *until* we remove the assignment to it. So, to remove this, we'd need at least 2 passes. 
+
+With code like this:
+```rust
+_1 = 0.0;
+_2 = _1 * 4.533;
+_3 = _2 + 1.05;
+_5 = _3 / _1;
+```
+We'd need to remove `_5`, then `_4`, then `_3`, then `_2`, and then `_1`. Ouch. 
+
+Now, this process can be speed up by parallelizing some of those checks. But, even with 20 threads, all just running this naive reducer, this would still take a considerable amount of time.
+
+Not to mention the heat - I don't want a noisy space heater in the middle of summer. 
+
+There are better ways to do this.
+
+# `creduce`
+
+Your first thought might be to use a tool like `creduce` - something designed to more smartly reduce compiler bug samples. 
+
+`creduce` does a pretty good job at this task - it is smart enough to remove multiple things at the same time. However, it struggles with some MIR syntax. 
+
+I have seen it leave basic blocks like this:
+```rust
+// Unreachable block
+bb11 = {
+    Goto(bb12)
+}
+```
+While we can see that this block of code can be safely removed, `creduce` does not understand MIR syntax, so it can't really see that this is a basic block.
+
+In my experience, `creduce` reduces Rust code really well, but struggles with more convoluted MIR. 
+
+Could we exploit our knowledge of MIR syntax to speed this process up?
+
+# Smarter reduction
+
+The first question we ought to ask ourselves is: what is the most expensive part of our MIR samples?
+
+Usually, it is the call to the function `dump_var`. This function is responsible for checking for differences between LLVM and GCC executions.
+
+This function either hashes it's arguments, or prints them as strings. 
+```rust
+#[inline(never)]
+fn dump_var(
+    f: usize,
+    var0: usize, val0: impl Debug,
+    var1: usize, val1: impl Debug,
+    var2: usize, val2: impl Debug,
+    var3: usize, val3: impl Debug,
+) {
+    println!("fn{f}:_{var0} = {val0:?}\n_{var1} = {val1:?}\n_{var2} = {val2:?}\n_{var3} = {val3:?}");
+}
+```
+
+So, it tends to be expensive. 
+
+Most calls to `dump_var` are not needed: we are interested only in the call that prints the problematic value.
+```rust
+dump_var(fn_id, var_id, buggy_var, ...); // Keep this
+dump_var(fn_id, var_id, ok_var, ...); // Discard this
+```
+
+So, we can first try removing all the calls to `dump_var`, and only keep the one call we need. This alone shaved a second or two off my execution time.
+
+But... we can do better. 
+
+## Removing function calls
+
+Suppose we have some code like this:
+```rust
+let bug_var = buggy_fn(); // Triggers a compiler bug, and behaves incorrectly under GCC.
+let ok_var = ok_fn();
+dump_var(fn_id, var_id, buggy_var, ...); 
+```
+The call to `ok_fn` is not needed to trigger this bug. Ideally, we'd like to remove this call: it only clutters the code, and wastes CPU cycles. 
+
+Since function can execute a lot of code, and call other functions, removing function calls ought to be our priority. 
+
+A function call in MIR looks something like this:
+```rust
+Call(_88 = fn19(_31), ReturnTo(bb32), UnwindUnreachable())
+```
+Here, we call `f19` with `_31` as it's only argument, and then we jump to the basic block(part of the function) `bb32`. 
+
+What is interesting about this is that we can remove function calls in a way that is very unlikely to cause UB. 
+
+You see, when `rustlantis` generates function calls, it ensures that the function arguments are all initialized.
+
+So, we know  `rustlantis` won't generate a function like this:
+```rust
+fn init_arg(arg:*mut u32){
+    // This is needed - otherwise, we have UB. 
+    *arg = 0;
+}
+```
+
+This means that replacing a function call with an assignment and a jump will not introduce UB into the program we are minimizing. 
+```rust
+_88 = 0;
+Goto(bb32)
+```
+After this transformation, we have a slightly different, but still well defined program. 
+
+If this program still has the bug we are looking for, we can start minimizing that simpler piece of code instead. 
+
+This allows us to remove a lot of code quickly, speeding testing with `miri` noticeably. 
+
+## Removing functions
+
+After this step, we know that we are very likely to have some dead code. So, as a next pass, I automatically try to remove each function present in the program. 
+
+This tends to very quickly simplify the program by a lot. 
+
+```rust
+// We have removed the only call to `fn19` - it is no longer needed :(.
+fn fn19(arg:u32)->u32{
+    /**/
+}
+```
+## Abusing matches
+
+If you dig into the `rustlantis` paper, and the source code of that tool, you might discover some interesting things. 
+
+Despite inserting things like `matches` and `Goto`s... the code generated by `rustlantis` does not actually *branch* all that much. In reality, most of those are "decoys" - things `rustlantis` know will never be executed,
+but compiler may not know about that. They are there mostly to just confuse the hell out of the compiler, hoping to trip it up, and trigger a bug/
+
+
+We can abuse some of the facts about how rustlantis generates code. In a match, the generated code will almost always jump to the second-last arm... in the absence of compiler bugs, that is.
+
+```rust
+// This is **NOT** a Rust match - MIR matches jump to the block selected by the arm!
+match _56.3 {
+0 => bb20, // Will never jump to bb20
+1 => bb33, // Will never jump to bb33
+2 => bb34, // Will never jump to bb34 
+3035215634051155254 => bb36, // Always jumps to bb36
+_ => bb35, // Never jumps to bb35.
+}
+```
+
+With this, we know that we could replace this whole match with just `Goto(bb36)` - and the behavior of our program should not change. 
+
+Of course, sometimes those ""decoy" arms are needed to confuse the compiler, so we still need to check if our simplified reproducer still triggers the bug.
+
+Even then, this transformation makes the code much simpler, and easier to read for humans. It also opens the way to some more simplification
+
+## Killing blocks
+
+Now, we know that a lot of blocks in our program are unreachable. They may still be needed(eg. they form a decoy branch needed to confuse the compiler), but they are effectively dead code. 
+
+We can replace those blocks with calls to `abort`. Since the program can only jump to a start of a basic block, we can replace an entire dead block with just one call to `abort`.
+
+```rust
+bb19 = {
+_24 = -(-7024724093558139643_i64);
+(*_12) = core::ptr::addr_of!((*_18));
+(*_15) = 78913118762850115972924188634687843923_i128 as u128;
+_34 = (*_15) == (*_18);
+_32 = _23 as isize;
+/* Hundreds of lines of code*/
+(*_18) = _10 as u128;
+(*_18) = 21367986460140776094219671356767834567_u128;
+_38 = _5 as isize;
+Goto(bb13)  
+}
+```
+We can turn the example above into just this:
+```rust
+bb19 = {
+    Call(core::intrinsics::abort(), NeverReturn, UnwindUnreachable())
+}
+```
+
+Now, besides simplifying the code in question, this also makes it very clear to a human that this is dead code. 
+
+So, when I look over the bug reproducer, I can very easily tell what is real code, and what is just there to confuse the compiler. 
+
+## Removing blocks
+
+After I replaced most of the basic blocks with `abort`s, I then try to remove as many of them as possible. 
+
+Why does this step take place after replacing the block with `abort`? 
+
+Consider loops:
+```rust
+bb1 = {
+    Goto(bb2)
+}
+bb2 = {
+    Goto(bb1)
+}
+```
+I can't remove any of those blocks now, because that would make the program invalid(we would remove the target of a jump). 
+
+However, if we first replace the blocks with `abort`, the problem disappears, and we can easily try removing them from the program. 
+```rust
+bb1 = {
+    Call(core::intrinsics::abort(), NeverReturn, UnwindUnreachable())
+}
+bb2 = {
+    Call(core::intrinsics::abort(), NeverReturn, UnwindUnreachable())
+}
+```
+
+Removing most if not all basic blocks from a program allows us to perform even more simplifications. 
+
+## Linearizing the control flow
+
+Suppose we have a snippet of MIR like this:
+
+```rust
+bb1 = {
+    (*_18) = 21367986460140776094219671356767834567_u128;
+    _38 = _5 as isize;
+    /* Hundreds of lines of code*/
+    _34 = (*_15) == (*_18);
+    Goto(bb2)
+}
+bb2 = {
+    /* Hundreds of lines of code*/
+    _32 = _23 as isize;
+    Goto(bb3)
+}
+```
+
+You can quite clearly see that, in this case, we could replace those 2 blocks with 1, big block:
+```rust
+bb1 = {
+    (*_18) = 21367986460140776094219671356767834567_u128;
+    _38 = _5 as isize;
+    /* Hundreds of lines of code*/
+    _34 = (*_15) == (*_18);
+    /* Hundreds of lines of code*/
+    _32 = _23 as isize;
+    Goto(bb3)
+}
+```
+So, this is also something my minimizer attempts to do. We try to "linearize" the control flow(remove any jumps), and see if the new program is UB-free, and still triggers the compiler bug.
+
+If all goes well, and the bug is relatively simple, at the very end, we are left off with a bunch of simple, one-block functions. 
+
+```rust
+bb1 = {
+    (*_18) = 21367986460140776094219671356767834567_u128;
+    _38 = _5 as isize;
+    /* Hundreds of lines of code*/
+    _34 = (*_15) == (*_18);
+    /* Hundreds of lines of code*/
+    _32 = _23 as isize;
+    /* Hundreds of lines of code*/
+    Return()
+}
+```
+
+By this point, the sample is usually 10-30% of its original size. That is enough for humans to start their work.
+
+# Unsafe Rust
+
+While fuzzing directly on `MIR` is great, it is not exactly the ideal form of bug reproducers. The macros I used to build this **COMPILER INTERNAL** IR are really meant for developers, and are not pleasant to use.
+
+Ideally, we'd like to trigger this compiler bug from safe Rust: then, we would not need to run `miri` to check for UB at all. 
+
+Still, you may wonder: why not run `creduce` at this point? It is a tool designed to reduce bugs, and, at this point, the `miri` execution is fast enough for this to not be a huge problem. 
+
+Well, the problem with dealing with compiler-internal macros is that nothing is designed to handle them. Including `rustfmt`(the Rust formatter).
+
+`creduce`, for some reason, really likes to remove a lot of new lines from the sample, "reducing" it to a single line of code... that I can't format. 
+
+That is not a very pleasant experience. 
+
+You know what `rustfmt` is designed to format? Rust code :). So, the next logical step is to take one of those simpler files, and start turning MIR back into `Rust`.
+
+## Enums
+
+The very first manual step I take is removing all the enums from the file I am operating on. 
+
+Why? Since `MIR` *is not* Rust, it can do some cursed things that are impossible to reproduce in even unsafe Rust.
+
+What does this bit of code do?
+```rust
+Field::<u16>(Variant(_37, 1), 2) = 8;
+```
+Well, of course, it assigns the value `8` of type `u16` to the `2`nd field of the variant `1` of an enum.
+
+To people familiar with Rust, this immedeielty rings a bell as something impossible. 
+
+You can't do something like this:
+```rust
+result.Err.0 = "Hello :)". // WTF?
+```
+
+Enums have variants, and you have to match on those variants to access their contents. 
+
+In MIR, this is, however, kind of allowed, and relatively common. 
+
+The cursed ability to access the fields any enum variant(even the non-active one!) is needed for coroutines, which share some of their handling with enums.
+
+Since `rustlantis` tries very hard to find all manner of compiler bugs, it also tests this code. 
+
+However, since this is something not present in surface Rust, we have to find workarounds. In most cases, I managed to either:
+1. Remove all but one enum variant, leaving me with what is effectively a struct. 
+2. Replace the enum with an `union`.
+
+Thankfully, after this, things start to get a bit better.
+
+## Replicating cursed control flow.
+
+Let us go back to one of the first examples I showed you:
+```rust
+
+loop {
+    match arg {
+        0 => return 0,
+        1 => fn3(adt1.a, adt1),
+        _ => return 0,
+    }
+    match arg {
+        1 => return 0,
+        _ => continue,
+    }
+}
+```
+Just for a second, focus on the control flow in this sample. Think about how it would look, expressed in just `goto`s and `matches`(or `C` switches).
+```rust
+loop_head = {
+    match arg{
+        0 => ret0
+        1 => call3,
+        _=> other_ret0
+    }
+}
+ret0 = {
+    RET = 0;
+    Return()
+}
+other_ret0 = {
+    RET = 0;
+    Return()
+}
+call3 = {
+    Call(fn3(adt1.a,adt1), ReturnTo(other_match), UnwindUnreachable())
+}
+other_match = {
+    match arg {
+        1 => another_ret0,
+        _=>loop_head,
+    }
+}
+another_ret = {
+    RET = 0;
+    Return()
+}
+```
+
+Can you see what is going on? It is probably hard, is it not? Even with helpful block names, this is still a slog. Now, imagine there is no names(just numbers), the order is scrambled, and each block has a bunch of BS in it.  
+
+Thankfully, there are ways around this. 
+
+## Poor man's goto
+
+Gotos going back can be replaced with... labeled loops. 
+
+```rust
+'bb1: loop {
+    // Goto in Rust :)
+    if num == arg {
+        continue 'bb1;
+    }
+    do_sth();
+    'bb2: loop{
+        // Goto bb1
+        if num2 == arg {
+            continue 'bb1;
+        }
+        // Goto bb2
+        if num3 == arg{
+            continue 'bb2;
+        }
+        do_sth_else();
+    }
+}
+```
+
+This is kind of cursed, but it is more or less how I converted the original MIR into unsafe Rust. Now, you can probably see why I spent so much time removing this kind of branching automatically :).
+
+# Safe Rust
+
+Going from `unsafe` Rust to safe Rust is still annoying, but it is much more *bearable*. 
+
+The main problem here is that, on MIR level, lifetimes or borrows don't exist(kind of). 
+So, there are perfectly sound things that you can't do in safe Rust, that I needed to replicate.
+
+Now, most of those things were *useless*, but they nonthelles tested parts of the actual language.
+
+```
+// TODO: neat sample here
+```
+
+At this point, I was usually left with a couple of hundreds of lines of safe Rust. And here, I could let `creduce` shine. 
+
+Remember, since we are in safe Rust, we don't need to worry about UB. If a transformation is incorrect, it will not compile. So, I could ditch `mriri`, and get some simpler bug samples.
+
+# A floating(point) bug
+
+After a lot of finagling, I ended up with this curious thing:
+```rust
+fn main() {
+    let mut _4 = 2623078656.0;
+    _4 = _4 * _4 * _4;
+    let val = -(_4 * _4) * _4 * (_4);
+    let inf: f32 = val * val;
+    let int = inf as u64;
+    println!("{inf:?} {:x} {int:?}", inf.to_bits());
+}
+```
+
+According to GCC in debug(and LLVM), the result of this operation are as follows:
+```
+inf 7f800000 18446744073709551615
+```
+So... the number is infinity, with the float pattern being indeed infinity, and the result of casting this as an int is 2^64-1.
+
+That is correct - in Rust, float to int casts are saturating. That means that they try to return the closest integer value, if the float is out of range.
+
+So, `55.0 as u8` is `55`, but `-1.0 as u8` is `0`, and `300.0 as u8` is 255 - the closest number we could get.
+
+The biggest integer is closest we will ever get to infinity, so this is correct. 
+
+However, as soon as we turn the optimizations on... the result changes:
+```
+inf 7f800000 0
+```
+Huh? How is infinity the closest number to 0?
+
+Now, at this point, I went on an entirely wrong path, trying to change the way we do float-to-int casts on the Rust side.
+
+Since those casts are UB in C, I assumed we just did something wrong, and that is the source of our problem. The semantics of GIMPLE(GCC's IR) are a bit nebulous, but, since GCC compiles C well, if we follow the rules of C, we should be golden, right?
+
+I will not bore you with the detail, but I spent some time changing the order of some ops to be 100% C compliant. And that did nothing.
+
+Somehow, someway, our range checks would get optimized away.
+
+## Infinity is less than 0.
+
+I converted our code to C, only to see.. it still misbehave? Even tough it was clearly standard-compliant?
+
+So, I decided to just return the value of our check and... What?
+
+```c
+#include <stdbool.h>
+#include <stdio.h>
+bool womky(void) {
+  float val = 3.4028234663852885981170418348451692544e+38;
+  float a = val * -(val * val);
+  float b = val * a;
+  return b * b > 0.0;
+}
+int main(void) { printf("%d", womky()); }
+```
+```
+// -O0:
+1
+// -O2
+0
+```
+
+Now, at this point, I was very, very confused. I know GCC has some pitfall-y float optimizations, but those are enabled with `-Ofast`. I am on `-O2`. So... what gives?
+
+If I obtain infinity any other way, this program will print `1`. If I print the bit-pattern of the float, I can see it is **positive infinity**. And yet, somehow... it is less than 0?
+
+This lead to a lot of consternation and trying to figure out what is going on. Until somebody pointed out that... [GCC thinks the number can only be](https://gcc.godbolt.org/z/4j66dWz6s) `NaN`.
+
+```
+Global Exported: a_4 = [frange] float [+Inf, +Inf] +-NAN
+Global Exported: b_5 = [frange] float [] +-NAN
+Global Exported: _3 = [frange] float [] +-NAN
+```
+
+Something seems to be wrong there... although I am not 100% sure. Right now, I am kind of going over the C standard, and trying to figure out if this is some kind of UB or rule I have never heard about.
+
+Still... seems like a *potential* GCC bug. I guess that is a neat find :).
+
+I have a few like this, but I have not been able to convert them to C *so far*.  This is something I'd like to do before I go over and nag the GCC devs. I don't want for it to end up being *our* bug. 
+
+# ABI fuzzing.
+
+TODO: ABI CAFE GOES HERE :)
+</markdown>

@@ -1,0 +1,789 @@
+<!DOCTYPE html><html lang ="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Building the Rust compiler with GCC - stack overflows, memory leaks.</title><link rel="stylesheet" href="default.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" media="none" onload="if(media!='all')media='all'">
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script async src="https://unpkg.com/highlightjs-copy/dist/highlightjs-copy.min.js"></script>
+<script>window.addEventListener('load', () => {
+const start = Date.now();
+hljs.addPlugin(new CopyButtonPlugin());
+function cil() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["locals","method","public","static","private","hidebysig","assembly","class","extends","field","entrypoint","line"];
+   var types = ["int8","int16","int32","int64","nint","uint8","uint16","uint32","uint64","nuint","bool","char","float32","float64","void","uint","int","valuetype","native"];
+   var short_types = ["i1","i2","i4","i8","s","u1","u2","u4","u8"];
+   var ops = ["conv","ldloc","ldc","add","stloc","ret","call","ldarg","ldarga","sizeof","mul","ldobj","div","blt","br",".rs",".s","calli"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: types.concat(ops).concat(short_types),
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['cil','common_intermediate_language'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+function mir() {
+  const regex = hljs.regex;
+     const KEYWORDS = ["switchInt","unreachable","return","unwind","continue"];
+
+   var vars = ["bb0","bb1","bb2","bb3","bb4","_0","_1","_2"];
+
+   var keywords = {
+    keyword: KEYWORDS,
+    $pattern:/(\w+)/,
+    relevance:10,
+    literal: vars,
+  }
+  
+  var INLINE_COMMENT = hljs.COMMENT('//', '[^\\\\]$');
+  return {
+    unicodeRegex: true,
+    aliases: ['mir'],
+    keywords: keywords,
+    contains: [
+      INLINE_COMMENT, // single-line comments
+      hljs.C_BLOCK_COMMENT_MODE, // comment blocks
+    ]
+  };
+}
+
+hljs.registerLanguage('cil',cil);
+hljs.registerLanguage('mir',mir);
+
+const code_blocks = document.querySelectorAll('pre code');
+const highlight_promises = Array.from(code_blocks).map(el => {
+  return new Promise((resolve) => {
+    hljs.highlightElement(el);
+    resolve(el); 
+    });
+    });
+
+
+
+const end = Date.now();
+console.log(`Highlight time: ${end - start} ms`);
+});</script></head><body><div class = "nav_container"><nav class="topnav">
+            <b><a class="active" href="./home.html">Home</a></b>
+            <a href="https://www.github.com/FractalFir"><img src = "../images/github-mark-white.svg" class = "github_link" width = "25" height = "25" alt = "Link to my github account."></a>
+            <a href="https://www.reddit.com/user/FractalFir"><img src = "../images/Reddit_Mark_OnWhite.svg" class = "reddit_link" width = "27.5" height = "27.5" alt = "Link to my reddit account."></a>
+            <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
+            <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
+            <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
+        </nav></div><div class = "article_header"><h1 class="title">Building the Rust compiler with GCC - stack overflows, memory leaks.</h1><br><small><div class = "article_metadata">Published on 11 Jul 2025<br><i>12 - 21 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>In my previous article, I talked about some of my work on fixing the bugs within the <code>GCC</code> based Rust compiler backed.</p>
+
+<p><code>rustc_codegen_gcc</code> is, in layman's term, nothing more than a Rust compiler plug-in, allowing use to use GCC instead of LLVM.</p>
+
+<p>There is nothing more important for a compiler than <em>correctness</em>. An buggy, non-standard compiler is nothing short of a nightmare. Imagine a world in which a correct program proudly proclaims that infinity is less than 0. What a nightmare!</p>
+
+<p>Finding compiler bugs is not exactly easy - in this article, I explain some of my work on finding bugs in <code>cg_gcc</code>.</p>
+
+<h1 id='the_problem'>The problem</h1>
+
+<p>The main problem we face is quite simple : compilers are very <em>big</em>. There is a lot of moving parts, and they interact in non-obvious ways.</p>
+
+<p>The code you write goes trough multiple processing stages, all of which can break. Each tiny part of syntax, type and operation need to be tested - and tested extensively.</p>
+
+<p>Moreover, we can't test those things in isolation - bugs often arise from complex, hard to understand combos of features.</p>
+
+<p>One of the bugs I(spoilers!) found required some pretty absurd control flow.</p>
+
+<pre><code class="language-rust">pub fn fn2(mut arg: u8) -&gt; isize {
+    let mut mut_int = 0;
+    let mut adt1: Adt1 = Default::default();
+    loop {
+        let mut tmp = !mut_int;
+        match arg {
+            0 =&gt; return 0,
+            1 =&gt; {
+                mut_int = 1;
+                adt1.a.fld1 = tmp as u8;
+                fn3(adt1.a, adt1);
+            }
+            _ =&gt; return 0,
+        }
+        // Needed to prevent an earlier opt pass from seeing arg does not change(?).
+        core::hint::black_box(());
+        arg = arg &amp; arg;
+        match arg {
+            1 =&gt; return 0,
+            _ =&gt; continue,
+        }
+    }
+}
+#[inline(never)]
+pub fn fn3(arg1: Adt38, arg2: Adt1) {
+    dump_var(!(arg1.fld1) as isize);
+}</code></pre>
+
+<p>If you remove <em>any</em> part of this sample - it will no longer get miscompiled by <code>cg_gcc</code>.</p>
+
+<p>This is as simple as I could get, after a lot of tries. If you think about this code for a second, it is kind of pointless.</p>
+
+<p>Think about the loop I have shown here.</p>
+
+<p>If arg is <em>not</em> <code>1</code>, then we return in the first match(the Rust equivalent of <code>switch</code>):</p>
+
+<pre><code class="language-rust">match arg {
+    0 =&gt; return 0,
+    1 =&gt; {
+     	mut_int = 1;
+        adt1.a.fld1 = tmp as u8;
+        fn3(adt1.a, adt1);
+     }
+     _ =&gt; return 0,
+}</code></pre>
+
+<p>So, after this point, we <em>know</em> that <code>arg</code> is <code>1</code>.</p>
+
+<p>At the very end of the loop body, we do this:</p>
+
+<pre><code class="language-rust">arg = arg &amp; arg;
+match arg {
+     1 =&gt; return 0,
+     _ =&gt; continue,
+}</code></pre>
+
+<p>Since we know <code>arg</code> to be <code>1</code> at this point... this <code>loop</code> can never actually loop - we just always return <code>0</code> in the first iteration!</p>
+
+<p>Still, that admittedly useless loop is needed to trigger the bug. Bizarre.</p>
+
+<pre><code class="language-text">// LLVM
+!(arg1.fld1) as isize = 0
+// GCC without opts 
+!(arg1.fld1) as isize = 0
+// GCC with opts
+!(arg1.fld1) as isize = -256</code></pre>
+
+<p>No real person would write code <em>like this</em>. But... this is a sign of a larger problem, that <em>could</em> affect real code. We can't have that.</p>
+
+<p>Now, think about how you could test for something like this. How can we detect a compiler bug - especially one that requires so many moving parts to fall into place?</p>
+
+<p>The best solution seems to be, for better or worse, throwing more compute at the problem. We need to fuzz.</p>
+
+<h1 id='the_mythical_city_of_rustlantis'>The mythical city of Rustlantis</h1>
+
+<p>The best way to test a compiler is... to compile a whole bunch of things. Who would have thunk.</p>
+
+<p>Now, I could try generating random Rust code myself, but doing so in an efficient, and correct way is surprisingly difficult. So, I will take an off-the-shelf tool, called <code>rustlantis</code>.</p>
+
+<p>If you want to hear it from the horse's mouth, <a href='https://dl.acm.org/doi/10.1145/3689780'>here is a paper about it</a>. It is an interesting read, and I strongly recommend you take a peek.</p>
+
+<p>Still, what matters for our purposes is that <code>rustlantis</code> generates something called &quot;MIR&quot;.</p>
+
+<h2 id='mir'>MIR</h2>
+
+<p>You can think of MIR as a simplified representation of Rust. The Rust compiler fronted maps <em>all</em> the complex features of Rust(iterator, async, borrows) down to simple MIR ops: copying data, arithmetics, function calls and so on.</p>
+
+<p>So, all the complex features of Rust get boiled away into simple, primitive operations.</p>
+
+<pre><code class="language-rust">use core::intrinsics::mir::*;
+// The Rust compiler can parse MIR from Rust files
+// Neat :)
+#[custom_mir(dialect = &quot;built&quot;)]
+pub fn simple(x: i32) -&gt; i32 {
+    mir! {
+        let temp2: i32;
+        {
+            let temp1 = x + x;
+            Goto(my_second_block)
+        }
+        my_second_block = {
+            temp2 = temp1 * temp1; // only one op per line is allowed!
+            RET = temp2;
+            Return()
+        }
+    }
+}</code></pre>
+
+<p>Each compiler backend(<code>cg_llvm</code>, <code>cg_gcc</code>) is feed this simplified representation of Rust.</p>
+
+<p>This is <em>perfect</em> for our purposes: we only care about this very last part of the compilation process. This is the part we(as in the GCC based backend) are responsible for - so the more we test it, the better.</p>
+
+<p>The code generated by <code>rustlantis</code> is also fully deterministic, and well defined. So, if we compile code with LLVM(in <code>debug</code> mode), and with GCC(with optimizations), their results <strong>MUST</strong> match up. Otherwise, we have a bug.<br /></p>
+
+<p><code>rustlantis</code>'s output is also quite odd. It offsets pointers, performs odd casts, transmutes types, calls a whole lot of intrinsics. In simpler words, it uses a lot of parts of the compiler. Not <em>all</em> of them, but still more than enough for our purposes.</p>
+
+<pre><code class="language-rust">(*_1) = -RET;
+_1 = core::ptr::addr_of_mut!(_6);
+_4 = !_9;
+_17.1 = core::ptr::addr_of_mut!(_7);
+_15 = _12.2 &lt;&lt; _8;
+_16 = (-3256106608463376368_i64) as f64;
+_8 = RET &gt;&gt; _3;</code></pre>
+
+<p>The tool is also decently fast - on my laptop, I could achieve a fuzz rate of 1.7 files(each file of 10K+ lines) per second.</p>
+
+<p>So, in an hour, we could fuzz 61 million lines of code. If we throw this much things at the wall, something is bound to stick.</p>
+
+<p>And, we got a bug. In fact, we got quite a few bugs!</p>
+
+<h1 id='miniature_bugs.'>Miniature bugs.</h1>
+
+<p>So, we got a bug - now, all that remains is to fix it, right?!</p>
+
+<p>Well, hold your horses.</p>
+
+<p>We did not really find a bug - we found a 10K+ LOC file, with <em>some</em> code that triggers the bug in it.</p>
+
+<p>It is like finding a needle in a haystack - knowing that the needle is in <em>this</em> haystack does not help all that much.</p>
+
+<p>Ideally, we'd like a simple one-function file, containing a few lines of code, needed to trigger the bug.</p>
+
+<p>Getting such a smaller bug reproducer requires a process called minimization.</p>
+
+<h2 id='naive_approach'>Naive approach</h2>
+
+<p>The simplest, most brain-dead solution to this problem is to... try removing lines of code, and check if the bug is still present.</p>
+
+<pre><code class="language-rust">(*_1) = -RET;
+_1 = core::ptr::addr_of_mut!(_6);
+_4 = !_9;
+// Is this needed to trigger the bug?
+// _17.1 = core::ptr::addr_of_mut!(_7); 
+_15 = _12.2 &lt;&lt; _8;
+_16 = (-3256106608463376368_i64) as f64;
+_8 = RET &gt;&gt; _3;</code></pre>
+
+<p>This would not really work, for a couple of reasons.</p>
+
+<h2 id='ub'>UB</h2>
+
+<p>Remember when I said this:</p>
+
+<blockquote>
+<p>The code generated by <code>rustlantis</code> is also fully deterministic, and well define</p>
+</blockquote>
+
+<p>That is <em>true</em>. But... removing random lines of code can lead to non-determinism, or worse, UB.<br /></p>
+
+<p>Suppose we have code like this:</p>
+
+<pre><code class="language-c">int index = rand();
+index = index % sizeof(arr); // Ensure index within bounds!
+return arr[index];</code></pre>
+
+<p>This is perfectly fine, albeit odd, code.</p>
+
+<p>What happens when we comment out the second line?</p>
+
+<pre><code class="language-c">int index = rand();
+return arr[index];</code></pre>
+
+<p>Yeah... we are going to be reading out of bounds - which is UB in C. This program will compile, and LLVM and GCC will disagree about the result... but that does not mean the compilers are buggy - our code is.</p>
+
+<p>Now, some of you may say: hang on a minute, you can't trigger UB in safe Rust! The compiler won't let you do that!</p>
+
+<p>MIR is not safe Rust - in fact, it is not Rust at all. Remember, MIR is what the compiler <em>produces</em> after borrow checking, and a bunch of other checks.</p>
+
+<p>All MIR is, in a sense, implicitly unsafe. The compiler does not check it, because it is not supposed to be written by humans.</p>
+
+<p>So yeah, you can trigger UB in MIR, and you can do so with ease :(.</p>
+
+<p>This means that we need to <em>somehow</em> ensure our code contains no UB.</p>
+
+<h3 id='miri'>MIRI</h3>
+
+<p><a href='https://github.com/rust-lang/miri'>`miri`</a> is a handy little tool that can catch the <em>vast majority</em> of UB in any unsafe Rust code. As the name implies, it works with <code>MIR</code> - so we can use it to check if our changes introduce any UB.</p>
+
+<p>This should work out fine in most if not all cases... with some caveats.</p>
+
+<p><code>miri</code> is <em>slow</em>.</p>
+
+<h2 id='speed'>Speed</h2>
+
+<p>Running our sample, 10K+ program under MIR takes 3-4 seconds.</p>
+
+<p>So, checking every line in a our program will take at least 4s <em>10 000 = 40 000 s =</em><em>eleven hours</em><em>. Per</em>one<em>pass of a file. And we</em>do* need more than one.</p>
+
+<p>Consider this:</p>
+
+<pre><code class="language-rust">let _3:f32;
+_3 = 0.0;</code></pre>
+
+<p>We can't remove the variable declaration <code>_3</code> <em>until</em> we remove the assignment to it. So, to remove this, we'd need at least 2 passes.</p>
+
+<p>With code like this:</p>
+
+<pre><code class="language-rust">_1 = 0.0;
+_2 = _1 * 4.533;
+_3 = _2 + 1.05;
+_5 = _3 / _1;</code></pre>
+
+<p>We'd need to remove <code>_5</code>, then <code>_4</code>, then <code>_3</code>, then <code>_2</code>, and then <code>_1</code>. Ouch.</p>
+
+<p>Now, this process can be speed up by parallelizing some of those checks. But, even with 20 threads, all just running this naive reducer, this would still take a considerable amount of time.</p>
+
+<p>Not to mention the heat - I don't want a noisy space heater in the middle of summer.</p>
+
+<p>There are better ways to do this.</p>
+
+<h1 id='creduce'><code>creduce</code></h1>
+
+<p>Your first thought might be to use a tool like <code>creduce</code> - something designed to more smartly reduce compiler bug samples.</p>
+
+<p><code>creduce</code> does a pretty good job at this task - it is smart enough to remove multiple things at the same time. However, it struggles with some MIR syntax.</p>
+
+<p>I have seen it leave basic blocks like this:</p>
+
+<pre><code class="language-rust">// Unreachable block
+bb11 = {
+    Goto(bb12)
+}</code></pre>
+
+<p>While we can see that this block of code can be safely removed, <code>creduce</code> does not understand MIR syntax, so it can't really see that this is a basic block.</p>
+
+<p>In my experience, <code>creduce</code> reduces Rust code really well, but struggles with more convoluted MIR.</p>
+
+<p>Could we exploit our knowledge of MIR syntax to speed this process up?</p>
+
+<h1 id='smarter_reduction'>Smarter reduction</h1>
+
+<p>The first question we ought to ask ourselves is: what is the most expensive part of our MIR samples?</p>
+
+<p>Usually, it is the call to the function <code>dump_var</code>. This function is responsible for checking for differences between LLVM and GCC executions.</p>
+
+<p>This function either hashes it's arguments, or prints them as strings.</p>
+
+<pre><code class="language-rust">#[inline(never)]
+fn dump_var(
+    f: usize,
+    var0: usize, val0: impl Debug,
+    var1: usize, val1: impl Debug,
+    var2: usize, val2: impl Debug,
+    var3: usize, val3: impl Debug,
+) {
+    println!(&quot;fn{f}:_{var0} = {val0:?}\n_{var1} = {val1:?}\n_{var2} = {val2:?}\n_{var3} = {val3:?}&quot;);
+}</code></pre>
+
+<p>So, it tends to be expensive.</p>
+
+<p>Most calls to <code>dump_var</code> are not needed: we are interested only in the call that prints the problematic value.</p>
+
+<pre><code class="language-rust">dump_var(fn_id, var_id, buggy_var, ...); // Keep this
+dump_var(fn_id, var_id, ok_var, ...); // Discard this</code></pre>
+
+<p>So, we can first try removing all the calls to <code>dump_var</code>, and only keep the one call we need. This alone shaved a second or two off my execution time.</p>
+
+<p>But... we can do better.</p>
+
+<h2 id='removing_function_calls'>Removing function calls</h2>
+
+<p>Suppose we have some code like this:</p>
+
+<pre><code class="language-rust">let bug_var = buggy_fn(); // Triggers a compiler bug, and behaves incorrectly under GCC.
+let ok_var = ok_fn();
+dump_var(fn_id, var_id, buggy_var, ...); </code></pre>
+
+<p>The call to <code>ok_fn</code> is not needed to trigger this bug. Ideally, we'd like to remove this call: it only clutters the code, and wastes CPU cycles.</p>
+
+<p>Since function can execute a lot of code, and call other functions, removing function calls ought to be our priority.</p>
+
+<p>A function call in MIR looks something like this:</p>
+
+<pre><code class="language-rust">Call(_88 = fn19(_31), ReturnTo(bb32), UnwindUnreachable())</code></pre>
+
+<p>Here, we call <code>f19</code> with <code>_31</code> as it's only argument, and then we jump to the basic block(part of the function) <code>bb32</code>.</p>
+
+<p>What is interesting about this is that we can remove function calls in a way that is very unlikely to cause UB.</p>
+
+<p>You see, when <code>rustlantis</code> generates function calls, it ensures that the function arguments are all initialized.</p>
+
+<p>So, we know  <code>rustlantis</code> won't generate a function like this:</p>
+
+<pre><code class="language-rust">fn init_arg(arg:*mut u32){
+    // This is needed - otherwise, we have UB. 
+    *arg = 0;
+}</code></pre>
+
+<p>This means that replacing a function call with an assignment and a jump will not introduce UB into the program we are minimizing.</p>
+
+<pre><code class="language-rust">_88 = 0;
+Goto(bb32)</code></pre>
+
+<p>After this transformation, we have a slightly different, but still well defined program.</p>
+
+<p>If this program still has the bug we are looking for, we can start minimizing that simpler piece of code instead.</p>
+
+<p>This allows us to remove a lot of code quickly, speeding testing with <code>miri</code> noticeably.</p>
+
+<h2 id='removing_functions'>Removing functions</h2>
+
+<p>After this step, we know that we are very likely to have some dead code. So, as a next pass, I automatically try to remove each function present in the program.</p>
+
+<p>This tends to very quickly simplify the program by a lot.</p>
+
+<pre><code class="language-rust">// We have removed the only call to `fn19` - it is no longer needed :(.
+fn fn19(arg:u32)-&gt;u32{
+    /**/
+}</code></pre>
+
+<h2 id='abusing_matches'>Abusing matches</h2>
+
+<p>If you dig into the <code>rustlantis</code> paper, and the source code of that tool, you might discover some interesting things.</p>
+
+<p>Despite inserting things like <code>matches</code> and <code>Goto</code>s... the code generated by <code>rustlantis</code> does not actually <em>branch</em> all that much. In reality, most of those are &quot;decoys&quot; - things <code>rustlantis</code> know will never be executed, but compiler may not know about that. They are there mostly to just confuse the hell out of the compiler, hoping to trip it up, and trigger a bug/</p>
+
+<p>We can abuse some of the facts about how rustlantis generates code. In a match, the generated code will almost always jump to the second-last arm... in the absence of compiler bugs, that is.</p>
+
+<pre><code class="language-rust">// This is **NOT** a Rust match - MIR matches jump to the block selected by the arm!
+match _56.3 {
+0 =&gt; bb20, // Will never jump to bb20
+1 =&gt; bb33, // Will never jump to bb33
+2 =&gt; bb34, // Will never jump to bb34 
+3035215634051155254 =&gt; bb36, // Always jumps to bb36
+_ =&gt; bb35, // Never jumps to bb35.
+}</code></pre>
+
+<p>With this, we know that we could replace this whole match with just <code>Goto(bb36)</code> - and the behavior of our program should not change.</p>
+
+<p>Of course, sometimes those &quot;&quot;decoy&quot; arms are needed to confuse the compiler, so we still need to check if our simplified reproducer still triggers the bug.</p>
+
+<p>Even then, this transformation makes the code much simpler, and easier to read for humans. It also opens the way to some more simplification</p>
+
+<h2 id='killing_blocks'>Killing blocks</h2>
+
+<p>Now, we know that a lot of blocks in our program are unreachable. They may still be needed(eg. they form a decoy branch needed to confuse the compiler), but they are effectively dead code.</p>
+
+<p>We can replace those blocks with calls to <code>abort</code>. Since the program can only jump to a start of a basic block, we can replace an entire dead block with just one call to <code>abort</code>.</p>
+
+<pre><code class="language-rust">bb19 = {
+_24 = -(-7024724093558139643_i64);
+(*_12) = core::ptr::addr_of!((*_18));
+(*_15) = 78913118762850115972924188634687843923_i128 as u128;
+_34 = (*_15) == (*_18);
+_32 = _23 as isize;
+/* Hundreds of lines of code*/
+(*_18) = _10 as u128;
+(*_18) = 21367986460140776094219671356767834567_u128;
+_38 = _5 as isize;
+Goto(bb13)  
+}</code></pre>
+
+<p>We can turn the example above into just this:</p>
+
+<pre><code class="language-rust">bb19 = {
+    Call(core::intrinsics::abort(), NeverReturn, UnwindUnreachable())
+}</code></pre>
+
+<p>Now, besides simplifying the code in question, this also makes it very clear to a human that this is dead code.</p>
+
+<p>So, when I look over the bug reproducer, I can very easily tell what is real code, and what is just there to confuse the compiler.</p>
+
+<h2 id='removing_blocks'>Removing blocks</h2>
+
+<p>After I replaced most of the basic blocks with <code>abort</code>s, I then try to remove as many of them as possible.</p>
+
+<p>Why does this step take place after replacing the block with <code>abort</code>?</p>
+
+<p>Consider loops:</p>
+
+<pre><code class="language-rust">bb1 = {
+    Goto(bb2)
+}
+bb2 = {
+    Goto(bb1)
+}</code></pre>
+
+<p>I can't remove any of those blocks now, because that would make the program invalid(we would remove the target of a jump).</p>
+
+<p>However, if we first replace the blocks with <code>abort</code>, the problem disappears, and we can easily try removing them from the program.</p>
+
+<pre><code class="language-rust">bb1 = {
+    Call(core::intrinsics::abort(), NeverReturn, UnwindUnreachable())
+}
+bb2 = {
+    Call(core::intrinsics::abort(), NeverReturn, UnwindUnreachable())
+}</code></pre>
+
+<p>Removing most if not all basic blocks from a program allows us to perform even more simplifications.</p>
+
+<h2 id='linearizing_the_control_flow'>Linearizing the control flow</h2>
+
+<p>Suppose we have a snippet of MIR like this:</p>
+
+<pre><code class="language-rust">bb1 = {
+    (*_18) = 21367986460140776094219671356767834567_u128;
+    _38 = _5 as isize;
+    /* Hundreds of lines of code*/
+    _34 = (*_15) == (*_18);
+    Goto(bb2)
+}
+bb2 = {
+    /* Hundreds of lines of code*/
+    _32 = _23 as isize;
+    Goto(bb3)
+}</code></pre>
+
+<p>You can quite clearly see that, in this case, we could replace those 2 blocks with 1, big block:</p>
+
+<pre><code class="language-rust">bb1 = {
+    (*_18) = 21367986460140776094219671356767834567_u128;
+    _38 = _5 as isize;
+    /* Hundreds of lines of code*/
+    _34 = (*_15) == (*_18);
+    /* Hundreds of lines of code*/
+    _32 = _23 as isize;
+    Goto(bb3)
+}</code></pre>
+
+<p>So, this is also something my minimizer attempts to do. We try to &quot;linearize&quot; the control flow(remove any jumps), and see if the new program is UB-free, and still triggers the compiler bug.</p>
+
+<p>If all goes well, and the bug is relatively simple, at the very end, we are left off with a bunch of simple, one-block functions.</p>
+
+<pre><code class="language-rust">bb1 = {
+    (*_18) = 21367986460140776094219671356767834567_u128;
+    _38 = _5 as isize;
+    /* Hundreds of lines of code*/
+    _34 = (*_15) == (*_18);
+    /* Hundreds of lines of code*/
+    _32 = _23 as isize;
+    /* Hundreds of lines of code*/
+    Return()
+}</code></pre>
+
+<p>By this point, the sample is usually 10-30% of its original size. That is enough for humans to start their work.</p>
+
+<h1 id='unsafe_rust'>Unsafe Rust</h1>
+
+<p>While fuzzing directly on <code>MIR</code> is great, it is not exactly the ideal form of bug reproducers. The macros I used to build this <strong>COMPILER INTERNAL</strong> IR are really meant for developers, and are not pleasant to use.</p>
+
+<p>Ideally, we'd like to trigger this compiler bug from safe Rust: then, we would not need to run <code>miri</code> to check for UB at all.</p>
+
+<p>Still, you may wonder: why not run <code>creduce</code> at this point? It is a tool designed to reduce bugs, and, at this point, the <code>miri</code> execution is fast enough for this to not be a huge problem.</p>
+
+<p>Well, the problem with dealing with compiler-internal macros is that nothing is designed to handle them. Including <code>rustfmt</code>(the Rust formatter).</p>
+
+<p><code>creduce</code>, for some reason, really likes to remove a lot of new lines from the sample, &quot;reducing&quot; it to a single line of code... that I can't format.</p>
+
+<p>That is not a very pleasant experience.</p>
+
+<p>You know what <code>rustfmt</code> is designed to format? Rust code :). So, the next logical step is to take one of those simpler files, and start turning MIR back into <code>Rust</code>.</p>
+
+<h2 id='enums'>Enums</h2>
+
+<p>The very first manual step I take is removing all the enums from the file I am operating on.</p>
+
+<p>Why? Since <code>MIR</code> <em>is not</em> Rust, it can do some cursed things that are impossible to reproduce in even unsafe Rust.</p>
+
+<p>What does this bit of code do?</p>
+
+<pre><code class="language-rust">Field::&lt;u16&gt;(Variant(_37, 1), 2) = 8;</code></pre>
+
+<p>Well, of course, it assigns the value <code>8</code> of type <code>u16</code> to the <code>2</code>nd field of the variant <code>1</code> of an enum.</p>
+
+<p>To people familiar with Rust, this immedeielty rings a bell as something impossible.</p>
+
+<p>You can't do something like this:</p>
+
+<pre><code class="language-rust">result.Err.0 = &quot;Hello :)&quot;. // WTF?</code></pre>
+
+<p>Enums have variants, and you have to match on those variants to access their contents.</p>
+
+<p>In MIR, this is, however, kind of allowed, and relatively common.</p>
+
+<p>The cursed ability to access the fields any enum variant(even the non-active one!) is needed for coroutines, which share some of their handling with enums.</p>
+
+<p>Since <code>rustlantis</code> tries very hard to find all manner of compiler bugs, it also tests this code.</p>
+
+<p>However, since this is something not present in surface Rust, we have to find workarounds. In most cases, I managed to either:</p>
+
+<ol type="1">
+<li>Remove all but one enum variant, leaving me with what is effectively a struct.</li>
+
+<li>Replace the enum with an <code>union</code>.</li>
+</ol>
+
+<p>Thankfully, after this, things start to get a bit better.</p>
+
+<h2 id='replicating_cursed_control_flow.'>Replicating cursed control flow.</h2>
+
+<p>Let us go back to one of the first examples I showed you:</p>
+
+<pre><code class="language-rust">loop {
+    match arg {
+        0 =&gt; return 0,
+        1 =&gt; fn3(adt1.a, adt1),
+        _ =&gt; return 0,
+    }
+    match arg {
+        1 =&gt; return 0,
+        _ =&gt; continue,
+    }
+}</code></pre>
+
+<p>Just for a second, focus on the control flow in this sample. Think about how it would look, expressed in just <code>goto</code>s and <code>matches</code>(or <code>C</code> switches).</p>
+
+<pre><code class="language-rust">loop_head = {
+    match arg{
+        0 =&gt; ret0
+        1 =&gt; call3,
+        _=&gt; other_ret0
+    }
+}
+ret0 = {
+    RET = 0;
+    Return()
+}
+other_ret0 = {
+    RET = 0;
+    Return()
+}
+call3 = {
+    Call(fn3(adt1.a,adt1), ReturnTo(other_match), UnwindUnreachable())
+}
+other_match = {
+    match arg {
+        1 =&gt; another_ret0,
+        _=&gt;loop_head,
+    }
+}
+another_ret = {
+    RET = 0;
+    Return()
+}</code></pre>
+
+<p>Can you see what is going on? It is probably hard, is it not? Even with helpful block names, this is still a slog. Now, imagine there is no names(just numbers), the order is scrambled, and each block has a bunch of BS in it.<br /></p>
+
+<p>Thankfully, there are ways around this.</p>
+
+<h2 id='poor_man's_goto'>Poor man's goto</h2>
+
+<p>Gotos going back can be replaced with... labeled loops.</p>
+
+<pre><code class="language-rust">'bb1: loop {
+    // Goto in Rust :)
+    if num == arg {
+        continue 'bb1;
+    }
+    do_sth();
+    'bb2: loop{
+        // Goto bb1
+        if num2 == arg {
+            continue 'bb1;
+        }
+        // Goto bb2
+        if num3 == arg{
+            continue 'bb2;
+        }
+        do_sth_else();
+    }
+}</code></pre>
+
+<p>This is kind of cursed, but it is more or less how I converted the original MIR into unsafe Rust. Now, you can probably see why I spent so much time removing this kind of branching automatically :).</p>
+
+<h1 id='safe_rust'>Safe Rust</h1>
+
+<p>Going from <code>unsafe</code> Rust to safe Rust is still annoying, but it is much more <em>bearable</em>.</p>
+
+<p>The main problem here is that, on MIR level, lifetimes or borrows don't exist(kind of). So, there are perfectly sound things that you can't do in safe Rust, that I needed to replicate.</p>
+
+<p>Now, most of those things were <em>useless</em>, but they nonthelles tested parts of the actual language.</p>
+
+<pre><code>// TODO: neat sample here</code></pre>
+
+<p>At this point, I was usually left with a couple of hundreds of lines of safe Rust. And here, I could let <code>creduce</code> shine.</p>
+
+<p>Remember, since we are in safe Rust, we don't need to worry about UB. If a transformation is incorrect, it will not compile. So, I could ditch <code>mriri</code>, and get some simpler bug samples.</p>
+
+<h1 id='a_floating(point)_bug'>A floating(point) bug</h1>
+
+<p>After a lot of finagling, I ended up with this curious thing:</p>
+
+<pre><code class="language-rust">fn main() {
+    let mut _4 = 2623078656.0;
+    _4 = _4 * _4 * _4;
+    let val = -(_4 * _4) * _4 * (_4);
+    let inf: f32 = val * val;
+    let int = inf as u64;
+    println!(&quot;{inf:?} {:x} {int:?}&quot;, inf.to_bits());
+}</code></pre>
+
+<p>According to GCC in debug(and LLVM), the result of this operation are as follows:</p>
+
+<pre><code>inf 7f800000 18446744073709551615</code></pre>
+
+<p>So... the number is infinity, with the float pattern being indeed infinity, and the result of casting this as an int is 2^64-1.</p>
+
+<p>That is correct - in Rust, float to int casts are saturating. That means that they try to return the closest integer value, if the float is out of range.</p>
+
+<p>So, <code>55.0 as u8</code> is <code>55</code>, but <code>-1.0 as u8</code> is <code>0</code>, and <code>300.0 as u8</code> is 255 - the closest number we could get.</p>
+
+<p>The biggest integer is closest we will ever get to infinity, so this is correct.</p>
+
+<p>However, as soon as we turn the optimizations on... the result changes:</p>
+
+<pre><code>inf 7f800000 0</code></pre>
+
+<p>Huh? How is infinity the closest number to 0?</p>
+
+<p>Now, at this point, I went on an entirely wrong path, trying to change the way we do float-to-int casts on the Rust side.</p>
+
+<p>Since those casts are UB in C, I assumed we just did something wrong, and that is the source of our problem. The semantics of GIMPLE(GCC's IR) are a bit nebulous, but, since GCC compiles C well, if we follow the rules of C, we should be golden, right?</p>
+
+<p>I will not bore you with the detail, but I spent some time changing the order of some ops to be 100% C compliant. And that did nothing.</p>
+
+<p>Somehow, someway, our range checks would get optimized away.</p>
+
+<h2 id='infinity_is_less_than_0.'>Infinity is less than 0.</h2>
+
+<p>I converted our code to C, only to see.. it still misbehave? Even tough it was clearly standard-compliant?</p>
+
+<p>So, I decided to just return the value of our check and... What?</p>
+
+<pre><code class="language-c">#include &lt;stdbool.h&gt;
+#include &lt;stdio.h&gt;
+bool womky(void) {
+  float val = 3.4028234663852885981170418348451692544e+38;
+  float a = val * -(val * val);
+  float b = val * a;
+  return b * b &gt; 0.0;
+}
+int main(void) { printf(&quot;%d&quot;, womky()); }</code></pre>
+
+<pre><code>// -O0:
+1
+// -O2
+0</code></pre>
+
+<p>Now, at this point, I was very, very confused. I know GCC has some pitfall-y float optimizations, but those are enabled with <code>-Ofast</code>. I am on <code>-O2</code>. So... what gives?</p>
+
+<p>If I obtain infinity any other way, this program will print <code>1</code>. If I print the bit-pattern of the float, I can see it is <strong>positive infinity</strong>. And yet, somehow... it is less than 0?</p>
+
+<p>This lead to a lot of consternation and trying to figure out what is going on. Until somebody pointed out that... <a href='https://gcc.godbolt.org/z/4j66dWz6s'>GCC thinks the number can only be</a> <code>NaN</code>.</p>
+
+<pre><code>Global Exported: a_4 = [frange] float [+Inf, +Inf] +-NAN
+Global Exported: b_5 = [frange] float [] +-NAN
+Global Exported: _3 = [frange] float [] +-NAN</code></pre>
+
+<p>Something seems to be wrong there... although I am not 100% sure. Right now, I am kind of going over the C standard, and trying to figure out if this is some kind of UB or rule I have never heard about.</p>
+
+<p>Still... seems like a <em>potential</em> GCC bug. I guess that is a neat find :).</p>
+
+<p>I have a few like this, but I have not been able to convert them to C <em>so far</em>.  This is something I'd like to do before I go over and nag the GCC devs. I don't want for it to end up being <em>our</em> bug.</p>
+
+<h1 id='abi_fuzzing.'>ABI fuzzing.</h1>
+
+<p>TODO: ABI CAFE GOES HERE :)</p>
+</div><script src="https://giscus.app/client.js"
+        data-repo="FractalFir/FractalFir.github.io"
+        data-repo-id="R_kgDOJ_iWYA"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOJ_iWYM4CiwXV"
+        data-mapping="pathname"
+        data-strict="1"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async></script></div></body></html>
