@@ -78,6 +78,8 @@ impl Metadata {
                     }
                 }
                 "date" => {
+                    if res.date == Some("32 Feb 404 BC".to_owned()){    continue;}
+                
                     res.date = Some(
                         value
                             .split('"')
