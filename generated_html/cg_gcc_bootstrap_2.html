@@ -77,9 +77,9 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
             <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Building the Rust compiler with GCC - stack overflows, memory leaks.</h1><br><small><div class = "article_metadata">Published on 32 Feb 404 BC<br><i>12 - 21 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>In my previous article, I talked about some of my work on fixing the bugs within the <code>GCC</code> based Rust compiler backed.</p>
+        </nav></div><div class = "article_header"><h1 class="title">Building the Rust compiler with GCC - stack overflows, memory leaks.</h1><br><small><div class = "article_metadata">Published on 32 Feb 404 BC<br><i>21 - 35 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>In my previous article, I talked about some of my work on fixing the bugs within the <code>GCC</code> based Rust compiler backed.</p>
 
-<p><code>rustc_codegen_gcc</code> is, in layman's term, nothing more than a Rust compiler plug-in, allowing use to use GCC instead of LLVM.</p>
+<p><code>rustc_codegen_gcc</code> is, in layman's term, nothing more than a Rust compiler plug-in, allowing us to use GCC instead of LLVM.</p>
 
 <p>There is nothing more important for a compiler than <em>correctness</em>. An buggy, non-standard compiler is nothing short of a nightmare. Imagine a world in which a correct program proudly proclaims that infinity is less than 0. What a nightmare!</p>
 
@@ -767,11 +767,417 @@ Global Exported: _3 = [frange] float [] +-NAN</code></pre>
 
 <p>Still... seems like a <em>potential</em> GCC bug. I guess that is a neat find :).</p>
 
-<p>I have a few like this, but I have not been able to convert them to C <em>so far</em>.  This is something I'd like to do before I go over and nag the GCC devs. I don't want for it to end up being <em>our</em> bug.</p>
+<p>I have a few more bugs like this, but I have not been able to reproduce them to C <em>so far</em>.<br /></p>
 
-<h1 id='abi_fuzzing.'>ABI fuzzing.</h1>
+<p>Reproducing the bug in C is an important step - it shows that the problem is, indeed, on the GCC side.</p>
 
-<p>TODO: ABI CAFE GOES HERE :)</p>
+<h2 id='integrating_the_fuzzer'>Integrating the fuzzer</h2>
+
+<p>Anyway - as you can see, fuzzing the compiler is very valuable. Besides discovering bugs, it also should raise the confidence of users of our backend.</p>
+
+<p>This is why I worked on integrating this entire process with the build / test system of <code>cg_gcc</code>.</p>
+
+<p>Fuzzing the project is now as easy as typing:</p>
+
+<pre><code class="language-sh">./y.sh fuzz --start=start_seed --count=iter_count</code></pre>
+
+<p>This will spawn multiple fuzzing thread. As soon as we find a bug, that thread will start working on reducing the bug sample as much as possible.</p>
+
+<p>With this, I am able to just leave the fuzzer running overnight, and find some fresh bugs to fix.</p>
+
+<p>But... fuzzing is not the be all and end all of compiler testing.</p>
+
+<h1 id='abi_tests'>ABI tests</h1>
+
+<p>Imagine this: you have 2 compilers: <code>Alice</code> and <code>Bob</code>.</p>
+
+<p>Code compiled with <code>Alice</code> works fine in isolation - and so does code compiled with <code>Bob</code>.</p>
+
+<p>However, as soon as you mix those two together, bad things begin to happen. Functions return nonsense values, and you program crashes in the weirdest of places.</p>
+
+<pre><code class="language-rust">// Compiled by `Alice`
+fn print_four(val:u64){
+    println!(&quot;2 *2 is: {val}&quot;)
+}
+// Compiled by `Bob`
+let four = 2 + 2;
+assert_eq!(four, 4);
+print_four(four);</code></pre>
+
+<pre><code>2 *2 is: 494845249282442424</code></pre>
+
+<p>This sort of nightmarish issue can be caused by ABI bugs.</p>
+
+<h2 id='what_is_an_abi?'>What is an ABI?</h2>
+
+<p>An ABI is, in the simplest of terms, just the way data is passed between functions.</p>
+
+<p>We agree that, on x86_64 Linux, the first function argument is passed in <code>rdi</code>.</p>
+
+<p>So, the caller of our function may do something like this:</p>
+
+<pre><code class="language-x86_64">    mov rdi, 4
+    call print_four</code></pre>
+
+<p>And the function can then read that variable from the register <code>rdi</code></p>
+
+<pre><code class="language-x86_64">    do_sth rdi ; Use `val` as the parameter to some instruction.</code></pre>
+
+<p>But... what would happen if the compiler <code>Alice</code> decided to put the first argument in <code>rax</code>, instead?</p>
+
+<pre><code class="language-x86_64">    mov rax, 4
+    call print_four</code></pre>
+
+<p>Now, instead of reading <code>4</code>, we read garbage.</p>
+
+<pre><code class="language-x86_64">    do_sth rdi ; Oh no! We read garbage :(</code></pre>
+
+<p>When <code>Alice</code> and <code>Bob</code> disagree on the ABI, chaos ensues.</p>
+
+<p>Now, you may think this is not a very common scenario - but it is surprisingly important.</p>
+
+<h2 id='the_rust_abi_is_real!'>THE RUST ABI IS REAL!</h2>
+
+<p>Your very first thought might be: well, rust does not have a stable ABI, does it?</p>
+
+<p>So, who the hell cares if 2 compilers disagree on how something <em>unspecified</em> is implemented?</p>
+
+<p>For better or for worse, the Rust ABI is real and can hurt you.</p>
+
+<p>While you can't mix Rust code compiled with different compiler <em>versions</em>, you can safely mix code compiled with the same compiler version.</p>
+
+<p>If that did not work, you could not compile any code at all.</p>
+
+<p>You can also mix different compiler <em>backends</em>. People do this all the time: compile heavy dependencies with LLVM, and drop down to cranelift on things they often change.</p>
+
+<p>This allows you to have most of your code run fast, while keeping iteration speed(<code>cranelift</code> is very fast at producing slightly slower code).</p>
+
+<p>This is also something we should allow with GCC.</p>
+
+<h2 id='mixing_llvm_and_gcc'>Mixing LLVM and GCC</h2>
+
+<p>Now, you may ask: why would I ever mix LLVM and GCC-compiled code?</p>
+
+<p>In some cases, GCC can produce code faster than LLVM. Even without much optimizations on our side, we can already see GCC win in a few Rust benchmarks.</p>
+
+<p>So, if we actually bothered to try to be fast, <code>cg_gcc</code> could produce better code in more scenarios.</p>
+
+<p>If you could freely pick-and-choose between GCC and LLVM for each dependency you have, you could squeeze a tiny bit more performance out of your code.</p>
+
+<p>There are some other uses for mixing LLVM and GCC compiled Rust code. By default, the Rust compiler ships with an LLVM-compiled standard library.</p>
+
+<p>If GCC and LLVM could not mix, you'd have to download a separate standard library for GCC and LLVM work. That is... not pleasant.</p>
+
+<p>The Rust team would also have to build &amp; distribute those 2 different versions. This is <em>not a cheap process</em>.</p>
+
+<p>In order to save on bandwidth costs, the Rust binaries go trough a very lengthy compression process, which usually takes hours to finish.</p>
+
+<p>We don't want to have to duplicate that.</p>
+
+<h2 id='the_c_abi'>The C ABI</h2>
+
+<p>Ignoring all of the points above, there is one more reason to test if our ABI is compatible: C.</p>
+
+<pre><code class="language-rust">pub fn open(path: *const c_char, oflag: c_int, ...) -&gt; c_int;</code></pre>
+
+<p>We can't live forever in our little Rust bubble. Sometimes... you just have to talk to C.</p>
+
+<p>Now, on Linux, we could just do raw syscalls(talk directly to the OS) - that interface is rock-solid.</p>
+
+<p>On Windows, however, you <strong>HAVE</strong> to use C libraries to talk to the OS. Peroid.</p>
+
+<p>Syscall numbers are not stable at all. They can(and do!) change at any point - even with a version bump.</p>
+
+<p>Take <a href='https://j00ru.vexillium.org/syscalls/nt/64/'>a look at this table.</a></p>
+
+<p>In the first release of Win 11, <code>NtListenPort</code> had the syscall index <code>0x0109</code>. However, in <code>11 21H2</code>, it had the id <code>0x010b</code>.</p>
+
+<p>So, if Rust tried never use the system C library(and used syscalls instead), our attempt to listen to a port could call <code>NtIsUILanguageComitted</code> instead. Not nice.</p>
+
+<p>This means that we <strong>need</strong> to talk to C, and implement the C abi <em>correctly</em>. Otherwise... we might see some fun bug reports :).</p>
+
+<h2 id='checking_for_abi_correctness'>Checking for ABI correctness</h2>
+
+<p>So... how can we check that our implementation of <em>any</em> ABI is correct?</p>
+
+<p>I mean... we <em>could</em> read the ABI spec(TODO: link here), read the Rust ABI handling code, and the assembly we generate - checking that all of that is correct.</p>
+
+<p>That is, however, boring. And not very idiot-proof - which is important, since I am an idiot.</p>
+
+<p>It is very easy to miss some odd corner case this way. Humans are squishy and good at missing things.</p>
+
+<p>Ideally, we'd automate this process. Throw a whole bunch of function signatures at the problem, and see if something went wrong,</p>
+
+<p>Good news - there is a tool for that!</p>
+
+<h2 id='the_abi_cafe.'>The ABI cafe.</h2>
+
+<p>ABI-cafe(TODO: repo link here) can automatically generate ABI tests in Rust, and in C. Given a set of compilers, it will create a set of tests where each those compilers will attempt to call each other.<br /></p>
+
+<pre><code class="language-rust">// Compiled by Alice
+fn return_struct(field_a: u32, field_b:f32, /* and so on */)-&gt;MyStruct{
+    /**/
+}
+// Compiled by Bob
+fn test_return_struct(){
+    assert_eq!(return_struct(1, 3.0, /* and so on */), MyStruct{field_a:1, field_b:3.0, /* */});
+}</code></pre>
+
+<p>The same test can also be applied to check for compatibility between Rust and C:</p>
+
+<pre><code class="language-c">// Compiled by C compiler Alice
+struct MyStruct return_struct(uint32_t field_a, float field_b, /* */){
+    /* */
+}</code></pre>
+
+<pre><code class="language-rust">// Compiled by Rust compiler Bob
+fn test_return_struct(){
+    assert_eq!(return_struct(1, 3.0, /* and so on */), MyStruct{field_a:1, field_b:3.0, /* */});
+}</code></pre>
+
+<p>It even found <a href='https://faultlore.com/blah/abi-puns/'>some C compiler bugs</a>. The tool is a bit more advanced than what I have shown here, so I highly recommend you <a href='https://faultlore.com/blah/abi-puns/'>read up on how it works under the hood.</a></p>
+
+<p>What is important is that:</p>
+
+<ol type="1">
+<li>This tool can test a lot of compiler combos</li>
+
+<li>The test suite is pretty extensive, checking all sort of odd corner cases.</li>
+</ol>
+
+<p>In our case, this is all the important.</p>
+
+<h1 id='abi_bugs_on_existing_platforms'>ABI Bugs on existing platforms</h1>
+
+<p>Since integrating <code>abi-cafe</code> with our test system(you can run it via <code>y.sh abi-test</code>), I have discovered <em>a lot</em> of bugs. Small ones, big ones. Runtime errors, compiler errors - even compiler crashes.</p>
+
+<p>Most of them are corner-cases you'd never think about, so catching them is <em>great</em>.</p>
+
+<p>Some of them are a bit more worrying, and harder to fix.</p>
+
+<h2 id='proc-macro_crash'>Proc-macro crash</h2>
+
+<p>This particular issue is actually the reason I bothered with integrating <code>abi-cafe</code> into our tests.</p>
+
+<p>When trying to build the Rust compiler on ARM(using GCC), we'd get this odd error:</p>
+
+<pre><code>thread '&lt;unnamed&gt;' panicked at sysroot_src/library/core/src/panicking.rs:226:5:
+unsafe precondition(s) violated: slice::from_raw_parts requires the pointer to be aligned and non-null, and the total size of the slice not to exceed `isize::MAX`
+
+This indicates a bug in the program. This Undefined Behavior check is optional, and cannot be relied on for safety.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+  ...
+  13: proc_macro::bridge::client::run_client
+  ...
+  23: rustc_interface::interface::run_compiler::&lt;(), rustc_driver_impl::run_compiler::{closure#0}&gt;::{closure#1}
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.</code></pre>
+
+<p>We <em>seem</em> to trip UB checks... in the <em>Rust compiler</em>. That is not good. Not good at all.</p>
+
+<p>But... hang on a minute - at that point, I haven't yet build a Rust compiler using GCC. That is what I was <em>trying</em> to do. So... this crash is in LLVM-compiled code?</p>
+
+<p>GDB seems to think so(saying that those functions come from <code>librustc-driver.so</code>) - but that does not make much sense. LLVM is <em>known</em> to work on this platform. It is extensively tested here.</p>
+
+<p>I am running this code on the Rust remote desktops(TODO: link here) - where a whole lot of Rust compiler devs work on <code>rustc</code> each day. How would nobody notice this?</p>
+
+<p>Seems suspicious.</p>
+
+<p>We are crashing when interacting with a <code>proc-macro</code> - maybe that is related?</p>
+
+<h2 id='proc-macros,_ipc,_and_reality'>Proc-macros, IPC, and reality</h2>
+
+<p>Now, at first I have <em>tought</em> that crashing the compiler with a <code>proc-macro</code> would be impossible. I <em>vaguely</em> remembered the proc-macro RFC(TODO: link here) saying <em>something</em> about using IPC, and spawning an isolated, sandboxed thread.</p>
+
+<p>In such a case, causing a compiler crash ought to be impossible - even if the shared library(<code>.so</code>, or <code>.dll</code>) was broken. At worst, we should fail some parse check, and just... not continue on.</p>
+
+<p>We <em>certainly</em>  should not crash the compiler.</p>
+
+<p>Well, I was mistaken. The RFC does indeed mention using IPC for proc-macros, and talks about preventing compiler crashes.</p>
+
+<blockquote>
+<p>Currently, procedural macros are <strong>dynamically linked</strong> with the compiler. An <strong>alternative architecture</strong> would have procedural macros compiled as independent programs and have them communicate with the compiler via IPC. This would have the advantage of allowing static linking for the compiler and would prevent procedural macros from <strong>crashing the main compiler process</strong>.</p>
+</blockquote>
+
+<p>So yeah... the RFC did say <em>some</em> of the things I mentioned... but it also said doing things this way is not the current plan.</p>
+
+<p>proc-macros are far more cursed than you'd think. They can do pretty much whatever they want to the compiler - including <em>forking</em> it.</p>
+
+<p><a href='https://github.com/m-ou-se/whichever-compiles/tree/main'>whichever-compiles</a> is a Rust proc-macro that forks(spawns copies of) the compiler, until it finds a bit of syntax that successfully compiles.</p>
+
+<pre><code class="language-rust">whichever_compiles! {
+    try { thisfunctiondoesntexist(); }
+    try { invalid syntax 1 2 3 }
+    try { println!(&quot;missing arg: {}&quot;); }
+    try { println!(&quot;hello {}&quot;, world()); }
+    try { 1 + 2 }
+}</code></pre>
+
+<pre><code>$ cargo run
+hello world</code></pre>
+
+<p>So yeah... thanks to the Rust folks for showing me this. Rust proc-macros are something else.</p>
+
+<h2 id='abi_bug'>ABI bug</h2>
+
+<p>After a lot of digging, I finally found the real cause of this problem.</p>
+
+<p>You see, while the Rust compiler I used was indeed compiled with <em>LLVM</em>, the proc-macro in question was compiled with GCC.</p>
+
+<p>The proc-macro boundary looks something like this:</p>
+
+<pre><code class="language-rust">extern &quot;C&quot; fn proc_macro(brigde:BufferConfig)-&gt;Buffer;</code></pre>
+
+<p>Now - both of those types have a stable, known layout. Still, somehow, GCC-compiled code would receive a garbage <code>BufferConfig</code>, detect that and crash. Odd.</p>
+
+<p>And the issue only occurs on <em>Arm64</em> CPUs. Not on <code>x86_64</code>.</p>
+
+<p>This may surprise you, but the reason we recive invalid arguments on ARM is related to... the way we return structs from functions.</p>
+
+<h3 id='x86_64'>x86_64</h3>
+
+<p>Calling conventions are a hell of a mess. The rules about returning a structs are a bit complex, but, in this case, the struct is big enough to be returned <em>indirectly</em>.</p>
+
+<p>What does that mean? Well, we don't have enough registers to cram that structure into them. So, instead, we pass it via a hidden pointer.</p>
+
+<p>On x86_64(and most other architectures), this signature:</p>
+
+<pre><code class="language-rust">extern &quot;C&quot; fn proc_macro(brigde:BufferConfig)-&gt;Buffer;</code></pre>
+
+<p>Gets turned into something like this:</p>
+
+<pre><code class="language-rust">extern &quot;C&quot; fn proc_macro(out: *mut Buffer, brigde:BufferConfig);</code></pre>
+
+<p>So, we receive a pointer to a stack-allocated buffer, into which we ought to write our return value.</p>
+
+<p>This pointer is passed to us the exact same way our first argument is: in <code>edi</code>. So far, so good.</p>
+
+<p>ARM, however, decided to be a bit different.</p>
+
+<h3 id='indirect_result_location_register'>Indirect Result Location Register</h3>
+
+<p>On ARM, structs are returned in a <em>similar</em> way, with one key difference. As per the <a href='https://developer.arm.com/documentation/102374/0102/Procedure-Call-Standard'>ARM website</a>:</p>
+
+<blockquote>
+<p>XR - This is an indirect result register. If foo() returned a struct, then the memory for struct would be allocated by the caller, main() in the earlier example. XR is a pointer to the memory allocated by the caller for returning the struct.</p>
+</blockquote>
+
+<p>So... our pointer is <em>not</em> passed in hidden, implicit first argument, but somewhere else: in regiser <code>XR</code>, a.k.a <code>x8</code>.</p>
+
+<p>Due to a bug on our side(<code>cg_gcc</code>), we are <em>always</em> expecting the indirect return pointer to be in the first argument(<code>x0</code>).</p>
+
+<p>LLVM places the data for our function as follows: <code>x0</code> - <code>bridge</code> <code>x8</code> - <code>return value pointer</code> Our code expects the data laid out as follows: <code>x0</code> - <code>return value pointer</code> <code>x1</code> - <code>bridge</code></p>
+
+<p>So, instead of reading the <code>BufferConfig</code>, we read an uninitialized buffer we are <em>supposed</em> to write data into.</p>
+
+<h2 id='not_a_gcc_bug'>Not a GCC bug</h2>
+
+<p>Here, I want to clearly state this: this is not a <code>GCC</code> bug, this is &quot;our GCC-based Rust compiler backend&quot; bug. <strong>We</strong> screw this up.</p>
+
+<p>The fundamentall problem here is as follows:</p>
+
+<ol type="1">
+<li>LLVM gives you low-level ABI building blocks: <code>sret</code> parameters, things like that. So, Rust exploits this low-level access heavily.</li>
+
+<li>GCC <em>does not</em> give you low-level ABI access: ABI is not really something you ought to worry about. You provide it with a signature, and a few attributes - and voilà! You got yourself an ABI. This has huge advantages for portability: frontends need not to worry about any low-level details, which allows them to support a wide range of platforms with ease.</li>
+</ol>
+
+<p>Those 2 approaches clash, and clash badly. You see... on the Rust side, the ABI is <em>also</em> out of our control.</p>
+
+<p><code>cg_ssa</code> is the part of the compiler responsible for this, and it is shared between <code>cg_gcc</code>, <code>cg_llvm</code>, and a few others.</p>
+
+<p><code>cg_ssa</code> inserts this hidden first parameter, and tells us:</p>
+
+<blockquote>
+<p>Please place this in the right register for this platform. Thanks &lt;3.</p>
+</blockquote>
+
+<p>Except... we really, really can't. GCC needs some more high-level detail, and we can't really tell it: please place this arg here. That is just now how this works.</p>
+
+<p>GCC does not want any of our &quot;inserting first arg&quot; BS. It just wants to be told: this function returns a struct of this type. That is all the info it needs.</p>
+
+<p>But... <code>cg_ssa</code> expects this function to return the way it wants. So, it will do things like this:</p>
+
+<pre><code class="language-c">// Write to arg0(our return pointer)
+(*arg0) = return_val;
+// Void return - this function returns indirectly :)
+return;</code></pre>
+
+<p>Really, the proper solution to this problem is to change <code>cg_ssa</code> - but that is not easy, but not for the reason you'd think.</p>
+
+<h1 id='upstream_patches'>Upstream patches</h1>
+
+<p>Really, most if not all patches I mentioned can be done in a couple of hours, tops. Sure, the Rust compiler is poorly documented, but the changes we require are simple enough.</p>
+
+<p>With a couple of hints from the Rust devs, I got the required patch ready in less than a day. I tested it with LLVM, and - everything works, hooray!</p>
+
+<p>Now, it is time to test it with GCC, and...</p>
+
+<pre><code class="language-text">thread 'rustc' panicked at /home/gh-FractalFir/rust/compiler/rustc_codegen_ssa/src/mir/rvalue.rs:1039:5:
+assertion `left == right` failed
+  left: __uint8_t
+ right: __int8_t
+stack backtrace:</code></pre>
+
+<p>Great. I broke something completely unrelated, and I don't know how.</p>
+
+<p>After a couple of hours of wrangling with this, I decided to run the test on the <em>previous</em> commit, and...</p>
+
+<pre><code class="language-text">thread 'rustc' panicked at /home/gh-FractalFir/rust/compiler/rustc_codegen_ssa/src/mir/rvalue.rs:1039:5:
+assertion `left == right` failed
+  left: __uint8_t
+ right: __int8_t
+stack backtrace:</code></pre>
+
+<p>Yeah. I did not break things.</p>
+
+<h2 id='who_needs_tests?'>Who needs tests?</h2>
+
+<p>For reasons a little outside this article, the <code>cg_gcc</code> tests are simply not run on any Rust compiler patches.</p>
+
+<p>You can imagine why this is a less than ideal setup.</p>
+
+<p>We fix all the issues that crop up every couple of weeks, but... things get broken shortly thereafter.</p>
+
+<p><em>Our</em> repo(TODO: link here) is well-tested, tough.</p>
+
+<p>You can imagine why this is a <em>nightmare</em> for any patches. You are either:</p>
+
+<ol type="1">
+<li>Flying blind, not running tests too(they are broken), and praying things work out</li>
+
+<li>Basing your patch on an up to 2-weeks old commit</li>
+
+<li>Rushing after each sync, to make your changes before something else gets broken.</li>
+</ol>
+
+<p>Thankfully, things are changing in this matter. Some of the blockers for running tests got resolved, and a MCP was accepted, meaning those tests will start being run soon.</p>
+
+<p>Still, my patch is now in limbo. What can you do - such is life.</p>
+
+<h1 id='abi_bugs_on_future_platforms.'>ABI bugs on future platforms.</h1>
+
+<p>Besides the ABI bugs on the platforms we <em>currently</em> support, there is also the problem of ABI bugs on platforms we <em>will</em> support.</p>
+
+<p>Right now, I am working(TODO: link here) on improving support for GCC-only(no LLVM support) platforms, like DEC-Alpha, or SuperH(SH).</p>
+
+<p>Part of that process involves adding support to the ABIs of those platforms in the Rust compiler.</p>
+
+<p>Now, even in cases where the ABI is well documented, we have <a href='https://faultlore.com/blah/c-isnt-a-language/'>had cases of ABI bugs.</a></p>
+
+<p>With ABI tests, we could double-check our work, reducing the risk of such bugs.</p>
+
+<h1 id='wrapping_things_up.'>Wrapping things up.</h1>
+
+<p>I hope you enjoyed this article - even tough it is on the longer side.</p>
+
+<p>Tests don't tend to be the most glamorous of things to talk about, but, as I hopefully shown, they are even more important when it comes to compilers.</p>
+
+<p>In the next article, I will talk about memory leaks in <code>rustc_codegen_gcc</code>, and how I fixed them.</p>
+
+<p>I will also talk about the terrible way <code>&amp;str</code> matches work, and why they crashed GCC(and slowed LLVM to a crawl).</p>
+
+<p>If you want to check out <code>rustc_codegen_gcc</code>, here is it's repo(TODO: link).</p>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"
