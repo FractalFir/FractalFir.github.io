@@ -1,8 +1,8 @@
 <metadata>
-title = "Building the Rust compiler with GCC - stack overflows, memory leaks."
+title = "Testing the GCC-based Rust compiler(backend)"
 id = "cg_gcc_bootstrap_2"
-category = "hidden"
-date = "11 Jul 2025"
+category = "cg_gcc"
+date = "28 Jul 2025"
 </metadata>
 <markdown>
 
@@ -609,7 +609,7 @@ Thankfully, there are ways around this.
 
 ## Poor man's goto
 
-Gotos going back can be replaced with... labeled loops. 
+Goto's going back can be replaced with... labeled loops. 
 
 ```rust
 'bb1: loop {
@@ -643,8 +643,12 @@ So, there are perfectly sound things that you can't do in safe Rust, that I need
 
 Now, most of those things were *useless*, but they nonthelles tested parts of the actual language.
 
-```
-// TODO: neat sample here
+```rust
+// This:
+_16 = core::ptr::addr_of!((*_16));
+// Is just the long way of doing this:
+_16 = _16;
+// Which is... a NOP.
 ```
 
 At this point, I was usually left with a couple of hundreds of lines of safe Rust. And here, I could let `creduce` shine. 
@@ -857,7 +861,7 @@ We can't live forever in our little Rust bubble. Sometimes... you just have to t
 
 Now, on Linux, we could just do raw syscalls(talk directly to the OS) - that interface is rock-solid. 
 
-On Windows, however, you **HAVE** to use C libraries to talk to the OS. Peroid. 
+On Windows, however, you **HAVE** to use C libraries to talk to the OS. Period. 
 
 Syscall numbers are not stable at all. They can(and do!) change at any point - even with a version bump. 
 
@@ -873,7 +877,7 @@ This means that we **need** to talk to C, and implement the C abi *correctly*. O
 
 So... how can we check that our implementation of *any* ABI is correct? 
 
-I mean... we *could* read the ABI spec(TODO: link here), read the Rust ABI handling code, and the assembly we generate - checking that all of that is correct. 
+I mean... we *could* read [the ABI spec](https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf), read the Rust ABI handling code, and the assembly we generate - checking that all of that is correct. 
 
 That is, however, boring. And not very idiot-proof - which is important, since I am an idiot. 
 
@@ -885,7 +889,7 @@ Good news - there is a tool for that!
 
 ## The ABI cafe. 
 
-ABI-cafe(TODO: repo link here) can automatically generate ABI tests in Rust, and in C. Given a set of compilers, it will create a set of tests where each those compilers will attempt to call each other.  
+[ABI-cafe](https://github.com/Gankra/abi-cafe) can automatically generate ABI tests in Rust, and in C. Given a set of compilers, it will create a set of tests where each those compilers will attempt to call each other.  
 
 ```rust
 // Compiled by Alice
@@ -954,7 +958,7 @@ But... hang on a minute - at that point, I haven't yet build a Rust compiler usi
 
 GDB seems to think so(saying that those functions come from `librustc-driver.so`) - but that does not make much sense. LLVM is *known* to work on this platform. It is extensively tested here. 
 
-I am running this code on the Rust remote desktops(TODO: link here) - where a whole lot of Rust compiler devs work on `rustc` each day. How would nobody notice this?
+I am running this code on the Rust [remote desktops](https://forge.rust-lang.org/infra/docs/dev-desktop.html) - where a whole lot of Rust compiler devs work on `rustc` each day. How would nobody notice this?
 
 Seems suspicious. 
 
@@ -962,7 +966,7 @@ We are crashing when interacting with a `proc-macro` - maybe that is related?
 
 ## Proc-macros, IPC, and reality
 
-Now, at first I have *tought* that crashing the compiler with a `proc-macro` would be impossible. I *vaguely* remembered the proc-macro RFC(TODO: link here) saying *something* about using IPC, and spawning an isolated, sandboxed thread.
+Now, at first I have *thought* that crashing the compiler with a `proc-macro` would be impossible. I *vaguely* remembered the [proc-macro RFC](https://rust-lang.github.io/rfcs/1566-proc-macros.html) saying *something* about using IPC, and spawning an isolated, sandboxed thread.
 
 In such a case, causing a compiler crash ought to be impossible - even if the shared library(`.so`, or `.dll`) was broken. At worst, we should fail some parse check, and just... not continue on.
 
@@ -1003,14 +1007,14 @@ You see, while the Rust compiler I used was indeed compiled with *LLVM*, the pro
 
 The proc-macro boundary looks something like this:
 ```rust
-extern "C" fn proc_macro(brigde:BufferConfig)->Buffer;
+extern "C" fn proc_macro(bridge:BufferConfig)->Buffer;
 ```
 
 Now - both of those types have a stable, known layout. Still, somehow, GCC-compiled code would receive a garbage `BufferConfig`, detect that and crash. Odd.
 
 And the issue only occurs on *Arm64* CPUs. Not on `x86_64`.
 
-This may surprise you, but the reason we recive invalid arguments on ARM is related to... the way we return structs from functions.
+This may surprise you, but the reason we receive invalid arguments on ARM is related to... the way we return structs from functions.
 
 ### x86_64
 
@@ -1020,11 +1024,11 @@ What does that mean? Well, we don't have enough registers to cram that structure
 
 On x86_64(and most other architectures), this signature:
 ```rust
-extern "C" fn proc_macro(brigde:BufferConfig)->Buffer;
+extern "C" fn proc_macro(bridge:BufferConfig)->Buffer;
 ```
 Gets turned into something like this:
 ```rust
-extern "C" fn proc_macro(out: *mut Buffer, brigde:BufferConfig);
+extern "C" fn proc_macro(out: *mut Buffer, bridge:BufferConfig);
 ```
 So, we receive a pointer to a stack-allocated buffer, into which we ought to write our return value. 
 
@@ -1038,7 +1042,7 @@ On ARM, structs are returned in a *similar* way, with one key difference. As per
 
 > XR - This is an indirect result register. If foo() returned a struct, then the memory for struct would be allocated by the caller, main() in the earlier example. XR is a pointer to the memory allocated by the caller for returning the struct.
 
-So... our pointer is *not* passed in hidden, implicit first argument, but somewhere else: in regiser `XR`, a.k.a `x8`.
+So... our pointer is *not* passed in hidden, implicit first argument, but somewhere else: in register `XR`, a.k.a `x8`.
 
 Due to a bug on our side(`cg_gcc`), we are *always* expecting the indirect return pointer to be in the first argument(`x0`).
 
@@ -1055,7 +1059,7 @@ So, instead of reading the `BufferConfig`, we read an uninitialized buffer we ar
 
 Here, I want to clearly state this: this is not a `GCC` bug, this is "our GCC-based Rust compiler backend" bug. **We** screw this up.
 
-The fundamentall problem here is as follows:
+The fundamental problem here is as follows:
 1. LLVM gives you low-level ABI building blocks: `sret` parameters, things like that. So, Rust exploits this low-level access heavily. 
 2. GCC *does not* give you low-level ABI access: ABI is not really something you ought to worry about. You provide it with a signature, and a few attributes - and voilà! You got yourself an ABI. This has huge advantages for portability: frontends need not to worry about any low-level details, which allows them to support a wide range of platforms with ease.
 
@@ -1068,7 +1072,7 @@ Those 2 approaches clash, and clash badly. You see... on the Rust side, the ABI 
 
 > Please place this in the right register for this platform. Thanks <3. 
 
-Except... we really, really can't. GCC needs some more high-level detail, and we can't really tell it: please place this arg here. That is just now how this works.
+Except... we really, really can't. GCC needs some more high-level detail, and we can't really tell it: please place this arg here. That is just not how this works.
 
 GCC does not want any of our "inserting first arg" BS. It just wants to be told: this function returns a struct of this type. That is all the info it needs. 
 
@@ -1120,7 +1124,7 @@ You can imagine why this is a less than ideal setup.
 
 We fix all the issues that crop up every couple of weeks, but... things get broken shortly thereafter. 
 
-*Our* repo(TODO: link here) is well-tested, tough. 
+[*Our* repo](https://forge.rust-lang.org/infra/docs/dev-desktop.html) is well-tested, tough. 
 
 You can imagine why this is a *nightmare* for any patches. You are either:
 1. Flying blind, not running tests too(they are broken), and praying things work out
@@ -1131,11 +1135,51 @@ Thankfully, things are changing in this matter. Some of the blockers for running
 
 Still, my patch is now in limbo. What can you do - such is life. 
 
+As a bit of a consolation, I at least[ finished the GCC-side of our ABI changes](https://github.com/rust-lang/gcc/commit/df5343150b1791e38762da56b5647dbe0b080174).
+
+Why did we need to change anything on the C side? Glad you asked :). 
+
+Sometimes, the C and Rust ABI disagree on how a struct should be passed(via registers vs indirectly). 
+```rust
+// Sample show to me by Bjorn3
+
+#[repr(C)]
+struct Foo {
+    a: u128,
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn c_func() -> Foo {
+    Foo { a: 1 }
+}
+
+#[unsafe(no_mangle)]
+extern "Rust" fn rust_func() -> Foo {
+    Foo { a: 1 }
+}
+```
+```arm
+; ARM assembly
+c_func:
+        mov     w0, #1
+        mov     x1, xzr
+        ret
+
+rust_func:
+        mov     w9, #1
+        stp     x9, xzr, [x8]
+        ret
+```
+
+In such cases, we need to ask GCC to pass the struct indirectly, even when it things that is not neccesarry.
+
+Thankfully, that is kind of easy. We just need to set a special flag on the type we pass(`TREE_ADDRESSABLE`).
+
 # ABI bugs on future platforms. 
 
 Besides the ABI bugs on the platforms we *currently* support, there is also the problem of ABI bugs on platforms we *will* support. 
 
-Right now, I am working(TODO: link here) on improving support for GCC-only(no LLVM support) platforms, like DEC-Alpha, or SuperH(SH).
+Right now, [I am working](https://github.com/rust-lang/rustc_codegen_gcc/issues/49) on improving support for GCC-only(no LLVM support) platforms, like [DEC-Alpha](https://github.com/rust-lang/rustc_codegen_gcc/issues/742), or SuperH(SH).
 
 Part of that process involves adding support to the ABIs of those platforms in the Rust compiler. 
 
@@ -1143,6 +1187,52 @@ Now, even in cases where the ABI is well documented, we have [had cases of ABI b
 
 With ABI tests, we could double-check our work, reducing the risk of such bugs.
 
+# Motorola 6800
+
+You might be a bit surprised to learn that I have *also* been working on improving our support for Motorola 6800 processors. 
+
+They are now supported by LLVM, so you might think using GCC to compile for this platform is kind of pointless. 
+
+Well, I am working on building the *rust compiler* for this platform. The LLVM support is still a bit spotty, from what I have heard.
+
+GCC is much more complete in that regard. 
+
+And I can now proudly announce that I am the first person to run the rust compiler on m68k processors!
+
+I had to work around a few issues along the way: quite a few necessary crates don't support m68k yet. This is something you can help, by... just adding the needed support for those crates.
+
+Here is the [issue with more detail](https://github.com/rust-lang/rustc_codegen_gcc/issues/744). 
+
+Now, I want to clarify that the Rust compiler built for m68k is still not all that functional. 
+
+I can get it to run some basic things(eg. printing compiler version, some other checks), but proper compilation requires us to build tarballs with the compiler + all the tools in them.
+
+```sh
+➜  m68k sudo chroot ~/m68k/vm2 qemu-m68k-static ~/release/rustc-main ~/hello-world.rs
+error: failed to find a `codegen-backends` folder in the sysroot candidates:
+       * /usr
+
+fatal runtime error: failed to initiate panic, error 3386902200, aborting
+```
+
+Just copying files about is not really the right way to do things. 
+
+Sadly, it seems like I am hitting some edge case in the Rust compiler build system. 
+
+When tying to build some additional tools(things like `cargo`), the bootstrap script(rust compiler build tool) seems to "forget" where some libraries are. 
+
+```
+error[E0463]: can't find crate for `std`
+  |
+  = note: the `m68k-unknown-linux-gnu` target may not be installed
+  = help: consider adding the standard library to the sysroot with `x build library --target m68k-unknown-linux-gnu`
+  = help: consider building the standard library from source with `cargo build -Zbuild-std`
+
+```
+
+The `std` crate(Rust standard library) is also obviously a dependency of the compiler, so I know it built just fine. So, it is probably just the case of needing some patches to that build system. 
+
+Still, this aborts the build process, and stops us from obtaining installable tarballs. Ugh. 
 
 # Wrapping things up.
 
@@ -1154,5 +1244,12 @@ In the next article, I will talk about memory leaks in `rustc_codegen_gcc`, and 
 
 I will also talk about the terrible way `&str` matches work, and why they crashed GCC(and slowed LLVM to a crawl). 
 
-If you want to check out `rustc_codegen_gcc`, here is it's repo(TODO: link). 
+If you want to check out `rustc_codegen_gcc`, here is [it's repo](https://github.com/rust-lang/rustc_codegen_gcc)
+
+Oh, and since this project is part of GSoC, you can see my [daily updates here](https://rust-lang.zulipchat.com/#narrow/channel/421156-gsoc/topic/Project.3A.20Bootstrap.20of.20rustc.20with.20rustc_codegen_gcc).
+
+I would also like to thank all the Rust developers who helped me with my work. Really, a few good answers here and there saved me weeks of going down the wrong path. 
+
+So, thanks for that :D!
+
 </markdown>
