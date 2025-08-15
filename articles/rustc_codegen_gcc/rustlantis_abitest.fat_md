@@ -1141,7 +1141,7 @@ Why did we need to change anything on the C side? Glad you asked :).
 
 Sometimes, the C and Rust ABI disagree on how a struct should be passed(via registers vs indirectly). 
 ```rust
-// Sample show to me by Bjorn3
+// Sample shown to me by Bjorn3
 
 #[repr(C)]
 struct Foo {
@@ -1187,9 +1187,9 @@ Now, even in cases where the ABI is well documented, we have [had cases of ABI b
 
 With ABI tests, we could double-check our work, reducing the risk of such bugs.
 
-# Motorola 6800
+# Motorola 68000
 
-You might be a bit surprised to learn that I have *also* been working on improving our support for Motorola 6800 processors. 
+You might be a bit surprised to learn that I have *also* been working on improving our support for Motorola 68000 processors. 
 
 They are now supported by LLVM, so you might think using GCC to compile for this platform is kind of pointless. 
 

@@ -1,0 +1,94 @@
+<metadata>
+title = "GSOC 2025 Work product"
+id = "gsoc_2025_wp"
+category = "hidden"
+date = "18 Aug 2025"
+</metadata>
+<markdown>
+# About the project 
+
+`rustc_codegen_gcc` is alternative Rust *compiler backend*(compiler plugin), allowing users to compile Rust code using GCC instead of LLVM. 
+
+During my GSoC work, I greatly improved the ability of `rustc_codegen_gcc`(`cg_gcc` for short) to compile Rust code, fixing numerous bugs. 
+
+This allowed me to achieve the end goal of my proposal: building("bootstraping") the entire Rust compiler using this new backend.
+
+My work also involved huge improvements to the `cg_gcc` testing infrastructure, allowing for automated fuzzing, and ABI compatibility tests.
+
+# My work
+
+## Compilation bugs
+
+A substantial amount of my work involved finding & fixing compiler bugs.
+
+Miscompilations(cases where the compiler emits incorrect machine code) are especially hard to find. They are usually triggered by very obscure edge cases.
+
+One of the bugs I discovered was caused by using structs containing the `u128` & `i128` types together with the packed attribute.
+
+This bug prevented us from bootstraping the Rust compiler with optimizations enabled. 
+
+```rust
+#[repr(packed(1))]
+struct Buggy{
+	a:u128,
+	b:u8,
+}
+```
+
+Those types(and only those types!) would cause the optimized code to segfault. Other types with such aligement(eg. `f128`), and other primitves(`u64`), would work just fine. 
+
+The underlying cause of this bug turned out to be... a broken workaround for a *different* bug. Finding this issue required days of work - but only a 1 line fix. 
+
+I have found many bugs exactly like this - small, hard to trigger, but with earth shattering impact. Fixing them was a necessary precondition for bootstraping `rustc` with `cg_gcc`.\
+
+However, that raised an important point: we need better testing tools.
+
+## Better ways to find such bugs 
+
+The Rust ecosystem contains a wide variety of tools for testing and fuzzing the compiler. On such tool is `rustlantis`. 
+This tool generates random(but well-defined) Rust programs, allowing us to compare the result of compilation with LLVM and GCC. 
+
+This is an excellent way of finding bugs: it gives us concreate, UB-free programs, which demonstrate the bug in question.
+
+The generated programs, however, tend to be fairly large(10k+ LOC!), and require reduction. 
+
+During GSoC, I integrated `rustlantis` into the `cg_gcc` test suite, allowing for automatic fuzzing - and reduction of test cases.
+
+Thanks to my work, `cg_gcc` can now automatically fuzz itself, leaving a set of reduced(~1K Loc) samples for the contributors to look over. 
+
+This allows us to leave the the fuzzer running overnight, and go back to a set of reduced error cases. 
+
+We can then look over those, and figure out what compiler bugs they trigger. This approach allowed me to find a GCC bug - a case where the code gets incorrectly optimized. 
+
+```c
+#include <stdbool.h>
+#include <stdio.h>
+bool womky(void) {
+  float val = 3.40e+38;
+  float a = val * -(val * val);
+  float b = val * a;
+  return b * b > 0.0;
+}
+int main(void) { printf("%d", womky()); }
+```
+
+This function will print `1` without optimization, and `0` with optimizations enabled. 
+
+We can see that GCC get's confused here, and thinks that the value of `b` can only be NaN:
+```
+Global Exported: a_4 = [frange] float [+Inf, +Inf] +-NAN
+Global Exported: b_5 = [frange] float [] +-NAN
+Global Exported: _3 = [frange] float [] +-NAN
+```
+This shows the beneifts of testing the GCC Rust compiler backend: it allows us to uncover bugs *both* in the Rust compiler, and in tools like `GCC`.
+
+## ABI tests
+
+When trying to bootstrap `rustc` on ARM, I encountered a crash in the proc-macro system. This crash was caused by an ABI bug, that only occured on ARM. 
+
+This motivated me to integrate the `abi-cafe` ABI tester into our test suite, allowing us to find ABI bugs, and track ABI regressions.
+
+## DEC Alpha & m68K support
+
+
+</markdown>

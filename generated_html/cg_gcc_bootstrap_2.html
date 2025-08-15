@@ -1165,7 +1165,7 @@ stack backtrace:</code></pre>
 
 <p>Sometimes, the C and Rust ABI disagree on how a struct should be passed(via registers vs indirectly).</p>
 
-<pre><code class="language-rust">// Sample show to me by Bjorn3
+<pre><code class="language-rust">// Sample shown to me by Bjorn3
 
 #[repr(C)]
 struct Foo {
@@ -1209,9 +1209,9 @@ rust_func:
 
 <p>With ABI tests, we could double-check our work, reducing the risk of such bugs.</p>
 
-<h1 id='motorola_6800'>Motorola 6800</h1>
+<h1 id='motorola_68000'>Motorola 68000</h1>
 
-<p>You might be a bit surprised to learn that I have <em>also</em> been working on improving our support for Motorola 6800 processors.</p>
+<p>You might be a bit surprised to learn that I have <em>also</em> been working on improving our support for Motorola 68000 processors.</p>
 
 <p>They are now supported by LLVM, so you might think using GCC to compile for this platform is kind of pointless.</p>
 

@@ -1,0 +1,22 @@
+<metadata>
+title = "Adding Rust for Dec Alpha & Friends"
+id = "cg_gcc_bootstrap_4"
+category = "cg_gcc"
+date = "28 Jul 2025"
+</metadata>
+<markdown>
+
+As part of GSoC, I am working on improving Rust support for obscure architectures, such as DEC Alpha, m68k, or SuperH.
+
+In this article, I will document that process. I will go over all the steps required to compile Rust code for DEC Alpha using GCC. Compiler changes, library support, building GCC from source, and so on. 
+
+Hopefully, this helps other people add Rust support for GCC-only architectures in the future. 
+
+So, if you like hearing about weird architectures, join me on this ride :).
+
+# Getting a cross-compiler
+
+`rustc_codegen_gcc` is a Rust compiler backend(plugin) allowing us to use GCC to compile Rust code. Internally, it uses a library called `libgccjit` to comunictate with GCC.
+
+
+</markdown>
