@@ -90,5 +90,36 @@ This motivated me to integrate the `abi-cafe` ABI tester into our test suite, al
 
 ## DEC Alpha & m68K support
 
+After successfully building the Rust compiler on x86_64, I started working on building it on other platform. 
+
+I improved DEC Alpha support in a few crates, and fixed some m68k specifc bugs in the Rust compler. Sadly, Dec ALPHA support could not get merged due to rules in the Rust project about target support. 
+
+# Work left to do
+
+## Bugs
+During my work, I have discovered a signifcant amount of bugs, some of which I have not been able to fix. 
+
+Here is a list of them
+## M68k support
+While my patches improved m68k support, there are still some things left to do.
+TODO: fill this in
+M68K Linux has some odd ABI requirements: it aligns 32 bit intigers(and pointers) to 2 bytes. It remains unclear if this is something the Rust spec allows for. 
+
+# What code did and did not get merged
+
+The vast majority of my patches got merged upstream, however, some things either could not be merged(DEC Alpha support) or did not get merged in time(ABI refactor of `cg_ssa`). 
+
+# Technical challenges
+
+The single biggest challenge in my work was the very limited and hard to use `libgccjit` API(the API we use to talk to GCC). 
+
+Due to some technical choices(so called "jit recording"), `libgccjit` is very memory hungry, and does not free memory until compilation ends. 
+This is highly detrimental to good developer experiences. 
+
+The poor documentation of the Rust compiler was also a huge roadblock. The APIs are often hard to comprehend, have poor / or no documentation, making work considerably more difficult than it ought to be. 
+
+All the `BuilderMethods` are based on components of LLVM. However, [none of them are documented on the Rust side](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_codegen_ssa/traits/builder/trait.BuilderMethods.html#tymethod.catch_pad).
+
+This means that the *assumptions `rustc` makes* about those APIs are undocumented.
 
 </markdown>

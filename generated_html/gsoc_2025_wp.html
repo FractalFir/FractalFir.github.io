@@ -77,7 +77,7 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
             <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
-        </nav></div><div class = "article_header"><h1 class="title">GSOC 2025 Work product</h1><br><small><div class = "article_metadata">Published on 32 Feb 404 BC<br><i>1 - 3 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='about_the_project'>About the project</h1>
+        </nav></div><div class = "article_header"><h1 class="title">GSOC 2025 Work product</h1><br><small><div class = "article_metadata">Published on 32 Feb 404 BC<br><i>2 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='about_the_project'>About the project</h1>
 
 <p><code>rustc_codegen_gcc</code> is alternative Rust <em>compiler backend</em>(compiler plugin), allowing users to compile Rust code using GCC instead of LLVM.</p>
 
@@ -156,6 +156,38 @@ Global Exported: _3 = [frange] float [] +-NAN</code></pre>
 <p>This motivated me to integrate the <code>abi-cafe</code> ABI tester into our test suite, allowing us to find ABI bugs, and track ABI regressions.</p>
 
 <h2 id='dec_alpha_&_m68k_support'>DEC Alpha &amp; m68K support</h2>
+
+<p>After successfully building the Rust compiler on x86_64, I started working on building it on other platform.</p>
+
+<p>I improved DEC Alpha support in a few crates, and fixed some m68k specifc bugs in the Rust compler. Sadly, Dec ALPHA support could not get merged due to rules in the Rust project about target support.</p>
+
+<h1 id='work_left_to_do'>Work left to do</h1>
+
+<h2 id='bugs'>Bugs</h2>
+
+<p>During my work, I have discovered a signifcant amount of bugs, some of which I have not been able to fix.</p>
+
+<p>Here is a list of them</p>
+
+<h2 id='m68k_support'>M68k support</h2>
+
+<p>While my patches improved m68k support, there are still some things left to do. TODO: fill this in M68K Linux has some odd ABI requirements: it aligns 32 bit intigers(and pointers) to 2 bytes. It remains unclear if this is something the Rust spec allows for.</p>
+
+<h1 id='what_code_did_and_did_not_get_merged'>What code did and did not get merged</h1>
+
+<p>The vast majority of my patches got merged upstream, however, some things either could not be merged(DEC Alpha support) or did not get merged in time(ABI refactor of <code>cg_ssa</code>).</p>
+
+<h1 id='technical_challenges'>Technical challenges</h1>
+
+<p>The single biggest challenge in my work was the very limited and hard to use <code>libgccjit</code> API(the API we use to talk to GCC).</p>
+
+<p>Due to some technical choices(so called &quot;jit recording&quot;), <code>libgccjit</code> is very memory hungry, and does not free memory until compilation ends. This is highly detrimental to good developer experiences.</p>
+
+<p>The poor documentation of the Rust compiler was also a huge roadblock. The APIs are often hard to comprehend, have poor / or no documentation, making work considerably more difficult than it ought to be.</p>
+
+<p>All the <code>BuilderMethods</code> are based on components of LLVM. However, <a href='https://doc.rust-lang.org/nightly/nightly-rustc/rustc_codegen_ssa/traits/builder/trait.BuilderMethods.html#tymethod.catch_pad'>none of them are documented on the Rust side</a>.</p>
+
+<p>This means that the <em>assumptions <code>rustc</code> makes</em> about those APIs are undocumented.</p>
 </div><script src="https://giscus.app/client.js"
         data-repo="FractalFir/FractalFir.github.io"
         data-repo-id="R_kgDOJ_iWYA"
