@@ -77,13 +77,13 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
             <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
-        </nav></div><div class = "article_header"><h1 class="title">GSOC 2025 Work product</h1><br><small><div class = "article_metadata">Published on 32 Feb 404 BC<br><i>2 - 5 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='about_the_project'>About the project</h1>
+        </nav></div><div class = "article_header"><h1 class="title">GSOC 2025 Work product</h1><br><small><div class = "article_metadata">Published on 24 Aug 2025<br><i>3 - 6 minute read</i></div></small></div><div class="article"><div class = "paragraph"><h1 id='about_the_project'>About the project</h1>
 
 <p><code>rustc_codegen_gcc</code> is alternative Rust <em>compiler backend</em>(compiler plugin), allowing users to compile Rust code using GCC instead of LLVM.</p>
 
 <p>During my GSoC work, I greatly improved the ability of <code>rustc_codegen_gcc</code>(<code>cg_gcc</code> for short) to compile Rust code, fixing numerous bugs.</p>
 
-<p>This allowed me to achieve the end goal of my proposal: building(&quot;bootstraping&quot;) the entire Rust compiler using this new backend.</p>
+<p>This allowed me to achieve the end goal of my proposal: building(&quot;bootstrapping&quot;) the entire Rust compiler using this new backend.</p>
 
 <p>My work also involved huge improvements to the <code>cg_gcc</code> testing infrastructure, allowing for automated fuzzing, and ABI compatibility tests.</p>
 
@@ -93,11 +93,13 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <p>A substantial amount of my work involved finding &amp; fixing compiler bugs.</p>
 
+<p>I will briefly outline them here, but I have <a href='FractalFir.github.io/generated_html/cg_gcc_bootstrap.html'>written up a larger article</a>, discussing them in detail.</p>
+
 <p>Miscompilations(cases where the compiler emits incorrect machine code) are especially hard to find. They are usually triggered by very obscure edge cases.</p>
 
 <p>One of the bugs I discovered was caused by using structs containing the <code>u128</code> &amp; <code>i128</code> types together with the packed attribute.</p>
 
-<p>This bug prevented us from bootstraping the Rust compiler with optimizations enabled.</p>
+<p>This bug prevented us from bootstrapping the Rust compiler with optimizations enabled.</p>
 
 <pre><code class="language-rust">#[repr(packed(1))]
 struct Buggy{
@@ -105,11 +107,11 @@ struct Buggy{
 	b:u8,
 }</code></pre>
 
-<p>Those types(and only those types!) would cause the optimized code to segfault. Other types with such aligement(eg. <code>f128</code>), and other primitves(<code>u64</code>), would work just fine.</p>
+<p>Those types(and only those types!) would cause the optimized code to segfault. Other types with such aligement(eg. <code>f128</code>), and other primitives(<code>u64</code>), would work just fine.</p>
 
 <p>The underlying cause of this bug turned out to be... a broken workaround for a <em>different</em> bug. Finding this issue required days of work - but only a 1 line fix.</p>
 
-<p>I have found many bugs exactly like this - small, hard to trigger, but with earth shattering impact. Fixing them was a necessary precondition for bootstraping <code>rustc</code> with <code>cg_gcc</code>.\</p>
+<p>I have found many bugs exactly like this - small, hard to trigger, but with earth shattering impact. Fixing them was a necessary precondition for bootstrapping <code>rustc</code> with <code>cg_gcc</code>.</p>
 
 <p>However, that raised an important point: we need better testing tools.</p>
 
@@ -151,7 +153,7 @@ Global Exported: _3 = [frange] float [] +-NAN</code></pre>
 
 <h2 id='abi_tests'>ABI tests</h2>
 
-<p>When trying to bootstrap <code>rustc</code> on ARM, I encountered a crash in the proc-macro system. This crash was caused by an ABI bug, that only occured on ARM.</p>
+<p>When trying to bootstrap <code>rustc</code> on ARM, I encountered a crash in the proc-macro system. This crash was caused by an ABI bug, that only occurred on ARM.</p>
 
 <p>This motivated me to integrate the <code>abi-cafe</code> ABI tester into our test suite, allowing us to find ABI bugs, and track ABI regressions.</p>
 
@@ -159,19 +161,53 @@ Global Exported: _3 = [frange] float [] +-NAN</code></pre>
 
 <p>After successfully building the Rust compiler on x86_64, I started working on building it on other platform.</p>
 
-<p>I improved DEC Alpha support in a few crates, and fixed some m68k specifc bugs in the Rust compler. Sadly, Dec ALPHA support could not get merged due to rules in the Rust project about target support.</p>
+<p>I improved DEC Alpha support in a few crates, and fixed some m68k specific bugs in the Rust compler. Sadly, Dec ALPHA support could not get merged due to rules in the Rust project about target support.</p>
+
+<p>In order for me to merge code supporting DEC Alpha, it needs to be a tier 3 target, which requires a dedicated maintainers.</p>
+
+<p>This is not a burden I am willing or able to partake: I do not posses any DEC Alpha machines.</p>
 
 <h1 id='work_left_to_do'>Work left to do</h1>
 
 <h2 id='bugs'>Bugs</h2>
 
-<p>During my work, I have discovered a signifcant amount of bugs, some of which I have not been able to fix.</p>
+<p>During my work, I have discovered a significant amount of bugs, some of which I have not been able to fix.</p>
 
-<p>Here is a list of them</p>
+<p>Here is a list of them:</p>
+
+<pre><code>github.com/rust-lang/rustc_codegen_gcc/issues/689
+github.com/rust-lang/rustc_codegen_gcc/issues/690
+github.com/rust-lang/rustc_codegen_gcc/issues/691
+github.com/rust-lang/rustc_codegen_gcc/issues/701
+github.com/rust-lang/rustc_codegen_gcc/issues/704
+github.com/rust-lang/rustc_codegen_gcc/issues/711
+github.com/rust-lang/rustc_codegen_gcc/issues/752</code></pre>
+
+<p>The <em>vast majority</em> of the bugs in questions were caused by incorrect optimizations to floating point numbers. Many of those issues may need to be fixed on the GCC side, or may require new GCC flags(to preserve the semantics of Rust).</p>
+
+<p>Fundamentally, the issue is twofold:</p>
+
+<ol type="1">
+<li>Some optimizations are incorrectly applied - this is a GCC bug, and breaks <code>C</code> float semantics.</li>
+
+<li>Some optimizations are <em>valid</em> in <code>C</code>, but are not correct with Rust's more strict semantics.</li>
+</ol>
+
+<p>This, however, means that I can't really fix those bugs myself, at least not within a reasonable time frame. Contributing complex GCC fixes requires a deeper knoweladge of that project, which I frankly do not posses.</p>
 
 <h2 id='m68k_support'>M68k support</h2>
 
-<p>While my patches improved m68k support, there are still some things left to do. TODO: fill this in M68K Linux has some odd ABI requirements: it aligns 32 bit intigers(and pointers) to 2 bytes. It remains unclear if this is something the Rust spec allows for.</p>
+<p>While my patches improved m68k support, there are still some things left to do. The primary issue tracking that work can be found here: https://github.com/rust-lang/rustc<em>codegen</em>gcc/issues/744</p>
+
+<p>It contains detailed descriptions of all the steps required to build the Rust compiler on m68k.</p>
+
+<p>Surprisingly, most of the changes ought to be made in 3-rd party code(support crates). The compiler-side support is more or less done.</p>
+
+<p>Besides a small, albeit important detail.</p>
+
+<p>M68K Linux has some odd ABI requirements: it aligns 32 bit intigers(and pointers) to 2 bytes. It remains unclear if this is something the Rust spec allows for.</p>
+
+<p>The maintainers of distros supporting M68K are working on a move to 4-byte aligned 32 bit numbers, but... that will take time.</p>
 
 <h1 id='what_code_did_and_did_not_get_merged'>What code did and did not get merged</h1>
 
@@ -181,7 +217,24 @@ Global Exported: _3 = [frange] float [] +-NAN</code></pre>
 
 <p>The single biggest challenge in my work was the very limited and hard to use <code>libgccjit</code> API(the API we use to talk to GCC).</p>
 
-<p>Due to some technical choices(so called &quot;jit recording&quot;), <code>libgccjit</code> is very memory hungry, and does not free memory until compilation ends. This is highly detrimental to good developer experiences.</p>
+<p>Due to some technical choices(so called &quot;jit recording&quot;), <code>libgccjit</code> is very memory hungry, and does not free memory until compilation ends.</p>
+
+<p>For example, creating an integer type with a specified aligement(eg. <code>4</code>) will always allocate a new type:</p>
+
+<pre><code>#[test]
+fn usize_eq_usize(){
+    let ctx = Context::default();
+    // Assert fails, cause both calls to `get_aligned` 
+    // return different instances of the gcc_jit_type class. 
+    assert_eq!(
+      ctx.new_type::&lt;usize&gt;().get_aligned(8),
+      ctx.new_type::&lt;usize&gt;().get_aligned(8)
+    );
+}</code></pre>
+
+<p>We can't free this data - it is <em>required</em> for JIT recording.</p>
+
+<p>This is highly detrimental to good developer experiences.</p>
 
 <p>The poor documentation of the Rust compiler was also a huge roadblock. The APIs are often hard to comprehend, have poor / or no documentation, making work considerably more difficult than it ought to be.</p>
 

@@ -2,6 +2,7 @@
 title = "Adding Rust for Dec Alpha & Friends"
 id = "cg_gcc_bootstrap_4"
 category = "cg_gcc"
+category = "hidden"
 date = "28 Jul 2025"
 </metadata>
 <markdown>

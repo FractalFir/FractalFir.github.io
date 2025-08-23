@@ -345,6 +345,7 @@ fn write_rss(out_dir: &Path, articles: &[Article]) -> std::io::Result<()> {
     let mut out_path = PathBuf::from(out_dir);
     let mut rss = format!("<?xml version=\"1.0\" encoding=\"UTF-8\" ?><rss version=\"2.0\">");
     let mut items = String::new();
+  
     for article in articles {
         let title = article.title();
         if article.category() == "hidden" {
@@ -356,20 +357,20 @@ fn write_rss(out_dir: &Path, articles: &[Article]) -> std::io::Result<()> {
             .expect("All articles must have dates!");
         let link = article.link();
         let title = title.replace("&", "and");
-        items.push_str(&format!("<item><title>{title}</title><pubDate>{date}</pubDate><link>https://fractalfir.github.io/generated_html/{link}</link><guid>https://fractalfir.github.io/generated_html/{link}</guid></item>\n"));
+        items.push_str(&format!("\t<item>\n\t\t<title>{title}</title>\n\t\t<pubDate>{date}</pubDate>\n\t\t<link>https://fractalfir.github.io/generated_html/{link}</link>\n\t\t<guid>https://fractalfir.github.io/generated_html/{link}</guid>\n\t</item>\n"));
     }
-    let main_chanel = format!(
+    let main_channel = format!(
         "
 <channel>
     <title>Fractal Fir's blog</title>
     <description>A blog I which I document my coding adventures.</description>
     <link>https://fractalfir.github.io/generated_html/home.html</link>
     <ttl>720</ttl>
-    {items}
+{items}
 </channel>
 "
     );
-    rss.push_str(&main_chanel);
+    rss.push_str(&main_channel);
     rss.push_str(&"</rss>");
     out_path.push("rss");
     out_path.set_extension("xml");
@@ -403,7 +404,8 @@ fn find_categories(articles: &[Article]) -> Box<[(String, Vec<(String, String)>)
 }
 fn main() {
     let args = Args::parse();
-    let articles = collect_articles_from_dir(&args.path).unwrap();
+    let mut articles = collect_articles_from_dir(&args.path).unwrap();
+    articles.sort_by(|a,b|a.metadata.date().cmp(&b.metadata.date()));
     let categories = find_categories(&articles);
     write_articles(Path::new("../generated_html"), &articles).unwrap();
     write_rss(Path::new("../generated_html"), &articles).unwrap();

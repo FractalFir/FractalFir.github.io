@@ -77,7 +77,7 @@ console.log(`Highlight time: ${end - start} ms`);
             <a href="https://www.linkedin.com/in/micha%C5%82-kostrubiec-85a037269/"><img src = "../images/LI-In-Bug2.png" class = "linked_id_link" height = "27.5" alt = "Link to my linkedin account."></a>
             <a href="https://fractalfir.github.io/generated_html/rss.xml"><img src = "https://upload.wikimedia.org/wikipedia/en/4/43/Feed-icon.svg" class = "rss_link" height = "27.5" alt = "Link to my rss feed."></a>
             <a href="https://bsky.app/profile/fractalfir.bsky.social"><img src = "../images/bluesky_media_kit_logo.svg" class = "bluesky_link" height = "27.5" alt = "Link to my bluesky account."></a>
-        </nav></div><div class = "article_header"><h1 class="title">Adding some C++ to your coffee - transpling Java to C++</h1><br><small><div class = "article_metadata">Published on 20 Jul 2023<br><i>5 - 9 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>In this little article, I report from my fascinating journey into the innards of JVM, transpliation, and explore how feasible translating Java to C++ automatically is</p>
+        </nav></div><div class = "article_header"><h1 class="title">Adding some C++ to your coffee - transpling Java to C++</h1><br><small><div class = "article_metadata">Published on 32 Feb 404 BC<br><i>5 - 9 minute read</i></div></small></div><div class="article"><div class = "paragraph"><p>In this little article, I report from my fascinating journey into the innards of JVM, transpliation, and explore how feasible translating Java to C++ automatically is</p>
 
 <h2 id='jvm_is_fascinating'>JVM is fascinating</h2>
 
@@ -209,7 +209,7 @@ console.log(`Highlight time: ${end - start} ms`);
 
 <p><code>managed_from_this</code> - this code snippet seems really weird. What does it actually do? Depending on GC settings, either nothing, or obtains some additionally info about the object. In on default GC settings, <code>ManagedPointer</code> behaves similarly to a rust <code>Arc</code>, with one small exception. It can additionally use Bohem GC to delete objects which are cyclicaly referencing each other.</p>
 
-<p><code>bb0:</code> - jtcpp uses gotos to emulate Java instructions. <code>bb0</code> simply means basic block 0. Separating operations into those basic, isolated blocks is something I do to prevent numerous errors. One such error is skipping an initialisation of a variable. This is not premised in C++, because then a garbage value would be dropped. This could lead to you trying to free some random memory address, which is generally frowned upon.</p>
+<p><code>bb0:</code> - jtcpp uses gotos to emulate Java instructions. <code>bb0</code> simply means basic block 0. Separating operations into those basic, isolated blocks is something I do to prevent numerous errors. One such error is skipping an initialisation of a variable. This is not premited in C++, because then a garbage value would be dropped. This could lead to you trying to free some random memory address, which is generally frowned upon.</p>
 
 <p><code>iwhatever</code> - intermediate variable number <em>whatever</em>. Exist because JVM is stack based, and this represents such value on the stack. In the Rust codegen I use a stack of variable names and types. This makes producing accurate code very easy.</p>
 
