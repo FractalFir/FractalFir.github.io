@@ -355,7 +355,8 @@ fn write_rss(out_dir: &Path, articles: &[Article]) -> std::io::Result<()> {
             .date()
             .expect("All articles must have dates!");
         let link = article.link();
-        items.push_str(&format!("<item><title>{title}</title><pubDate>{date}</pubDate><link>https://fractalfir.github.io/generated_html/{link}</link><guid>https://fractalfir.github.io/generated_html/{link}</guid></item>"));
+        let title = title.replace("&", "and");
+        items.push_str(&format!("<item><title>{title}</title><pubDate>{date}</pubDate><link>https://fractalfir.github.io/generated_html/{link}</link><guid>https://fractalfir.github.io/generated_html/{link}</guid></item>\n"));
     }
     let main_chanel = format!(
         "
